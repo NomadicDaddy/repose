@@ -53,9 +53,10 @@ impl Platform for Windows {
 		start_detached(command, &args, Console::Hidden)
 	}
 
-	/// Windows Terminal opens a pwsh tab in the folder; without it pwsh itself opens there. Both
-	/// get a new console of their own with its handles, because pwsh started with its standard
-	/// input at NUL ignores -NoExit and leaves at once (Morticia M-1 on 85ec3b0).
+	/// Windows Terminal opens a pwsh tab in the folder; without it pwsh itself opens there,
+	/// through `shell_here`, since a console shell started by this windowless process directly
+	/// gets no usable standard input and leaves at once (Morticia M-1 on 85ec3b0; the
+	/// CREATE_NEW_CONSOLE attempt failed the same way under the ignored test).
 	fn open_terminal(&self, command: &str, dir: &Path) -> Result<(), String> {
 		let dir = dir.display().to_string();
 		let via_terminal = [
@@ -66,19 +67,52 @@ impl Platform for Windows {
 		];
 		match start_detached(command, &via_terminal, Console::New) {
 			Ok(()) => Ok(()),
-			Err(_) => start_detached("pwsh", &pwsh_here(dir), Console::New)
-				.map_err(|e| format!("{command} and pwsh: {e}")),
+			Err(_) => shell_here(&dir).map_err(|e| format!("{command} not on PATH, and pwsh: {e}")),
 		}
 	}
 }
 
-fn pwsh_here(dir: String) -> [String; 4] {
-	[
-		"-NoLogo".into(),
-		"-NoExit".into(),
-		"-WorkingDirectory".into(),
-		dir,
-	]
+/// Opens an interactive pwsh in `dir` by asking a hidden, non-interactive pwsh to Start-Process
+/// it: Start-Process goes through the shell (ShellExecute), which gives the new console its own
+/// standard handles whatever this process has. The hidden pwsh is waited for, so a failure to
+/// start the shell is reported with its message rather than lost.
+fn shell_here(dir: &str) -> Result<(), String> {
+	start_shell(dir, &format!("repose: {dir}"))
+}
+
+/// The shell's window is titled, which also lets a test find the one it started and no other.
+fn start_shell(dir: &str, title: &str) -> Result<(), String> {
+	use std::process::Stdio;
+	let quote = |s: &str| s.replace('\'', "''");
+	let script = format!(
+		"Start-Process -FilePath pwsh -WorkingDirectory '{}' -ArgumentList @('-NoLogo','-NoExit','-Command','$Host.UI.RawUI.WindowTitle = ''{}''')",
+		quote(dir),
+		quote(&quote(title))
+	);
+	let mut cmd = Command::new("pwsh");
+	repose_core::git::commands::hide_console(&mut cmd);
+	let out = cmd
+		.args([
+			"-NoProfile",
+			"-NonInteractive",
+			"-WindowStyle",
+			"Hidden",
+			"-Command",
+		])
+		.arg(&script)
+		.stdin(Stdio::null())
+		.output()
+		.map_err(|e| e.to_string())?;
+	if out.status.success() {
+		Ok(())
+	} else {
+		let err = String::from_utf8_lossy(&out.stderr);
+		Err(err
+			.lines()
+			.next()
+			.unwrap_or("Start-Process failed")
+			.to_string())
+	}
 }
 
 /// What console a started program gets: none (an editor, which has its own window), or a new
@@ -197,19 +231,43 @@ mod tests {
 	}
 
 	/// Morticia M-1 on 85ec3b0: pwsh with its standard input at NUL ignores -NoExit and exits at
-	/// once, so the fallback terminal must get a console of its own. Ignored by default because
-	/// it opens a console window on the developer's screen; run with --ignored in a slot and the
-	/// result goes in the external-actions record.
+	/// once, and so did one given CREATE_NEW_CONSOLE by this process (the first version of this
+	/// test proved that). The fallback goes through Start-Process instead; this opens one shell
+	/// in the temp folder, finds it by its command line after three seconds, and closes it.
+	/// Ignored by default because it opens a window; run with --ignored in a slot and the result
+	/// goes in the external-actions record.
 	#[test]
 	#[ignore]
-	fn pwsh_no_exit_stays_open_in_a_new_console() {
+	fn shell_here_opens_a_pwsh_that_stays() {
 		let dir = std::env::temp_dir().display().to_string();
-		let mut child = super::spawn_detached("pwsh", &super::pwsh_here(dir), super::Console::New)
-			.unwrap_or_else(|e| panic!("pwsh did not start: {e}"));
-		std::thread::sleep(std::time::Duration::from_millis(2500));
-		let exited = child.try_wait().unwrap_or_else(|e| panic!("try_wait: {e}"));
-		let _ = child.kill();
-		let _ = child.wait();
-		assert!(exited.is_none(), "pwsh -NoExit left at once: {exited:?}");
+		// The marker is in the shell's own command line, so only the shell this test started is
+		// found and closed; no other pwsh is touched.
+		let marker = format!("repose-shell-test-{}", std::process::id());
+		super::start_shell(&dir, &marker).unwrap_or_else(|e| panic!("start_shell: {e}"));
+		std::thread::sleep(std::time::Duration::from_secs(3));
+		let found = pwsh_processes_whose_command_line_contains(&marker);
+		for pid in &found {
+			let _ = std::process::Command::new("taskkill")
+				.args(["/PID", &pid.to_string(), "/F"])
+				.output();
+		}
+		assert!(
+			!found.is_empty(),
+			"no pwsh titled {marker} was running three seconds after Start-Process"
+		);
+	}
+
+	fn pwsh_processes_whose_command_line_contains(marker: &str) -> Vec<u32> {
+		let list = format!(
+			"(Get-CimInstance Win32_Process -Filter \"Name='pwsh.exe'\" | Where-Object {{ $_.CommandLine -like '*{marker}*' -and $_.ProcessId -ne $PID }} | ForEach-Object ProcessId) -join ' '"
+		);
+		let out = std::process::Command::new("pwsh")
+			.args(["-NoProfile", "-NonInteractive", "-Command", &list])
+			.output()
+			.unwrap_or_else(|e| panic!("pwsh: {e}"));
+		String::from_utf8_lossy(&out.stdout)
+			.split_whitespace()
+			.filter_map(|s| s.parse().ok())
+			.collect()
 	}
 }
