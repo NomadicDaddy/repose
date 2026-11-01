@@ -179,12 +179,16 @@ fn file_block(ui: &mut Ui, src: &Source<'_>, rows: &[Row]) {
 				draw_row(ui, rect, src, row);
 			}
 		});
-	// Published for the UI test refresh_preserves_selection (live-refresh clause 5); with
-	// several files in one diff it names the last block's.
+	// Test builds publish the id for the UI test refresh_preserves_selection (live-refresh
+	// clause 5); with several files in one diff it names the last block's.
+	#[cfg(test)]
 	ui.data_mut(|d| d.insert_temp(scroll_key(), out.id));
+	#[cfg(not(test))]
+	let _ = out;
 }
 
-/// Where the diff pane publishes its rows' scroll area id each frame.
+/// Where the diff pane publishes its rows' scroll area id each frame, in test builds.
+#[cfg(test)]
 pub(crate) fn scroll_key() -> egui::Id {
 	egui::Id::unique("diff-rows-scroll")
 }

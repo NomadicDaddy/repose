@@ -111,7 +111,8 @@ fn clock(t: std::time::SystemTime, offset: Option<i32>) -> String {
 	format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
-/// Where the list publishes its scroll area's id each frame.
+/// Where the list publishes its scroll area's id each frame, in test builds.
+#[cfg(test)]
 pub(crate) fn scroll_key() -> egui::Id {
 	egui::Id::unique("repo-list-scroll")
 }
@@ -179,9 +180,12 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				}
 			}
 		});
-	// The list's scroll state lives in egui memory under this id; it is published so the UI test
-	// refresh_preserves_selection can read the offset back (live-refresh clause 5).
+	// The list's scroll state lives in egui memory under this id; test builds publish it so the UI
+	// test refresh_preserves_selection can read the offset back (live-refresh clause 5).
+	#[cfg(test)]
 	ui.data_mut(|d| d.insert_temp(scroll_key(), rows.id));
+	#[cfg(not(test))]
+	let _ = rows;
 	if let Some(p) = toggled
 		&& !state.expanded.remove(&p)
 	{

@@ -11,7 +11,7 @@ use repose_core::model::{
 	BranchState, ChangeKind, Changes, DiffSource, FileChange, RepoKind, RepoSummary, StatusSummary,
 };
 
-use super::{AppState, DiffContent, DiffState, Msg, OpenDiff};
+use super::{AppState, DiffContent, DiffMsg, DiffState, Msg, OpenDiff};
 use crate::diff_rows::build_rows;
 use crate::platform::Platform;
 use crate::screens::{detail, diff, repo_list};
@@ -105,14 +105,28 @@ fn repo(name: &str, checked_at: SystemTime) -> RepoSummary {
 	r
 }
 
-/// A one-file diff long enough to scroll inside a 400 px window.
-fn long_diff() -> Vec<repose_core::model::FileDiff> {
+/// A one-file diff of `lines` added lines; 200 is long enough to scroll inside a 400 px window.
+fn diff_of(lines: usize) -> Vec<repose_core::model::FileDiff> {
 	let mut text =
-		String::from("diff --git a/x.txt b/x.txt\n--- a/x.txt\n+++ b/x.txt\n@@ -1,0 +1,200 @@\n");
-	for i in 0..200 {
+		format!("diff --git a/x.txt b/x.txt\n--- a/x.txt\n+++ b/x.txt\n@@ -1,0 +1,{lines} @@\n");
+	for i in 0..lines {
 		text.push_str(&format!("+line {i}\n"));
 	}
 	parse_unified(text.as_bytes())
+}
+
+/// What the reader thread sends when a re-read of the open diff lands with different bytes.
+fn landed(generation: u64, lines: usize, raw_hash: u64) -> Msg {
+	let files = diff_of(lines);
+	let rows = vec![build_rows(&files[0], false)];
+	Msg::Diff(DiffMsg {
+		generation,
+		content: DiffContent::Files(files),
+		rows,
+		rows_inline: false,
+		colours: Vec::new(),
+		raw_hash: Some(raw_hash),
+	})
 }
 
 /// live-refresh clause 5: a status that arrives for the selected repository, through the same
@@ -127,7 +141,7 @@ fn refresh_preserves_selection() {
 	let chosen = state.repos[7].path.clone();
 	state.selected = Some(chosen.clone());
 	state.selected_file = Some("x.txt".into());
-	let files = long_diff();
+	let files = diff_of(200);
 	assert_eq!(files.len(), 1, "the fixture parses to one file");
 	let rows = vec![build_rows(&files[0], false)];
 	let open = OpenDiff {
@@ -146,6 +160,8 @@ fn refresh_preserves_selection() {
 		colours: Vec::new(),
 		raw_hash: Some(1),
 	});
+	// The serial behind diff generations, as open_diff_in would have left it for generation 1.
+	state.diff_serial = 1;
 
 	// Lay out, then scroll each pane with the pointer over it. egui animates a wheel scroll over
 	// several frames, so each reading waits for the offsets to settle.
@@ -215,4 +231,60 @@ fn refresh_preserves_selection() {
 		.and_then(|r| r.status.as_ref())
 		.map(|s| s.unstaged);
 	assert_eq!(unstaged, Some(2), "the status was applied");
+
+	// The re-read lands with different bytes (Morticia Low on caf22ba): a longer diff replaces
+	// content, rows and colours, and the view stays where it was.
+	let generation = d.generation;
+	assert!(
+		generation > 1,
+		"the status started a re-read under a new generation"
+	);
+	state
+		.tx
+		.send(landed(generation, 240, 2))
+		.unwrap_or_else(|e| panic!("{e}"));
+	state.pump(&ctx);
+	settle(&ctx, &mut state);
+	let Some(d) = state.diff.as_ref() else {
+		panic!("the diff is still open after the re-read landed");
+	};
+	assert!(
+		matches!(&d.content, DiffContent::Files(f) if f[0].hunks[0].lines.len() == 240),
+		"the longer diff is shown"
+	);
+	assert_eq!(d.raw_hash, Some(2));
+	assert_eq!(
+		offset(&ctx, repo_list::scroll_key()),
+		list_before,
+		"the list scroll after the longer diff"
+	);
+	assert_eq!(
+		offset(&ctx, diff::scroll_key()),
+		diff_before,
+		"the diff scroll after the longer diff"
+	);
+
+	// A shorter diff than the scrolled distance is the one expected exception: egui clamps the
+	// offset to what is left to scroll, and nothing else moves.
+	state
+		.tx
+		.send(landed(generation, 12, 3))
+		.unwrap_or_else(|e| panic!("{e}"));
+	state.pump(&ctx);
+	settle(&ctx, &mut state);
+	let short = offset(&ctx, diff::scroll_key());
+	assert!(
+		short.y < diff_before.y,
+		"a twelve-line diff cannot scroll as far: {short:?} against {diff_before:?}"
+	);
+	assert_eq!(
+		offset(&ctx, repo_list::scroll_key()),
+		list_before,
+		"the list scroll after the shorter diff"
+	);
+	assert_eq!(
+		state.selected,
+		Some(chosen),
+		"the selection after both re-reads"
+	);
 }
