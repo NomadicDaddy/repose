@@ -6,7 +6,7 @@ use std::sync::mpsc::Sender;
 
 use eframe::egui;
 use repose_core::git::diff::{MAX_DIFF_BYTES, blob_size, read_diff};
-use repose_core::model::{DiffSource, FileDiff};
+use repose_core::model::{DiffSource, FileDiff, LineKind};
 
 use super::{AppState, Msg};
 use crate::diff_rows::{Row, build_rows};
@@ -54,14 +54,35 @@ pub struct DiffMsg {
 	pub colours: Vec<FileColours>,
 }
 
-/// Colours every line of a file in hunk order, so state carries within a hunk.
+/// Colours every line of a file hunk by hunk, with one parser per side: the old side is context
+/// plus removed lines and the new side context plus added, so a removed line that opens a block
+/// comment cannot colour the added lines after it (Morticia L-1 on e8e10ad). Context lines take
+/// the new side's colours.
 fn colour_file(file: &FileDiff) -> FileColours {
 	let path = file.path().to_string();
 	file.hunks
 		.iter()
 		.map(|h| {
-			let lines: Vec<&str> = h.lines.iter().map(|l| l.text.as_str()).collect();
-			colour_lines(&path, &lines)
+			let side = |skip: LineKind| -> (Vec<usize>, Vec<&str>) {
+				h.lines
+					.iter()
+					.enumerate()
+					.filter(|(_, l)| l.kind != skip)
+					.map(|(i, l)| (i, l.text.as_str()))
+					.unzip()
+			};
+			let (old_idx, old_lines) = side(LineKind::Added);
+			let (new_idx, new_lines) = side(LineKind::Removed);
+			let old = colour_lines(&path, &old_lines);
+			let new = colour_lines(&path, &new_lines);
+			let mut out: Vec<Vec<Span>> = vec![Vec::new(); h.lines.len()];
+			for (i, spans) in old_idx.into_iter().zip(old) {
+				out[i] = spans;
+			}
+			for (i, spans) in new_idx.into_iter().zip(new) {
+				out[i] = spans;
+			}
+			out
 		})
 		.collect()
 }
