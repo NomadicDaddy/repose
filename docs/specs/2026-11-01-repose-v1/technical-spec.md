@@ -82,8 +82,9 @@ index lock remains afterwards the app reports it with its path and never deletes
 comes from `git rev-parse --git-path index.lock`, because a worktree's lock lives under the main
 repository's `.git/worktrees/<name>/`, not under the worktree's own folder. Writes
 run one at a time per repository: a second stage, discard or commit queues behind the first. Every
-spawn has stdin set to null, so a hook that reads input fails at once instead of waiting for a
-Cancel.
+spawn has stdin set to null, so a hook that reads input gets end-of-file at once instead of waiting
+on a terminal that is not there; a hook written to handle that carries on, and one that is not
+exits with its own error.
 
 ### Discovery
 
