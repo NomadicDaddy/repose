@@ -23,6 +23,7 @@ foreach ($f in $long) {
     Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, (Get-Content $f.FullName | Measure-Object -Line).Lines)
     $exit = 1
 }
+Step 'third-party notices current' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Check }
 $exe = Join-Path $root 'target\release\repose.exe'
 if (Test-Path $exe) {
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 2)
