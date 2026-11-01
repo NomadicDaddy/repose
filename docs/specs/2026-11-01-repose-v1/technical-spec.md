@@ -77,8 +77,10 @@ timeout, after which the row shows an error badge with the stderr tail. Writes (
 `clean`, `commit`) have no timeout, because a hooked commit in this fleet can run format, leak
 guard and tests for minutes; the row shows a running state with a Cancel that kills the process
 only when the user asks. Cancel kills the whole process tree (`taskkill /T` semantics through the
-Windows job object the spawn is placed in), so a hook's children do not outlive it, and if
-`.git/index.lock` remains afterwards the app reports it with the path and never deletes it. Writes
+Windows job object the spawn is placed in), so a hook's children do not outlive it, and if an
+index lock remains afterwards the app reports it with its path and never deletes it. The path
+comes from `git rev-parse --git-path index.lock`, because a worktree's lock lives under the main
+repository's `.git/worktrees/<name>/`, not under the worktree's own folder. Writes
 run one at a time per repository: a second stage, discard or commit queues behind the first. Every
 spawn has stdin set to null, so a hook that reads input fails at once instead of waiting for a
 Cancel.
