@@ -75,6 +75,11 @@ pub struct AppState {
 	pub repos: Vec<RepoSummary>,
 	pub selected: Option<PathBuf>,
 	pub selected_file: Option<String>,
+	/// The selection just moved by something other than a click on its row (a keyboard move, a
+	/// start-up or command-line selection, a vanished repository), so the list scrolls the
+	/// selected row into view once and then clears this. Never every frame: that would fight
+	/// the wheel (Morticia L-2 on 4b39403).
+	pub reveal_selected: bool,
 	pub expanded: HashSet<PathBuf>,
 	pub filter: String,
 	pub focus_filter: bool,
@@ -135,6 +140,7 @@ impl AppState {
 			repos: Vec::new(),
 			selected: None,
 			selected_file: None,
+			reveal_selected: false,
 			expanded: HashSet::new(),
 			filter: String::new(),
 			focus_filter: false,

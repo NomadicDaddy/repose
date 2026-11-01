@@ -47,6 +47,8 @@ impl AppState {
 		};
 		if let Some(p) = paths.get(next).cloned() {
 			self.select(p);
+			// A keyboard move can land on a row outside the view; the list brings it in once.
+			self.reveal_selected = true;
 		}
 	}
 }

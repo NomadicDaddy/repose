@@ -73,6 +73,7 @@ impl AppState {
 			landed = hit.is_some();
 			if landed {
 				self.selected = hit;
+				self.reveal_selected = true;
 			}
 		}
 		if self
@@ -81,6 +82,7 @@ impl AppState {
 			.is_none_or(|p| find(&self.repos, p).is_none())
 		{
 			self.selected = self.repos.first().map(|r| r.path.clone());
+			self.reveal_selected = true;
 		}
 		landed
 	}

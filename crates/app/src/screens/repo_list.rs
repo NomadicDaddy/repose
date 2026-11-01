@@ -147,6 +147,9 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				let expanded = state.expanded.contains(&repo.path);
 				let is_selected = selected.as_deref() == Some(repo.path.as_path());
 				let out = row::draw(ui, repo, is_selected, 0.0, expanded);
+				if is_selected && state.reveal_selected {
+					out.response.scroll_to_me(Some(egui::Align::Center));
+				}
 				if out.chevron_clicked {
 					toggled = Some(repo.path.clone());
 				} else if out.response.clicked() {
@@ -166,6 +169,9 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					}
 					let is_selected = selected.as_deref() == Some(wt.path.as_path());
 					let out = row::draw(ui, wt, is_selected, 16.0, false);
+					if is_selected && state.reveal_selected {
+						out.response.scroll_to_me(Some(egui::Align::Center));
+					}
 					if out.response.clicked() {
 						clicked = Some(wt.path.clone());
 					}
@@ -186,6 +192,8 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	ui.data_mut(|d| d.insert_temp(scroll_key(), rows.id));
 	#[cfg(not(test))]
 	let _ = rows;
+	// The selected row was scrolled to this frame if it asked; the next move asks again.
+	state.reveal_selected = false;
 	if let Some(p) = toggled
 		&& !state.expanded.remove(&p)
 	{

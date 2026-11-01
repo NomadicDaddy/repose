@@ -13,6 +13,55 @@ use super::{AppState, DiffContent, DiffState, Msg, OpenDiff};
 use crate::diff_rows::build_rows;
 use crate::screens::{diff, repo_list};
 
+/// A selection the user did not click (a command-line or start-folder selection landing with
+/// discovery, a keyboard move) scrolls its row into view once; a later refresh does not scroll
+/// again (Morticia L-2 on 4b39403).
+#[test]
+fn a_landed_selection_is_scrolled_into_view_once() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let t0 = SystemTime::now();
+	let rows: Vec<_> = (0..40).map(|i| repo(&format!("r{i:02}"), t0)).collect();
+	let far = rows[30].path.clone();
+	state.requested_selection = Some(far.clone());
+	assert!(
+		state.merge_discovered(rows.clone()),
+		"the requested row is found"
+	);
+	assert_eq!(state.selected, Some(far.clone()));
+	assert!(state.reveal_selected, "a landed selection asks to be shown");
+	frame(&ctx, &mut state, Vec::new());
+	settle(&ctx, &mut state);
+	let shown = offset(&ctx, repo_list::scroll_key());
+	assert!(
+		shown.y > 0.0,
+		"row 30 of 40 is below the fold until scrolled to: {shown:?}"
+	);
+	assert!(!state.reveal_selected, "the ask is spent after one frame");
+	// A refresh that re-lists the same rows keeps the selection and does not scroll again, even
+	// after the user wheels away from it.
+	frame(&ctx, &mut state, wheel(pos2(150.0, 250.0)));
+	settle(&ctx, &mut state);
+	let moved = offset(&ctx, repo_list::scroll_key());
+	assert_ne!(moved, shown, "the wheel moved the list");
+	state.merge_discovered(rows);
+	assert!(
+		!state.reveal_selected,
+		"an unchanged selection does not ask again"
+	);
+	settle(&ctx, &mut state);
+	assert_eq!(
+		offset(&ctx, repo_list::scroll_key()),
+		moved,
+		"the list stayed where the wheel left it"
+	);
+	// A keyboard move asks again.
+	state.move_selection(-25);
+	assert!(state.reveal_selected);
+	settle(&ctx, &mut state);
+	assert!(!state.reveal_selected);
+}
+
 /// live-refresh clause 5: a status that arrives for the selected repository, through the same
 /// message path a watcher refresh uses, leaves the selected repository, the selected file, the
 /// open diff and both scroll positions where they were.
