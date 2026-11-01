@@ -16,7 +16,9 @@ comparison; nothing else starts until that decision is recorded.
 - Windows 11 x64 for the first release. Nothing in the design blocks Linux or macOS later.
 - Git on `PATH`. repose drives the same `git` you already use, so hooks, ignore rules and config
   behave exactly as they do in the terminal.
-- A Rust stable toolchain to build from source. No runtime is bundled or downloaded.
+- A Rust stable toolchain to build from source, plus Microsoft's C++ build tools (the MSVC linker
+  and the Windows SDK, from the "Desktop development with C++" workload of Visual Studio or its
+  Build Tools), which Rust's Windows target links with. No runtime is bundled or downloaded.
 
 ## Layout
 
