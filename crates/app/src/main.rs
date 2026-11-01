@@ -52,6 +52,7 @@ impl eframe::App for App {
 	fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		let ctx = root.ctx().clone();
 		self.state.pump(&ctx);
+		self.state.tick(&ctx);
 		screens::repo_list::show(root, &mut self.state, self.platform.as_ref());
 		screens::detail::show(root, &mut self.state, self.platform.as_ref());
 		if let Some(out) = &self.measure

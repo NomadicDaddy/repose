@@ -26,6 +26,9 @@ pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
 
+/// How often every status is re-read even when the watcher reported nothing.
+pub const BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
+
 pub enum Msg {
 	Discovered(u64, Vec<RepoSummary>),
 	Status(u64, Box<RepoSummary>),
@@ -65,6 +68,8 @@ pub struct AppState {
 	pub focus_filter: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
+	/// When the last backstop re-read started (or the app, before the first).
+	backstop_at: Option<std::time::Instant>,
 	/// Configured roots that were not directories at the last scan.
 	pub missing_roots: Vec<PathBuf>,
 	/// Minutes east of UTC as of the last scan; None shows the clock in UTC.
@@ -119,6 +124,7 @@ impl AppState {
 			focus_filter: false,
 			scanning: false,
 			checked_at: None,
+			backstop_at: None,
 			utc_offset: None,
 			commit_messages: HashMap::new(),
 			writes: WriteQueue::default(),
@@ -160,6 +166,25 @@ impl AppState {
 	pub fn refresh_repo(&self, path: &Path, ctx: &egui::Context) {
 		if let Some(repo) = find(&self.repos, path) {
 			scan::refresh_one(self.generation, repo.clone(), self.tx.clone(), ctx.clone());
+		}
+	}
+
+	/// The backstop behind the watcher: once every `BACKSTOP` with no scan running, every row's
+	/// status is re-read in place, in case an event was missed. Called every frame; it asks for
+	/// a repaint at the next deadline so the timer runs while the window is idle.
+	pub fn tick(&mut self, ctx: &egui::Context) {
+		let now = std::time::Instant::now();
+		let last = *self.backstop_at.get_or_insert(now);
+		if self.scanning || self.repos.is_empty() {
+			ctx.request_repaint_after(BACKSTOP);
+			return;
+		}
+		if now.duration_since(last) >= BACKSTOP {
+			self.backstop_at = Some(now);
+			scan::refresh_all(self.generation, &self.repos, self.tx.clone(), ctx.clone());
+			ctx.request_repaint_after(BACKSTOP);
+		} else {
+			ctx.request_repaint_after(BACKSTOP - now.duration_since(last));
 		}
 	}
 
