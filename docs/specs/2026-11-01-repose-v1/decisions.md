@@ -1,6 +1,6 @@
 # repose: decisions
 
-## ADR-001: UI toolkit (open)
+## ADR-001: UI toolkit (accepted: eframe/egui)
 
 Status: accepted 2026-11-01. Phillip chose eframe/egui (Room #30715) from the numbers and captures
 below; the corrections in the next paragraph were posted to him at #30722 and he confirmed
@@ -23,12 +23,13 @@ Candidates: eframe/egui 0.37 and Tauri 2.9 (WebView2). Both prototypes list the 
 under `D:\applications` and `D:\applications.worktrees` with name, branch, short hash and grouped
 worktrees, scan the roots synchronously before the first frame, and use the same palette and fonts.
 Measured on the development machine (Windows 11, display at 150% scaling, AppliedDPI 144), release builds, each
-number the median of three cold starts unless stated. Evidence: `.aidd/screenshots/toolkit-spike/`
+start number the median of three consecutive warm starts (the executable and its files were
+already cached) unless stated. Evidence: `.aidd/screenshots/toolkit-spike/`
 (captures, measure JSON, prototype sources, scripts, SHA256SUMS).
 
 | Measure                                          | eframe/egui                     | Tauri 2                                   |
 | ------------------------------------------------ | ------------------------------- | ----------------------------------------- |
-| Cold start to painted list (median of 3)         | 1,559 ms (1,256 / 1,559 / 1,824) | 893 ms (877 / 893 / 896)                 |
+| Start to painted list (median of 3 warm starts)  | 1,559 ms (1,256 / 1,559 / 1,824) | 893 ms (877 / 893 / 896)                 |
 | Of which the shared repository scan              | about 790 ms                    | about 740 ms                              |
 | Toolkit share of start (start minus scan)        | about 770 ms                    | about 150 ms                              |
 | Working set after 60 s                           | 172 MB, one process             | 26 MB app + 309 MB in 6 WebView2 processes = 335 MB |
