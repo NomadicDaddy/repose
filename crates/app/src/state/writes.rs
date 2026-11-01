@@ -51,6 +51,8 @@ pub struct WriteOutcome {
 	pub error: Option<String>,
 	/// Set when a lock file remained after a failure, with its path; never removed by repose.
 	pub leftover_lock: Option<PathBuf>,
+	/// A success with a caveat: the commit landed, then Cancel stopped a later hook.
+	pub notice: Option<String>,
 }
 
 /// The queue the UI sees: one running request per repository and the ones waiting behind them.
@@ -94,6 +96,7 @@ impl WriteQueue {
 
 pub fn perform(request: &WriteRequest) -> WriteOutcome {
 	let repo = request.repo.as_path();
+	let mut notice = None;
 	let result = match &request.kind {
 		WriteKind::Stage(paths) => write::stage(repo, paths),
 		WriteKind::StageAll => write::stage_all(repo),
@@ -101,7 +104,18 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		WriteKind::UnstageAll => write::unstage_all(repo),
 		WriteKind::Discard { tracked, untracked } => write::discard(repo, tracked, untracked),
 		WriteKind::Commit(message) => {
-			write::commit_cancellable(repo, message, Some(&request.cancel))
+			match write::commit_cancellable(repo, message, Some(&request.cancel)) {
+				Ok(done) => {
+					if done.hook_stopped {
+						notice = Some(
+							"The commit landed before Cancel; a hook that ran after it was stopped."
+								.to_string(),
+						);
+					}
+					Ok(())
+				}
+				Err(e) => Err(e),
+			}
 		}
 	};
 	let error = result.err().map(|e| e.to_string());
@@ -115,6 +129,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		kind: request.kind.clone(),
 		error,
 		leftover_lock,
+		notice,
 	}
 }
 

@@ -23,9 +23,11 @@ pub enum GitError {
 	/// HEAD names a branch whose ref file exists but does not resolve: a truncated or corrupt
 	/// ref, not a branch with no commits yet. No write may treat it as unborn.
 	UnreadableRef(String),
-	/// The user cancelled a write: git and every process it started were killed.
+	/// The user cancelled a write: git was killed, and its process tree too unless `tree_killed`
+	/// is false, in which case the hook's children may still be running.
 	Cancelled {
 		stderr_tail: String,
+		tree_killed: bool,
 	},
 }
 
@@ -63,10 +65,18 @@ impl std::fmt::Display for GitError {
 				)
 			}
 			Self::OutputLost => write!(f, "git exited but its output was not collected"),
-			Self::Cancelled { stderr_tail } if stderr_tail.is_empty() => {
+			Self::Cancelled {
+				stderr_tail,
+				tree_killed: false,
+			} => write!(
+				f,
+				"cancelled; git was stopped, but stopping its hooks' processes failed, so they may still be running{}{stderr_tail}",
+				if stderr_tail.is_empty() { "" } else { ": " }
+			),
+			Self::Cancelled { stderr_tail, .. } if stderr_tail.is_empty() => {
 				write!(f, "cancelled; git and its hooks were stopped")
 			}
-			Self::Cancelled { stderr_tail } => {
+			Self::Cancelled { stderr_tail, .. } => {
 				write!(
 					f,
 					"cancelled; git and its hooks were stopped: {stderr_tail}"

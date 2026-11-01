@@ -100,6 +100,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 			None => {
 				if let WriteKind::Commit(_) = last.kind {
 					ui.label(RichText::new("Committed.").size(TEXT_SMALL).color(ACCENT));
+					if let Some(n) = &last.notice {
+						ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
+					}
 				}
 			}
 		}

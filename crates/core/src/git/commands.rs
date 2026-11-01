@@ -175,6 +175,14 @@ pub fn run_cancellable(
 	cancel: Option<&Cancel>,
 ) -> Result<Vec<u8>, GitError> {
 	let _permit = Permit::acquire();
+	// A Cancel clicked while this request waited for the pool must not start git at all (Roger
+	// 5Q-1 on a31e63b); nothing ran, so nothing needs killing.
+	if cancel.is_some_and(Cancel::is_cancelled) {
+		return Err(GitError::Cancelled {
+			stderr_tail: String::new(),
+			tree_killed: true,
+		});
+	}
 	let mut child = command(repo, verb, extra).spawn().map_err(|e| {
 		if e.kind() == std::io::ErrorKind::NotFound {
 			GitError::NotFound
@@ -191,10 +199,11 @@ pub fn run_cancellable(
 			Ok(Some(status)) => break status,
 			Ok(None) => {
 				if cancel.is_some_and(Cancel::is_cancelled) {
-					kill_tree(&mut child);
+					let tree_killed = kill_tree(&mut child);
 					let err = collect(&stderr, Duration::from_millis(500)).unwrap_or_default();
 					return Err(GitError::Cancelled {
 						stderr_tail: tail(&err),
+						tree_killed,
 					});
 				}
 				if let Some(limit) = timeout.filter(|l| started.elapsed() > *l) {
@@ -239,20 +248,25 @@ pub fn run_cancellable(
 
 /// Kills git and everything under it. Killing git alone would leave a hook and the hook's
 /// children running on; on Windows `taskkill /T` takes the tree, and the child is reaped after.
-fn kill_tree(child: &mut std::process::Child) {
+/// Returns whether the tree kill itself succeeded; git is reaped either way, and a false answer
+/// is reported to the user rather than claimed as stopped (Roger 5Q-2 on a31e63b).
+fn kill_tree(child: &mut std::process::Child) -> bool {
 	#[cfg(windows)]
-	{
+	let tree_killed = {
 		let mut kill = Command::new("taskkill");
 		hide_console(&mut kill);
-		let _ = kill
-			.args(["/PID", &child.id().to_string(), "/T", "/F"])
+		kill.args(["/PID", &child.id().to_string(), "/T", "/F"])
 			.stdin(Stdio::null())
 			.stdout(Stdio::null())
 			.stderr(Stdio::null())
-			.status();
-	}
+			.status()
+			.is_ok_and(|s| s.success())
+	};
+	#[cfg(not(windows))]
+	let tree_killed = child.kill().is_ok();
 	let _ = child.kill();
 	let _ = child.wait();
+	tree_killed
 }
 
 fn tail(bytes: &[u8]) -> String {

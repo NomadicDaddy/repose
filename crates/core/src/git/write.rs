@@ -114,17 +114,27 @@ pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<
 /// Commits what is staged with `git commit -F <file>`. The message goes through a temporary file
 /// so quoting never matters, hooks run, and `--no-verify` and `--amend` cannot be expressed.
 pub fn commit(repo: &Path, message: &str) -> Result<(), GitError> {
-	commit_cancellable(repo, message, None)
+	commit_cancellable(repo, message, None).map(|_| ())
+}
+
+/// What a commit that returned Ok did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Committed {
+	/// The commit landed, then Cancel stopped a later hook (post-commit); the user must not be
+	/// told nothing happened (Roger #31030 on a31e63b).
+	pub hook_stopped: bool,
 }
 
 /// `commit` with the user's Cancel: while a hook runs, Cancel kills git and the hook's whole
-/// process tree and the commit does not happen; the index is left as git left it, lock and all,
-/// which the caller reports (stage-and-commit clause 9).
+/// process tree. If HEAD had not moved, the commit did not happen and the index is left as git
+/// left it, lock and all, which the caller reports (stage-and-commit clause 9); if HEAD had
+/// moved, the commit landed and a later hook was stopped, which is Ok with `hook_stopped`.
 pub fn commit_cancellable(
 	repo: &Path,
 	message: &str,
 	cancel: Option<&Cancel>,
-) -> Result<(), GitError> {
+) -> Result<Committed, GitError> {
+	let before = head_hash(repo);
 	let file = std::env::temp_dir().join(format!(
 		"repose-commit-{}-{}.txt",
 		std::process::id(),
@@ -135,9 +145,25 @@ pub fn commit_cancellable(
 	));
 	std::fs::write(&file, message).map_err(|e| GitError::Spawn(e.to_string()))?;
 	let path = file.to_string_lossy().to_string();
-	let result = run_cancellable(repo, Verb::Commit, &["-F", &path], cancel).map(|_| ());
+	let result = run_cancellable(repo, Verb::Commit, &["-F", &path], cancel);
 	let _ = std::fs::remove_file(&file);
-	result
+	match result {
+		Ok(_) => Ok(Committed {
+			hook_stopped: false,
+		}),
+		Err(GitError::Cancelled { .. }) if head_hash(repo) != before => {
+			Ok(Committed { hook_stopped: true })
+		}
+		Err(e) => Err(e),
+	}
+}
+
+/// HEAD's hash, or None when it does not resolve (unborn, corrupt or unreadable); only compared
+/// with itself before and after a commit, so the three None cases need not be told apart here.
+fn head_hash(repo: &Path) -> Option<String> {
+	run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"])
+		.ok()
+		.map(|out| String::from_utf8_lossy(&out).trim().to_string())
 }
 
 /// Where this repository's index lock lives, which for a worktree is under the main repository's

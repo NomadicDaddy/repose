@@ -15,6 +15,12 @@ function Step($name, [scriptblock] $body) {
 Step 'cargo fmt --check' { cargo fmt --all -- --check }
 Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
 Step 'cargo test' { cargo test --workspace }
+# Advisories (quality-gate clause 8, Phillip Yes #31026): cargo-audit is installed per user with
+# `cargo install cargo-audit`. An accepted advisory goes here as an --ignore with the room
+# message that accepted it, so nothing is ignored silently; none so far. Unmaintained-crate
+# warnings are printed, not failed.
+$acceptedAdvisories = @()
+Step 'cargo audit' { cargo audit @($acceptedAdvisories | ForEach-Object { '--ignore'; $_ }) }
 Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
