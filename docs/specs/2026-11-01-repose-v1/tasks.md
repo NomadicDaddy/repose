@@ -21,8 +21,8 @@ the team's rules; the spec and record edits do not.
    `look.jpg` at 100%, 125% and 150%.
 6. **Repository list screen** (`repository-list`). Rows, badges, worktree groups, filter,
    Refresh, status line, keyboard.
-7. **Changes screen** (`working-tree-changes`). Groups, badges, hover actions, click opens diff
-   placeholder until step 10.
+7. **Changes screen** (`working-tree-changes`). Groups, badges, hover actions. Clicking a row only
+   selects it in this step; the diff opens once step 10 lands, with no stand-in pane before then.
 8. **Stage, discard, commit** (`stage-and-commit`). Confirmation dialog, commit box, hook failure
    display, tests S4 to S7.
 9. **History** (`commit-history`). Log parser and fixtures, Outgoing group, expand to files, Load

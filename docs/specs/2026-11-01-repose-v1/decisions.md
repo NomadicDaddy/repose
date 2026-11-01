@@ -25,6 +25,11 @@ long-path behaviour match the terminal and VS Code, which is the experience bein
 Cost: process spawns, bounded by a pool of 8 and the 3 s status budget. Revisit if the budget fails
 on the development machine after incremental refresh is in place.
 
+Amended 2026-11-01 after Morticia's review of e362aa7: every spawn sets `GIT_LITERAL_PATHSPECS=1`;
+reads set `GIT_OPTIONAL_LOCKS=0` and `-c core.fsmonitor=false`; writes have no timeout; diffs pass
+explicit `a/` and `b/` prefixes and both paths of a rename; a commit's files use
+`--diff-merges=first-parent`. The parity claim now names what VS Code sets rather than assuming it.
+
 ## ADR-003: no network in v1.0
 
 Status: accepted 2026-11-01 (Phillip, in session). Ahead and behind come from saved refs; the

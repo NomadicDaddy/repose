@@ -40,15 +40,23 @@ Decision: every git read and write goes through the installed `git` executable, 
 (`core::git::commands`) with an allowed-verb list. Machine-readable forms only:
 
 - Status: `git status --porcelain=v2 -z --branch --untracked-files=all` (branch, upstream, ahead
-  and behind, entries with rename scores and conflict states in one call).
+  and behind from the `branch.ab` line, entries with rename scores and conflict states in one
+  call). Reads run with `GIT_OPTIONAL_LOCKS=0` so a background status never rewrites the index or
+  takes `index.lock` (the installed VS Code extension does the same), and with
+  `-c core.fsmonitor=false` so a repository's own config cannot name a program for repose to run.
 - History: `git log -z --format=<fields with %x00 separators> --max-count=100 --skip=<n>` and
-  `git log -1 -z --name-status --format=` for a commit's files on expand.
-- Outgoing: `git rev-list --left-right --count @{upstream}...HEAD`; absent upstream means no
-  Outgoing group.
-- Diff: `git diff --no-color --no-ext-diff -U3 -- <path>` (working tree vs index),
-  `git diff --cached` (index vs HEAD), `git show --format= <hash> -- <path>` (commit vs parent),
-  with `--find-renames`. Word-level highlighting is computed in the app with the `similar` crate
-  on changed line pairs; git's output stays the source of lines.
+  `git log -1 -z --name-status --diff-merges=first-parent --format=` for a commit's files on
+  expand, so a merge commit lists its first-parent changes instead of nothing.
+- Outgoing: the ahead count from the status call's `branch.ab`; no upstream means no Outgoing
+  group. No separate `rev-list` spawn.
+- Diff: `git diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -U3 -- <paths>`
+  (working tree vs index), `git diff --cached` (index vs HEAD) and
+  `git show --format= --diff-merges=first-parent <hash> -- <paths>` (commit vs first parent),
+  with `--find-renames`. For a renamed entry both the old and the new path are passed, from
+  porcelain v2 for the working tree and index and from `--name-status` for a commit, so the diff
+  is a rename and not a new file. The explicit prefixes keep `diff.noprefix` in a user's config
+  from changing what the parser reads. Word-level highlighting is computed in the app with the
+  `similar` crate on changed line pairs; git's output stays the source of lines.
 - Files: `git ls-tree -r -z <rev>` and `git cat-file -p <rev>:<path>`.
 - Writes: `git add --`, `git restore --staged --`, `git restore --`, `git clean -f --`, and
   `git commit -F <tempfile>`. Never `--no-verify`.
@@ -57,12 +65,18 @@ Why not libgit2 or gitoxide: parity. Hooks under `core.hooksPath`, ignore rules,
 credential helpers and config all behave as they do in the terminal and in VS Code, which is the
 view being replicated, and the Summon team's `.githooks` deliveries run unchanged. The cost is
 process spawns: about 75 at startup. A bounded pool of 8 keeps that under the 3 s budget on the development machine
-(VS Code does the same work the same way). If a later measurement shows the pool is the limit, the
-first optimisation is per-repository incremental refresh, not a library.
+(VS Code spawns the same status command, with `GIT_OPTIONAL_LOCKS=0`, which repose copies). If a
+later measurement shows the pool is the limit, the first optimisation is per-repository
+incremental refresh, not a library.
 
-Every spawn sets `-c core.quotePath=false`, `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`, a working
-directory of the repository, and a 10 s timeout, after which the row shows an error badge with the
-stderr tail.
+Every spawn sets `-c core.quotePath=false`, `GIT_TERMINAL_PROMPT=0`, `GIT_LITERAL_PATHSPECS=1`,
+`LC_ALL=C` and a working directory of the repository. `GIT_LITERAL_PATHSPECS=1` is what makes "the
+paths passed to git are exactly the paths listed" true: without it `[` in a file name is a glob,
+and `git restore -- '[1].txt'` also restores `1.txt` (Morticia, 2026-11-01). Reads carry a 10 s
+timeout, after which the row shows an error badge with the stderr tail. Writes (`add`, `restore`,
+`clean`, `commit`) have no timeout, because a hooked commit in this fleet can run format, leak
+guard and tests for minutes; the row shows a running state with a Cancel that kills the process
+only when the user asks.
 
 ### Discovery
 
@@ -77,9 +91,11 @@ startup and on Refresh; status runs per repository and is what the watcher re-tr
 ### Watcher
 
 One recursive `notify` watch per root (ReadDirectoryChangesW on Windows). Each event is mapped to
-the owning repository by longest path prefix, dropped if under an excluded directory or under
-`.git` other than `HEAD`, `index`, `ORIG_HEAD`, `MERGE_HEAD`, `packed-refs`, `refs/` and
-`logs/HEAD`, then debounced per repository at 250 ms (trailing edge). A refresh re-runs status for
+the owning repository by longest path prefix, with one exception: an event under
+`<main>/.git/worktrees/<name>/` belongs to that worktree, whose index and HEAD live there rather
+than under its own folder. Events are dropped if under an excluded directory or under `.git`
+other than `HEAD`, `index`, `ORIG_HEAD`, `MERGE_HEAD`, `packed-refs`, `refs/`, `logs/HEAD` and
+`worktrees/<name>/{HEAD,index}`, then debounced per repository at 250 ms (trailing edge). A refresh re-runs status for
 that repository, and the open Changes, diff or History view if it belongs to it. A 60 s timer
 re-reads all statuses as a backstop. Watch overflow (the OS buffer filled) triggers one full
 re-read and a status-line note.

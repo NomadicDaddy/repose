@@ -3,7 +3,8 @@
 repose is a Rust desktop application that shows many Git repositories at once: a repository list
 with branch and state, the selected repository's working-tree changes, its linear commit history,
 read-only diffs and files, and staging and committing. It drives the installed `git` executable and
-never contacts a remote. This file is the glossary; the blueprint lives in `.aidd/` (local only) and
+runs no Git network operation; the only thing it sends outward is a remote URL handed to the
+browser when the user asks. This file is the glossary; the blueprint lives in `.aidd/` (local only) and
 in `docs/specs/2026-11-01-repose-v1/`.
 
 ## Glossary
