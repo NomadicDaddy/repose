@@ -15,16 +15,26 @@ pub(super) struct Merged {
 
 impl AppState {
 	/// Replaces the rows with a fresh discovery. Returns false when a command-line selection was
-	/// asked for and not found. Any open diff follows the same rule as `select`: it closes when
-	/// the selection moves to another repository or its own repository is gone.
+	/// asked for and not found. An open diff or file follows the same rule as `select`: it closes
+	/// when the selection moves to another repository or its own repository is gone, so a file
+	/// from a vanished repository is never drawn under another one's header (Roger on e176de4).
 	pub(super) fn merge_discovered(&mut self, fresh: Vec<RepoSummary>) -> bool {
 		let before = self.selected.clone();
 		let landed = self.replace_rows(fresh);
-		if let Some(d) = &self.diff
-			&& (self.selected != before && self.selected.as_ref() != Some(&d.open.repo)
-				|| find(&self.repos, &d.open.repo).is_none())
-		{
+		let orphaned = |repo: &Path| {
+			self.selected != before && self.selected.as_deref() != Some(repo)
+				|| find(&self.repos, repo).is_none()
+		};
+		let close_diff = self.diff.as_ref().is_some_and(|d| orphaned(&d.open.repo));
+		let close_file = self
+			.file_view
+			.as_ref()
+			.is_some_and(|v| orphaned(&v.open.repo));
+		if close_diff {
 			self.close_diff();
+		}
+		if close_file {
+			self.close_file();
 		}
 		landed
 	}
@@ -125,4 +135,80 @@ fn find_mut<'a>(repos: &'a mut [RepoSummary], path: &Path) -> Option<&'a mut Rep
 		}
 	}
 	None
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::PathBuf;
+
+	use repose_core::config::Config;
+	use repose_core::model::{DiffSource, RepoKind, RepoSummary};
+
+	use crate::state::{
+		AppState, DiffContent, DiffState, FileContent, FileRev, FileViewState, OpenDiff, OpenFile,
+	};
+
+	fn repo(name: &str) -> RepoSummary {
+		RepoSummary::new(PathBuf::from(format!("D:/t/{name}")), RepoKind::Repository)
+	}
+
+	/// Roger on e176de4: with A selected and its file open, a discovery that no longer lists A
+	/// selects B; the file (like a diff) must close rather than draw under B's header.
+	#[test]
+	fn a_vanished_repository_closes_its_file_and_diff() {
+		let mut state = AppState::new(Config::default());
+		state.merge_discovered(vec![repo("a"), repo("b")]);
+		state.selected = Some(repo("a").path);
+		state.file_view = Some(FileViewState {
+			open: OpenFile {
+				repo: repo("a").path,
+				rev: FileRev::Head,
+				path: "x.txt".into(),
+				size: Some(1),
+			},
+			content: FileContent::Loading,
+			generation: 1,
+			current_line: None,
+			notice: None,
+		});
+		state.diff = Some(DiffState {
+			open: OpenDiff {
+				repo: repo("a").path,
+				source: DiffSource::Working,
+				paths: vec!["x.txt".into()],
+				display: "x.txt".into(),
+			},
+			content: DiffContent::Loading,
+			inline: false,
+			generation: 1,
+			rows: Vec::new(),
+			rows_inline: false,
+			colours: Vec::new(),
+		});
+		state.merge_discovered(vec![repo("b")]);
+		assert_eq!(state.selected, Some(repo("b").path));
+		assert!(state.file_view.is_none(), "the file from A is closed");
+		assert!(state.diff.is_none(), "the diff from A is closed");
+
+		// The same discovery with A still present keeps both open.
+		state.selected = Some(repo("b").path);
+		state.file_view = Some(FileViewState {
+			open: OpenFile {
+				repo: repo("b").path,
+				rev: FileRev::Head,
+				path: "y.txt".into(),
+				size: Some(1),
+			},
+			content: FileContent::Loading,
+			generation: 2,
+			current_line: None,
+			notice: None,
+		});
+		state.merge_discovered(vec![repo("a"), repo("b")]);
+		assert_eq!(state.selected, Some(repo("b").path));
+		assert!(
+			state.file_view.is_some(),
+			"B is still there, so its file stays"
+		);
+	}
 }
