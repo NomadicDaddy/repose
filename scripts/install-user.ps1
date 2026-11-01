@@ -31,9 +31,18 @@ try {
         "INSTALLED $installed"
         "ON-USER-PATH $onPath (user PATH is $kind with $($entries.Count) entries)"
         if ($installed) {
-            $a = (Get-FileHash (Join-Path $target 'repose.exe')).Hash
-            $b = (Get-FileHash (Join-Path $dist 'repose.exe')).Hash
-            "CURRENT $($a -eq $b) (installed $($a.Substring(0,12)), staged $($b.Substring(0,12)))"
+            # Both files of the pair, so a stale or missing notices file is never called current
+            # (Roger on 9f74cb6).
+            $current = $true
+            foreach ($name in $pair) {
+                $here = Join-Path $target $name
+                if (-not (Test-Path $here)) { "MISSING $name"; $current = $false; continue }
+                $a = (Get-FileHash $here).Hash
+                $b = (Get-FileHash (Join-Path $dist $name)).Hash
+                "$name installed $($a.Substring(0,12)) staged $($b.Substring(0,12)) $(if ($a -eq $b) { 'same' } else { 'DIFFERENT' })"
+                if ($a -ne $b) { $current = $false }
+            }
+            "CURRENT $current"
         }
         exit 0
     }
