@@ -135,19 +135,25 @@ fn fit(
 	if whole.size().x <= width {
 		return whole;
 	}
-	// Both row fonts are monospace, so one advance tells how many characters fit beside the
-	// ellipsis; at most two more layouts follow, never one per character (Roger Low on cd6c406).
+	// Both row fonts are monospace, so the mean advance says about how many characters fit
+	// beside the ellipsis; the loop steps down from that guess, a few layouts for a uniform face
+	// and never one per character of the whole text (Roger Low on cd6c406). When even the
+	// ellipsis does not fit, nothing is drawn rather than something that overlaps the pills
+	// (Roger on 881f590).
+	let ellipsis = painter.layout_no_wrap("…".to_string(), font.clone(), color);
+	if ellipsis.size().x > width {
+		return painter.layout_no_wrap(String::new(), font, color);
+	}
 	let advance = (whole.size().x / text.chars().count().max(1) as f32).max(1.0);
-	let ellipsis = painter
-		.layout_no_wrap("…".to_string(), font.clone(), color)
-		.size()
-		.x;
-	let mut keep = ((width - ellipsis) / advance).floor().max(0.0) as usize;
+	let mut keep = ((width - ellipsis.size().x) / advance).floor().max(0.0) as usize;
 	loop {
 		let cut: String = text.chars().take(keep).collect::<String>() + "…";
 		let galley = painter.layout_no_wrap(cut, font.clone(), color);
-		if galley.size().x <= width || keep == 0 {
+		if galley.size().x <= width {
 			return galley;
+		}
+		if keep == 0 {
+			return ellipsis;
 		}
 		keep -= 1;
 	}
