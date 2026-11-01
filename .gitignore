@@ -1,0 +1,16 @@
+# Rust build output
+/target/
+
+# aidd metadata is local only, never published
+/.aidd/
+
+# Local records (fleet rule R7)
+/.records/
+
+# Environment and secrets
+.env
+.env.*
+
+# Editors and OS
+.vscode/
+Thumbs.db
