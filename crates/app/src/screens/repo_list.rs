@@ -127,7 +127,10 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let mut action: Option<menu::Action> = None;
 	// A menu opening on a row asks for that repository's origin URL; it lands a frame later.
 	let mut wants_remote: Option<PathBuf> = None;
-	let menu_key = ui.input(|i| i.key_pressed(Key::Menu));
+	// The same eligibility as row_menu's, so a Menu press behind the discard modal starts no
+	// origin read when the menu it would feed cannot open (Roger 5Q-1 on 8791260).
+	let menu_key = ui.memory(|m| m.allows_interaction(ui.layer_id()))
+		&& ui.input(|i| i.key_pressed(Key::Menu));
 	egui::ScrollArea::vertical()
 		.auto_shrink([false, false])
 		.show(ui, |ui| {
