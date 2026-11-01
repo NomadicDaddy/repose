@@ -61,7 +61,13 @@ $fetched = @{
     'accesskit_windows' = 'accesskit'; 'accesskit_winit' = 'accesskit'
     'clipboard-win' = 'clipboard-win'; 'profiling' = 'profiling'; 'spirv' = 'rspirv'
 }
-$licencePattern = '^(LICEN[CS]E|COPYING|NOTICE|UNLICENSE|OFL|UFL)'
+$licencePattern = '^(LICEN[CS]E|COPYING|COPYRIGHT|NOTICE|UNLICENSE|OFL|UFL)'
+# Licence files whose names do not say so, named per crate and required to exist, so a renamed
+# or dropped file fails the run instead of silently leaving a text out (Morticia L-4 on 1a4888a):
+# the fonts compiled into epaint_default_fonts carry their licences as fonts/<name>.txt.
+$explicit = @{
+    'epaint_default_fonts' = @('fonts/egui-icons.txt', 'fonts/emoji-icon-font-mit-license.txt', 'fonts/Hack-Regular.txt')
+}
 
 # Licence texts, each distinct text once, remembering which crate files carry it. A package is
 # searched two folders deep, since font licences sit beside the fonts.
@@ -73,11 +79,16 @@ foreach ($c in $crates) {
     $files = @(Get-ChildItem -Path $dir -File -Recurse -Depth 2 |
         Where-Object { $_.Name -match $licencePattern } |
         Sort-Object FullName)
-    $origin = 'package'
+    if ($explicit.ContainsKey($c.name)) {
+        foreach ($rel in $explicit[$c.name]) {
+            $path = Join-Path $dir $rel
+            if (-not (Test-Path $path)) { Write-Host "FAILED: $($c.name) $($c.version) has no $rel"; exit 1 }
+            $files = @($files) + @(Get-Item $path)
+        }
+    }
     if ($fetched.ContainsKey($c.name)) {
         $extra = @(Get-ChildItem -Path (Join-Path $root "licenses/$($fetched[$c.name])") -File | Sort-Object Name)
         $files = @($files) + $extra
-        $origin = "package and licenses/$($fetched[$c.name])"
     }
     if ($files.Count -eq 0) { $missing.Add("$($c.name) $($c.version)"); continue }
     $names = New-Object System.Collections.Generic.List[string]

@@ -53,10 +53,10 @@ run it after a dependency change (the gate fails when this file is stale).
 | either | 1.19.0 | MIT OR Apache-2.0 | https://github.com/rayon-rs/either | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7576269EA71F767B) |
 | emath | 0.37.0 | MIT OR Apache-2.0 | https://github.com/emilk/egui/tree/main/crates/emath | licenses/egui/LICENSE-APACHE (8173D5C29B4F956D), licenses/egui/LICENSE-MIT (95CA92F5F8EA5231) |
 | epaint | 0.37.0 | MIT OR Apache-2.0 | https://github.com/emilk/egui/tree/main/crates/epaint | licenses/egui/LICENSE-APACHE (8173D5C29B4F956D), licenses/egui/LICENSE-MIT (95CA92F5F8EA5231) |
-| epaint_default_fonts | 0.37.0 | (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 | https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts | fonts/OFL.txt (6A73F9541C2DE741), fonts/UFL.txt (2F0015108D68627B), licenses/egui/LICENSE-APACHE (8173D5C29B4F956D), licenses/egui/LICENSE-MIT (95CA92F5F8EA5231) |
+| epaint_default_fonts | 0.37.0 | (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0 | https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts | fonts/OFL.txt (6A73F9541C2DE741), fonts/UFL.txt (2F0015108D68627B), fonts/egui-icons.txt (36DBBFD79D73974F), fonts/emoji-icon-font-mit-license.txt (B9D2C1D909AA1499), fonts/Hack-Regular.txt (47C0CCCBEEC7E861), licenses/egui/LICENSE-APACHE (8173D5C29B4F956D), licenses/egui/LICENSE-MIT (95CA92F5F8EA5231) |
 | equivalent | 1.0.3 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/equivalent | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7365CC8878A1D7CE) |
 | error-code | 3.4.0 | BSL-1.0 | https://github.com/DoumanAsh/error-code | LICENSE (C9BFF75738922193) |
-| euclid | 0.22.14 | MIT OR Apache-2.0 | https://github.com/servo/euclid | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (62065228E42CAEBC) |
+| euclid | 0.22.14 | MIT OR Apache-2.0 | https://github.com/servo/euclid | COPYRIGHT (EC82B96487E9E778), LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (62065228E42CAEBC) |
 | fancy-regex | 0.16.2 | MIT | https://github.com/fancy-regex/fancy-regex | LICENSE (3BC70E239E912727) |
 | fax | 0.2.7 | MIT | https://github.com/pdf-rs/fax | LICENSE (7101390B4C8EDD75) |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 | https://github.com/image-rs/fdeflate | LICENSE-APACHE (0D542E0C8804E39A), LICENSE-MIT (C77A4CF9DA729987) |
@@ -162,7 +162,7 @@ run it after a dependency change (the gate fails when this file is stale).
 | sys-locale | 0.3.2 | MIT OR Apache-2.0 | https://github.com/1Password/sys-locale | LICENSE-APACHE (C71D239DF91726FC), LICENSE-MIT (5CC390AB5E5E6507) |
 | termcolor | 1.4.1 | Unlicense OR MIT | https://github.com/BurntSushi/termcolor | COPYING (01C266BCED4A434D), LICENSE-MIT (0F96A83840E146E4), UNLICENSE (7E12E5DF4BAE12CB) |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | LICENSE-APACHE (62C7A1E35F564068), LICENSE-MIT (23F18E03DC49DF91) |
-| tiff | 0.11.3 | MIT | https://github.com/image-rs/image-tiff | LICENSE (20C097D0DE27E2AD) |
+| tiff | 0.11.3 | MIT | https://github.com/image-rs/image-tiff | LICENSE (20C097D0DE27E2AD), tests/COPYRIGHT (C6D1D56BB6E2FE4F) |
 | time | 0.3.55 | MIT OR Apache-2.0 | https://github.com/time-rs/time | LICENSE-Apache (0D542E0C8804E39A), LICENSE-MIT (2537228D9A1B44A5) |
 | time-core | 0.1.9 | MIT OR Apache-2.0 | https://github.com/time-rs/time | LICENSE-Apache (0D542E0C8804E39A), LICENSE-MIT (2537228D9A1B44A5) |
 | tinystr | 0.8.5 | Unicode-3.0 | https://github.com/unicode-org/icu4x | LICENSE (F367C1B8E1AA2624) |
@@ -176,13 +176,13 @@ run it after a dependency change (the gate fails when this file is stale).
 | type-map | 0.5.1 | MIT/Apache-2.0 | https://github.com/kardeiz/type-map | LICENSE-APACHE (F70EBC7CDDD5BEFD), LICENSE-MIT (B47FB719A40D9EF9) |
 | unicode-general-category | 1.1.0 | Apache-2.0 | https://github.com/yeslogic/unicode-general-category | LICENSE (B40930BBCF80744C) |
 | unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident | LICENSE-APACHE (62C7A1E35F564068), LICENSE-MIT (23F18E03DC49DF91), LICENSE-UNICODE (F7DB81051789B729) |
-| unicode-properties | 0.1.5 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/unicode-rs/unicode-properties | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1), LICENSE-UNICODE (E7A93B009565CFCE) |
+| unicode-properties | 0.1.5 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/unicode-rs/unicode-properties | COPYRIGHT (23860C2A7B5D96B2), LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1), LICENSE-UNICODE (E7A93B009565CFCE) |
 | unicode-script | 0.5.8 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-script | LICENSE-APACHE (7CBB56D1B5D83D73), LICENSE-MIT (7AD3EA8CA3CAF894) |
-| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-segmentation | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1) |
-| unicode-width | 0.2.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-width | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1) |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-segmentation | COPYRIGHT (23860C2A7B5D96B2), LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1) |
+| unicode-width | 0.2.3 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-width | COPYRIGHT (23860C2A7B5D96B2), LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (7B63ECD5F1902AF1) |
 | url | 2.5.8 | MIT OR Apache-2.0 | https://github.com/servo/rust-url | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (B38F11F6096706E6) |
-| utf_types | 1.0.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf_types | LICENSE-APACHE (CFC7749B96F63BD3), LICENSE-MIT (3FA4CA83DCC92378) |
-| utf8_iter | 1.1.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter | LICENSE-APACHE (CFC7749B96F63BD3), LICENSE-MIT (3FA4CA83DCC92378) |
+| utf_types | 1.0.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf_types | COPYRIGHT (3210BE7332B5BDF4), LICENSE-APACHE (CFC7749B96F63BD3), LICENSE-MIT (3FA4CA83DCC92378) |
+| utf8_iter | 1.1.0 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter | COPYRIGHT (C30152C94A6D75E0), LICENSE-APACHE (CFC7749B96F63BD3), LICENSE-MIT (3FA4CA83DCC92378) |
 | uuid | 1.29.0 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid | LICENSE-APACHE (A60EEA8175145316), LICENSE-MIT (436BC5A105D8E57D) |
 | vello_common | 0.2.0 | Apache-2.0 OR MIT | https://github.com/linebender/vello | LICENSE-APACHE (A6CBA85BC92E0CFF), LICENSE-MIT (ADF157330F722FE7) |
 | vello_cpu | 0.2.0 | Apache-2.0 OR MIT | https://github.com/linebender/vello | LICENSE-APACHE (A6CBA85BC92E0CFF), LICENSE-MIT (ADF157330F722FE7) |
@@ -277,7 +277,7 @@ editor and terminal it opens (VS Code, Windows Terminal, pwsh) are likewise the 
 Segoe UI and Cascadia are read from the Windows font folder at run time, never copied; the
 fallback fonts are those the egui crates above bundle, under the licences listed for them.
 
-## Licence texts (156 distinct)
+## Licence texts (164 distinct)
 
 Each text once, headed by the crate files that carry it (text id in the table above).
 
@@ -3977,6 +3977,90 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER
 DEALINGS IN THE FONT SOFTWARE.
 ```
 
+### 36DBBFD79D73974F
+
+- epaint_default_fonts 0.37.0: fonts/egui-icons.txt
+
+```
+egui-icons.ttf
+
+A subset of emoji-icon-font.ttf (https://github.com/jslegers/emoji-icon-font),
+containing only the five glyphs that egui exposes as `egui::special_emojis`:
+
+    U+E618  the Android logo
+    U+E61F  the Windows logo
+    U+E624  the GitHub logo
+    U+E625  the word `git`
+    U+F8FF  the Apple logo
+
+No platform font has these, so egui bundles them even when the rest of
+emoji-icon-font.ttf is left out (the `monochrome_emoji_fonts` feature).
+
+Regenerate with:
+
+    pip install fonttools
+    python3 -m fontTools.subset emoji-icon-font.ttf \
+        --unicodes=E618,E61F,E624,E625,F8FF \
+        --no-hinting --desubroutinize \
+        --output-file=egui-icons.ttf
+
+The license is that of emoji-icon-font.ttf: see emoji-icon-font-mit-license.txt.
+```
+
+### B9D2C1D909AA1499
+
+- epaint_default_fonts 0.37.0: fonts/emoji-icon-font-mit-license.txt
+
+```
+MIT License
+
+Copyright (c) 2014 John Slegers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### 47C0CCCBEEC7E861
+
+- epaint_default_fonts 0.37.0: fonts/Hack-Regular.txt
+
+```
+The work in the Hack project is Copyright 2018 Source Foundry Authors and licensed under the MIT License
+
+The work in the DejaVu project was committed to the public domain.
+
+Bitstream Vera Sans Mono Copyright 2003 Bitstream Inc. and licensed under the Bitstream Vera License with Reserved Font Names "Bitstream" and "Vera"
+MIT License
+
+Copyright (c) 2018 Source Foundry Authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+BITSTREAM VERA LICENSE
+
+Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved. Bitstream Vera is a trademark of Bitstream, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of the fonts accompanying this license ("Fonts") and associated documentation files (the "Font Software"), to reproduce and distribute the Font Software, including without limitation the rights to use, copy, merge, publish, distribute, and/or sell copies of the Font Software, and to permit persons to whom the Font Software is furnished to do so, subject to the following conditions:
+
+The above copyright and trademark notices and this permission notice shall be included in all copies of one or more of the Font Software typefaces.
+
+The Font Software may be modified, altered, or added to, and in particular the designs of glyphs or characters in the Fonts may be modified and additional glyphs or characters may be added to the Fonts, only if the fonts are renamed to names not containing either the words "Bitstream" or the word "Vera".
+
+This License becomes null and void to the extent applicable to Fonts or Font Software that has been modified and is distributed under the "Bitstream Vera" names.
+
+The Font Software may be sold as part of a larger software package but no copy of one or more of the Font Software typefaces may be sold by itself.
+
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL BITSTREAM OR THE GNOME FOUNDATION BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER DEALINGS IN THE FONT SOFTWARE.
+
+Except as contained in this notice, the names of Gnome, the Gnome Foundation, and Bitstream Inc., shall not be used in advertising or otherwise to promote the sale, use or other dealings in this Font Software without prior written authorization from the Gnome Foundation or Bitstream Inc., respectively. For further information, contact: fonts at gnome dot org.
+```
+
 ### 7365CC8878A1D7CE
 
 - equivalent 1.0.3: LICENSE-MIT
@@ -4007,6 +4091,18 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+### EC82B96487E9E778
+
+- euclid 0.22.14: COPYRIGHT
+
+```
+Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+<LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+option. All files in the project carrying such notice may not be
+copied, modified, or distributed except according to those terms.
 ```
 
 ### 62065228E42CAEBC
@@ -9385,6 +9481,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### C6D1D56BB6E2FE4F
+
+- tiff 0.11.3: tests/COPYRIGHT
+
+```
+subsubifd.tif:
+  url: https://data.kitware.com/api/v1/file/hashsum/sha512/372ca32735c8a8fdbe2286dabead9e779da63f10ba81eda84625e5273f76d74ca1a47a978f67e9c00c12f7f72009c7b2c07a641e643bb0c463812f4ae7f15d6e/download
+  credit: https://github.com/DigitalSlideArchive/tifftools/commit/4d00c70dbce828262f86c1431f7c66b1748965ac
+  license: CC0
+usda/*.tif
+  url: https://registry.opendata.aws/naip/index.html
+  credit: NAIP on AWS was accessed on 2026-01-28 from https://registry.opendata.aws/naip.
+  license: Public Domain
+```
+
 ### 2537228D9A1B44A5
 
 - time 0.3.55: LICENSE-MIT
@@ -10253,6 +10364,22 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 ```
 
+### 23860C2A7B5D96B2
+
+- unicode-properties 0.1.5: COPYRIGHT
+- unicode-segmentation 1.13.3: COPYRIGHT
+- unicode-width 0.2.3: COPYRIGHT
+
+```
+Licensed under the Apache License, Version 2.0
+<LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT
+license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
+at your option. All files in the project carrying such
+notice may not be copied, modified, or distributed except
+according to those terms.
+```
+
 ### E7A93B009565CFCE
 
 - unicode-properties 0.1.5: LICENSE-UNICODE
@@ -10541,6 +10668,33 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
+### 3210BE7332B5BDF4
+
+- utf_types 1.0.0: COPYRIGHT
+
+```
+Copyright Mozilla Foundation
+
+Licensed under the Apache License (Version 2.0), or the MIT license,
+(the "Licenses") at your option. You may not use this file except in
+compliance with one of the Licenses. You may obtain copies of the
+Licenses at:
+
+   https://www.apache.org/licenses/LICENSE-2.0
+   https://opensource.org/licenses/MIT
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the Licenses is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the Licenses for the specific language governing permissions and
+limitations under the Licenses.
+
+--
+
+Test code is dedicated to the Public Domain when so designated (see
+the individual files for PD/CC0-dedicated sections).
+```
+
 ### 3FA4CA83DCC92378
 
 - utf_types 1.0.0: LICENSE-MIT
@@ -10572,6 +10726,55 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+### C30152C94A6D75E0
+
+- utf8_iter 1.1.0: COPYRIGHT
+
+```
+Copyright Mozilla Foundation
+
+Licensed under the Apache License (Version 2.0), or the MIT license,
+(the "Licenses") at your option. You may not use this file except in
+compliance with one of the Licenses. You may obtain copies of the
+Licenses at:
+
+   https://www.apache.org/licenses/LICENSE-2.0
+   https://opensource.org/licenses/MIT
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the Licenses is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the Licenses for the specific language governing permissions and
+limitations under the Licenses.
+
+--
+
+Test code is dedicated to the Public Domain when so designated (see
+the individual files for PD/CC0-dedicated sections).
+
+--
+
+The implementation for Utf8CharIndices was adapted from the
+CharIndices implementation of the Rust standard library at revision
+ab32548539ec38a939c1b58599249f3b54130026
+(https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/library/core/src/str/iter.rs).
+
+Excerpt from https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/COPYRIGHT ,
+which refers to
+https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/LICENSE-APACHE
+and
+https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/LICENSE-MIT
+:
+
+For full authorship information, see the version control history or
+https://thanks.rust-lang.org
+
+Except as otherwise noted (below and/or in individual files), Rust is
+licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
+<http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+<LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 ```
 
 ### 436BC5A105D8E57D
