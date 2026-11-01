@@ -69,6 +69,9 @@ pub struct AppState {
 	pub history: HashMap<PathBuf, HistoryState>,
 	/// The diff open in the right pane, if any.
 	pub diff: Option<DiffState>,
+	/// Counts every diff read ever started, so a result from a diff closed and replaced by
+	/// another can never match the new one's generation.
+	pub(crate) diff_serial: u64,
 	/// A repository asked for on the command line, applied when discovery first lists it.
 	pub requested_selection: Option<PathBuf>,
 	/// A working-tree diff asked for on the command line (path, inline), opened on the selected
@@ -101,6 +104,7 @@ impl AppState {
 			view: View::Changes,
 			history: HashMap::new(),
 			diff: None,
+			diff_serial: 0,
 			requested_selection: None,
 			requested_diff: None,
 			generation: 0,
@@ -180,9 +184,14 @@ impl AppState {
 		self.selected.as_ref().and_then(|p| find(&self.repos, p))
 	}
 
+	/// Selects a repository. An open diff belongs to the repository it was opened on, so moving
+	/// to another closes it rather than drawing it under the new header.
 	pub fn select(&mut self, path: PathBuf) {
 		if self.selected.as_ref() != Some(&path) {
 			self.selected_file = None;
+			if self.diff.as_ref().is_some_and(|d| d.open.repo != path) {
+				self.close_diff();
+			}
 		}
 		self.selected = Some(path);
 	}

@@ -2,9 +2,16 @@
 //! highlights for changed line pairs with `similar`. Pure functions; drawing is in diff.rs.
 
 use std::ops::Range;
+use std::time::{Duration, Instant};
 
 use repose_core::model::{DiffLine, FileDiff, Hunk, LineKind};
 use similar::{ChangeTag, TextDiff};
+
+/// Lines longer than this get no word marks: a minified bundle or one-line JSON would otherwise
+/// hold the thread for seconds (Morticia M-1 on 4a6b980: 235 KB took 3.6 s, 1.8 MB over 40 s).
+pub const MAX_MARK_BYTES: usize = 4 * 1024;
+/// Past this the word diff returns what it has, which may be coarser but never hangs.
+const MARK_DEADLINE: Duration = Duration::from_millis(20);
 
 /// Where a line lives in the parsed diff.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,10 +150,12 @@ fn inline_rows(hunk: &Hunk, hi: usize, rows: &mut Vec<Row>) {
 /// Byte ranges that differ between two lines, by words. Identical lines get none, and a pair with
 /// nothing in common is left unmarked rather than fully painted.
 pub fn word_marks(old: &str, new: &str) -> (Vec<Range<usize>>, Vec<Range<usize>>) {
-	if old == new {
+	if old == new || old.len() > MAX_MARK_BYTES || new.len() > MAX_MARK_BYTES {
 		return (Vec::new(), Vec::new());
 	}
-	let diff = TextDiff::from_words(old, new);
+	let diff = TextDiff::configure()
+		.deadline(Instant::now() + MARK_DEADLINE)
+		.diff_words(old, new);
 	let (mut o, mut n) = (0usize, 0usize);
 	let (mut old_marks, mut new_marks) = (Vec::new(), Vec::new());
 	let mut equal_bytes = 0usize;
@@ -198,6 +207,48 @@ mod tests {
 			word_marks("abc", "xyz"),
 			(vec![], vec![]),
 			"nothing in common: no marks"
+		);
+	}
+
+	#[test]
+	fn long_lines_get_no_marks_and_return_at_once() {
+		let old: String = (0..60_000).map(|i| format!("w{i} ")).collect();
+		let new: String = (0..60_000)
+			.map(|i| {
+				if i % 2 == 0 {
+					format!("w{i} ")
+				} else {
+					format!("x{i} ")
+				}
+			})
+			.collect();
+		let started = Instant::now();
+		let (o, n) = word_marks(&old, &new);
+		assert!(o.is_empty() && n.is_empty());
+		assert!(
+			started.elapsed() < Duration::from_millis(50),
+			"{:?}",
+			started.elapsed()
+		);
+		// Just under the cap still gets marks, within the deadline plus a margin.
+		let short_old: String = (0..600).map(|i| format!("w{i} ")).collect();
+		let short_new: String = (0..600)
+			.map(|i| {
+				if i % 2 == 0 {
+					format!("w{i} ")
+				} else {
+					format!("x{i} ")
+				}
+			})
+			.collect();
+		assert!(short_old.len() < MAX_MARK_BYTES);
+		let started = Instant::now();
+		let (o, _) = word_marks(&short_old, &short_new);
+		assert!(!o.is_empty());
+		assert!(
+			started.elapsed() < Duration::from_millis(500),
+			"{:?}",
+			started.elapsed()
 		);
 	}
 

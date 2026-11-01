@@ -9,7 +9,7 @@ use repose_core::git::diff::{MAX_DIFF_BYTES, blob_size, read_diff};
 use repose_core::model::{DiffSource, FileDiff};
 
 use super::{AppState, Msg};
-use crate::diff_rows::Row;
+use crate::diff_rows::{Row, build_rows};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenDiff {
@@ -44,16 +44,21 @@ pub struct DiffState {
 pub struct DiffMsg {
 	pub generation: u64,
 	pub content: DiffContent,
+	/// Rows built on the reader thread for the mode that was current when the read started.
+	pub rows: Vec<Vec<Row>>,
+	pub rows_inline: bool,
 }
 
 impl AppState {
 	/// Opens a diff in the right pane, keeping the Inline choice across files.
 	pub fn open_diff(&mut self, open: OpenDiff, ctx: &egui::Context) {
-		let (inline, generation) = match &self.diff {
+		let inline = match &self.diff {
 			Some(d) if d.open == open => return,
-			Some(d) => (d.inline, d.generation + 1),
-			None => (false, 1),
+			Some(d) => d.inline,
+			None => false,
 		};
+		self.diff_serial += 1;
+		let generation = self.diff_serial;
 		self.diff = Some(DiffState {
 			open: open.clone(),
 			content: DiffContent::Loading,
@@ -62,7 +67,7 @@ impl AppState {
 			rows: Vec::new(),
 			rows_inline: inline,
 		});
-		spawn_read(open, generation, self.tx.clone(), ctx.clone());
+		spawn_read(open, generation, inline, self.tx.clone(), ctx.clone());
 	}
 
 	pub fn close_diff(&mut self) {
@@ -78,8 +83,15 @@ impl AppState {
 		if d.open.repo != repo {
 			return;
 		}
-		d.generation += 1;
-		spawn_read(d.open.clone(), d.generation, self.tx.clone(), ctx.clone());
+		self.diff_serial += 1;
+		d.generation = self.diff_serial;
+		spawn_read(
+			d.open.clone(),
+			d.generation,
+			d.inline,
+			self.tx.clone(),
+			ctx.clone(),
+		);
 	}
 
 	pub(super) fn merge_diff(&mut self, msg: DiffMsg) {
@@ -87,46 +99,75 @@ impl AppState {
 			&& d.generation == msg.generation
 		{
 			d.content = msg.content;
-			d.rows.clear();
+			d.rows = msg.rows;
+			d.rows_inline = msg.rows_inline;
 		}
 	}
 }
 
-/// The size of the side that exists: the working file, the index blob or the commit's blob.
-fn side_size(open: &OpenDiff) -> Result<u64, String> {
-	let path = &open.display;
-	match &open.source {
-		DiffSource::Working => {
-			let full = open.repo.join(path.replace('/', "\\"));
-			match std::fs::metadata(&full) {
-				Ok(m) => Ok(m.len()),
-				// A deleted file has no working side; the index blob is what the diff removes.
-				Err(_) => blob_size(&open.repo, ":0", path).map_err(|e| e.to_string()),
-			}
-		}
-		DiffSource::Staged => blob_size(&open.repo, ":0", path)
-			.or_else(|_| blob_size(&open.repo, "HEAD", path))
-			.map_err(|e| e.to_string()),
-		DiffSource::Commit(hash) => blob_size(&open.repo, hash, path)
-			.or_else(|_| blob_size(&open.repo, &format!("{hash}^"), path))
-			.map_err(|e| e.to_string()),
+/// The largest side of the diff: the new side and the old side are both measured, since either
+/// can be the big one. A side that does not exist (an added or deleted file) is skipped, but when
+/// neither side can be measured nothing is sent to git: the size check fails closed.
+fn largest_side(open: &OpenDiff) -> Result<u64, String> {
+	let new_path = open.display.as_str();
+	let old_path = open
+		.paths
+		.iter()
+		.find(|p| p.as_str() != new_path)
+		.map_or(new_path, String::as_str);
+	let sides: Vec<Result<u64, String>> = match &open.source {
+		DiffSource::Working => vec![
+			std::fs::metadata(open.repo.join(new_path.replace('/', "\\")))
+				.map(|m| m.len())
+				.map_err(|e| e.to_string()),
+			blob_size(&open.repo, ":0", old_path).map_err(|e| e.to_string()),
+		],
+		DiffSource::Staged => vec![
+			blob_size(&open.repo, ":0", new_path).map_err(|e| e.to_string()),
+			blob_size(&open.repo, "HEAD", old_path).map_err(|e| e.to_string()),
+		],
+		DiffSource::Commit(hash) => vec![
+			blob_size(&open.repo, hash, new_path).map_err(|e| e.to_string()),
+			blob_size(&open.repo, &format!("{hash}^"), old_path).map_err(|e| e.to_string()),
+		],
+	};
+	let known: Vec<u64> = sides
+		.iter()
+		.filter_map(|s| s.as_ref().ok().copied())
+		.collect();
+	match known.iter().max() {
+		Some(max) => Ok(*max),
+		None => Err(format!(
+			"Size unknown on both sides, so the diff was not run: {}",
+			sides
+				.iter()
+				.filter_map(|s| s.as_ref().err().cloned())
+				.collect::<Vec<_>>()
+				.join(" / ")
+		)),
 	}
 }
 
-fn spawn_read(open: OpenDiff, generation: u64, tx: Sender<Msg>, ctx: egui::Context) {
+fn spawn_read(open: OpenDiff, generation: u64, inline: bool, tx: Sender<Msg>, ctx: egui::Context) {
 	std::thread::spawn(move || {
-		let content = match side_size(&open) {
+		let content = match largest_side(&open) {
 			Ok(size) if size > MAX_DIFF_BYTES => DiffContent::TooLarge(size),
-			// An unreadable size (an untracked file that vanished, a path git cannot name) falls
-			// through to the diff itself, whose error says more.
-			_ => match read_diff(&open.repo, &open.source, &open.paths) {
+			Ok(_) => match read_diff(&open.repo, &open.source, &open.paths) {
 				Ok(files) => DiffContent::Files(files),
 				Err(e) => DiffContent::Error(e.to_string()),
 			},
+			Err(e) => DiffContent::Error(e),
+		};
+		// Rows, with their word marks, are built here and not on the UI thread.
+		let rows = match &content {
+			DiffContent::Files(files) => files.iter().map(|f| build_rows(f, inline)).collect(),
+			_ => Vec::new(),
 		};
 		let _ = tx.send(Msg::Diff(DiffMsg {
 			generation,
 			content,
+			rows,
+			rows_inline: inline,
 		}));
 		ctx.request_repaint();
 	});
