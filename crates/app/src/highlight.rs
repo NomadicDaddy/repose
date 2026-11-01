@@ -1,7 +1,8 @@
 //! Syntax colour for diff lines: syntect with the fancy-regex engine and two-face's extra
-//! syntaxes (TypeScript, TOML, PowerShell and more), a dark base16 theme, chosen by file
-//! extension. An unknown extension gets no spans and draws as plain text. Computed on the reader
-//! thread alongside the rows, never while drawing.
+//! syntaxes (TypeScript, TOML and more; two-face 0.4.5 has no PowerShell, so .ps1 draws plain
+//! until a syntax is vendored), a dark base16 theme, chosen by file extension. An unknown
+//! extension gets no spans and draws as plain text. Computed on the reader thread alongside the
+//! rows, never while drawing; lines over MAX_COLOUR_BYTES are left plain.
 
 use std::ops::Range;
 use std::sync::OnceLock;

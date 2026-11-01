@@ -144,26 +144,38 @@ fn text_cell(
 
 /// One line as a layout job: runs cut at every mark and colour boundary, each with its syntax
 /// colour and, inside a word mark, the mark background. A CR is shown as ␍ so a line-ending
-/// change is visible. Marks and spans fall on character boundaries; any that do not are skipped.
+/// change is visible. Marks and spans are each sorted and non-overlapping (similar and syntect
+/// both produce them in order), so one pass with a cursor into each finds every segment's
+/// colour: linear in the number of boundaries, never a scan per segment (Roger on e8e10ad).
+/// Boundaries off a character edge are skipped.
 fn marked_job(text: &str, marks: &[Range<usize>], mark_bg: Color32, spans: &[Span]) -> LayoutJob {
 	let mut job = LayoutJob::default();
 	job.wrap.max_width = f32::INFINITY;
 	let font = FontId::new(MONO, FontFamily::Monospace);
-	let mut cuts: Vec<usize> = vec![0, text.len()];
+	let mut cuts: Vec<usize> = Vec::with_capacity(2 + 2 * (marks.len() + spans.len()));
+	cuts.push(0);
+	cuts.push(text.len());
 	cuts.extend(marks.iter().flat_map(|m| [m.start, m.end]));
 	cuts.extend(spans.iter().flat_map(|s| [s.range.start, s.range.end]));
 	cuts.retain(|&c| c <= text.len() && text.is_char_boundary(c));
 	cuts.sort_unstable();
 	cuts.dedup();
+	let (mut mi, mut si) = (0usize, 0usize);
 	for w in cuts.windows(2) {
 		let (a, b) = (w[0], w[1]);
 		if a >= b {
 			continue;
 		}
-		let marked = marks.iter().any(|m| m.start <= a && b <= m.end);
+		while mi < marks.len() && marks[mi].end <= a {
+			mi += 1;
+		}
+		while si < spans.len() && spans[si].range.end <= a {
+			si += 1;
+		}
+		let marked = marks.get(mi).is_some_and(|m| m.start <= a && b <= m.end);
 		let color = spans
-			.iter()
-			.find(|s| s.range.start <= a && b <= s.range.end)
+			.get(si)
+			.filter(|s| s.range.start <= a && b <= s.range.end)
 			.map_or(TEXT, |s| s.color);
 		let shown = text[a..b].replace('\r', "␍");
 		job.append(
@@ -182,4 +194,40 @@ fn marked_job(text: &str, marks: &[Range<usize>], mark_bg: Color32, spans: &[Spa
 		);
 	}
 	job
+}
+
+#[cfg(test)]
+mod tests {
+	use std::time::{Duration, Instant};
+
+	use eframe::egui::Color32;
+
+	use super::marked_job;
+	use crate::highlight::Span;
+
+	/// Roger on e8e10ad: the segment-to-colour lookup must not scan the spans per segment.
+	#[test]
+	fn a_span_rich_line_lays_out_in_linear_time() {
+		let text: String = (0..1000).map(|i| format!("w{i} ")).collect();
+		let mut spans = Vec::new();
+		let mut pos = 0;
+		for i in 0..1000 {
+			let word = format!("w{i} ");
+			spans.push(Span {
+				range: pos..pos + 2,
+				color: Color32::from_rgb(10, 20, 30),
+			});
+			pos += word.len();
+		}
+		let marks: Vec<std::ops::Range<usize>> = (0..500).map(|i| i * 8..i * 8 + 3).collect();
+		let started = Instant::now();
+		let job = marked_job(&text, &marks, Color32::RED, &spans);
+		assert!(job.sections.len() >= 1000, "{}", job.sections.len());
+		assert!(
+			started.elapsed() < Duration::from_millis(50),
+			"{:?}",
+			started.elapsed()
+		);
+		assert_eq!(job.text.len(), text.len());
+	}
 }
