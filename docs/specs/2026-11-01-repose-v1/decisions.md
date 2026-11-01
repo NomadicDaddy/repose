@@ -3,7 +3,8 @@
 ## ADR-001: UI toolkit (open)
 
 Status: accepted 2026-11-01. Phillip chose eframe/egui (Room #30715) from the numbers and captures
-below, after the corrections in the next paragraph were posted to him (#30720). Decided by the
+below; the corrections in the next paragraph were posted to him at #30722 and he confirmed
+"continue with egui" (#30724). Decided by the
 `ui-toolkit-decision` record: two prototypes of the repository list, measured and screenshotted,
 then Phillip's choice.
 
