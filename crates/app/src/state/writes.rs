@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::Cancel;
 use repose_core::git::write;
+use repose_core::git::{Cancel, GitError};
 
 use super::{AppState, Msg};
 
@@ -53,6 +53,8 @@ pub struct WriteOutcome {
 	pub leftover_lock: Option<PathBuf>,
 	/// A success with a caveat: the commit landed, then Cancel stopped a later hook.
 	pub notice: Option<String>,
+	/// The error is the user's Cancel, not a failure (a flag, not a match on the text).
+	pub cancelled: bool,
 }
 
 /// The queue the UI sees: one running request per repository and the ones waiting behind them.
@@ -121,6 +123,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 			}
 		}
 	};
+	let cancelled = matches!(result, Err(GitError::Cancelled { .. }));
 	let error = result.err().map(|e| e.to_string());
 	let leftover_lock = if error.is_some() {
 		write::index_lock_path(repo).filter(|p| p.exists())
@@ -133,6 +136,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		error,
 		leftover_lock,
 		notice,
+		cancelled,
 	}
 }
 
@@ -173,5 +177,55 @@ impl AppState {
 		self.writes.running.remove(&outcome.repo);
 		self.writes.last.insert(outcome.repo.clone(), outcome);
 		self.start_next_write(ctx);
+	}
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+	use std::process::Command;
+
+	use super::*;
+
+	fn git(dir: &Path, args: &[&str]) {
+		let status = Command::new("git")
+			.current_dir(dir)
+			.env("GIT_CONFIG_GLOBAL", "NUL")
+			.env("GIT_CONFIG_SYSTEM", "NUL")
+			.args(args)
+			.status()
+			.expect("git runs");
+		assert!(status.success(), "git {args:?}");
+	}
+
+	/// Morticia L-2 on a31e63b: the leftover-lock report, exercised with a lock that is there
+	/// for certain. A planted index.lock makes the commit fail, and the outcome names it; the
+	/// test removes what it planted.
+	#[test]
+	fn a_lock_left_in_the_way_is_reported_by_path_and_not_removed() {
+		let dir = std::env::temp_dir().join(format!("repose-lock-test-{}", std::process::id()));
+		let _ = std::fs::remove_dir_all(&dir);
+		std::fs::create_dir_all(&dir).expect("dir");
+		git(&dir, &["init", "-q", "-b", "main"]);
+		std::fs::write(dir.join("a.txt"), "a\n").expect("write");
+		git(&dir, &["add", "a.txt"]);
+		let lock = dir.join(".git").join("index.lock");
+		std::fs::write(&lock, "").expect("plant the lock");
+		let outcome = perform(&WriteRequest {
+			repo: dir.clone(),
+			kind: WriteKind::Commit("blocked by a lock".into()),
+			cancel: Cancel::new(),
+		});
+		let still_there = lock.exists();
+		let _ = std::fs::remove_file(&lock);
+		let _ = std::fs::remove_dir_all(&dir);
+		assert!(outcome.error.is_some(), "the commit fails on the lock");
+		assert!(!outcome.cancelled);
+		assert_eq!(
+			outcome.leftover_lock.as_deref(),
+			Some(lock.as_path()),
+			"the lock is reported by its path: {outcome:?}"
+		);
+		assert!(still_there, "repose must not remove the lock");
 	}
 }

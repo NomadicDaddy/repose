@@ -20,7 +20,12 @@ Step 'cargo test' { cargo test --workspace }
 # message that accepted it, so nothing is ignored silently; none so far. Unmaintained-crate
 # warnings are printed, not failed.
 $acceptedAdvisories = @()
-Step 'cargo audit' { cargo audit @($acceptedAdvisories | ForEach-Object { '--ignore'; $_ }) }
+# The advisory database is refreshed when the network allows and the scan then runs against
+# the local copy, so a network hold does not fail the gate on a fetch (Morticia on 08c6f17).
+Write-Host '== cargo audit fetch (best effort)'
+cargo audit fetch
+if ($LASTEXITCODE -ne 0) { Write-Host 'NOTE: advisory database not refreshed (no network?); scanning the local copy' }
+Step 'cargo audit' { cargo audit --no-fetch @($acceptedAdvisories | ForEach-Object { '--ignore'; $_ }) }
 Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.

@@ -157,7 +157,7 @@ pub fn commit_cancellable(
 			hook_stopped: false,
 			tree_killed: true,
 		}),
-		Err(GitError::Cancelled { tree_killed, .. }) if matches!((&before, head_hash(repo)), (Ok(b), Ok(a)) if *b != a) => {
+		Err(GitError::Cancelled { tree_killed, .. }) if landed_ours(repo, &before, message) => {
 			Ok(Committed {
 				hook_stopped: true,
 				tree_killed,
@@ -165,6 +165,31 @@ pub fn commit_cancellable(
 		}
 		Err(e) => Err(e),
 	}
+}
+
+/// Whether the commit this call made is HEAD now: both HEAD reads worked, HEAD moved, the new
+/// commit's first parent is the old HEAD (or it has none, when the branch was unborn) and its
+/// message is the one given. A teammate's commit or a branch switch in that checkout during a
+/// long hook fails one of those and stays Cancelled (Morticia L-3 on 08c6f17).
+fn landed_ours(repo: &Path, before: &Result<Option<String>, GitError>, message: &str) -> bool {
+	let (Ok(old), Ok(Some(new))) = (before, head_hash(repo)) else {
+		return false;
+	};
+	if old.as_deref() == Some(new.as_str()) {
+		return false;
+	}
+	let parent = match run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD^"]) {
+		Ok(out) => Some(String::from_utf8_lossy(&out).trim().to_string()),
+		Err(GitError::Failed { code: Some(1), .. }) => None,
+		Err(_) => return false,
+	};
+	if parent != *old {
+		return false;
+	}
+	let Ok(body) = run(repo, Verb::Log, &["-1", "--format=%B", "HEAD"]) else {
+		return false;
+	};
+	String::from_utf8_lossy(&body).trim() == message.trim()
 }
 
 /// HEAD's hash: Ok(None) only for an unborn branch (exit 1 with nothing on stderr, as

@@ -67,7 +67,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		match &last.error {
 			Some(error) => {
 				let what = match &last.kind {
-					WriteKind::Commit(_) if error.starts_with("cancelled") => "Commit cancelled",
+					WriteKind::Commit(_) if last.cancelled => "Commit cancelled",
 					WriteKind::Commit(_) => "Commit failed",
 					WriteKind::Discard { .. } => "Discard failed",
 					_ => "Change failed",
