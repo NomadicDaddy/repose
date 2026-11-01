@@ -135,16 +135,22 @@ fn fit(
 	if whole.size().x <= width {
 		return whole;
 	}
-	let mut chars: Vec<char> = text.chars().collect();
-	while !chars.is_empty() {
-		chars.pop();
-		let cut: String = chars.iter().collect::<String>() + "…";
+	// Both row fonts are monospace, so one advance tells how many characters fit beside the
+	// ellipsis; at most two more layouts follow, never one per character (Roger Low on cd6c406).
+	let advance = (whole.size().x / text.chars().count().max(1) as f32).max(1.0);
+	let ellipsis = painter
+		.layout_no_wrap("…".to_string(), font.clone(), color)
+		.size()
+		.x;
+	let mut keep = ((width - ellipsis) / advance).floor().max(0.0) as usize;
+	loop {
+		let cut: String = text.chars().take(keep).collect::<String>() + "…";
 		let galley = painter.layout_no_wrap(cut, font.clone(), color);
-		if galley.size().x <= width {
+		if galley.size().x <= width || keep == 0 {
 			return galley;
 		}
+		keep -= 1;
 	}
-	painter.layout_no_wrap(String::new(), font, color)
 }
 
 /// Draws a small pill ending at `right`; returns its left edge.
