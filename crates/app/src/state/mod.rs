@@ -2,10 +2,11 @@
 //! messages tagged with a generation; results are merged by repository path so a refresh never
 //! resets the selection or scroll. Writes go through one serial queue.
 
+mod history;
 mod scan;
 mod writes;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::SystemTime;
@@ -14,6 +15,7 @@ use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::RepoSummary;
 
+pub use history::{HistoryMsg, HistoryState};
 pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
 
 pub enum Msg {
@@ -22,6 +24,14 @@ pub enum Msg {
 	/// The scan finished; carries the machine's UTC offset read on the scan thread.
 	Done(u64, Option<i32>),
 	WriteDone(Box<WriteOutcome>),
+	History(HistoryMsg),
+}
+
+/// Which pane the right side shows for the selected repository.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+	Changes,
+	History,
 }
 
 /// A pending discard, shown in the confirmation dialog until the user decides.
@@ -49,6 +59,10 @@ pub struct AppState {
 	pub commit_message: String,
 	pub writes: WriteQueue,
 	pub pending_discard: Option<PendingDiscard>,
+	pub view: View,
+	pub history: HashMap<PathBuf, HistoryState>,
+	/// A repository asked for on the command line, applied when discovery first lists it.
+	pub requested_selection: Option<PathBuf>,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -73,6 +87,9 @@ impl AppState {
 			commit_message: String::new(),
 			writes: WriteQueue::default(),
 			pending_discard: None,
+			view: View::Changes,
+			history: HashMap::new(),
+			requested_selection: None,
 			generation: 0,
 			tx,
 			rx,
@@ -111,6 +128,7 @@ impl AppState {
 					self.utc_offset = offset;
 				}
 				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
+				Msg::History(h) => self.merge_history(h),
 				_ => {}
 			}
 		}
@@ -134,6 +152,18 @@ impl AppState {
 			}
 		}
 		self.repos = fresh;
+		if let Some(wanted) = self.requested_selection.take() {
+			let key = |p: &Path| p.to_string_lossy().to_lowercase().replace('\\', "/");
+			let hit = self
+				.repos
+				.iter()
+				.flat_map(|r| std::iter::once(r).chain(r.worktrees.iter()))
+				.find(|r| key(&r.path) == key(&wanted))
+				.map(|r| r.path.clone());
+			if hit.is_some() {
+				self.selected = hit;
+			}
+		}
 		if self
 			.selected
 			.as_ref()
@@ -145,6 +175,11 @@ impl AppState {
 
 	fn merge_status(&mut self, fresh: RepoSummary) {
 		if let Some(row) = find_mut(&mut self.repos, &fresh.path) {
+			// A full Refresh can overlap a post-write re-read; the one that started reading later
+			// wins, so an older scan result never overwrites a newer status.
+			if row.checked_at > fresh.checked_at {
+				return;
+			}
 			row.branch = fresh.branch;
 			row.short_hash = fresh.short_hash.or(row.short_hash.take());
 			row.status = fresh.status;
@@ -184,6 +219,7 @@ impl AppState {
 	fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
 		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
 			self.commit_message.clear();
+			self.invalidate_history(&outcome.repo.clone());
 		}
 		self.refresh_repo(&outcome.repo.clone(), ctx);
 		self.writes.last = Some(outcome);

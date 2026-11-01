@@ -24,15 +24,29 @@ pub fn stage_all(repo: &Path) -> Result<(), GitError> {
 	run(repo, Verb::Add, &["--all"]).map(|_| ())
 }
 
+/// Whether HEAD exists. On a repository with no commit yet, `restore --staged` has no source,
+/// so unstaging has to drop the index entry instead.
+fn has_head(repo: &Path) -> bool {
+	run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"]).is_ok()
+}
+
 pub fn unstage(repo: &Path, paths: &[String]) -> Result<(), GitError> {
 	if paths.is_empty() {
 		return Ok(());
 	}
-	run(repo, Verb::Restore, &with_paths(&["--staged"], paths)).map(|_| ())
+	if has_head(repo) {
+		run(repo, Verb::Restore, &with_paths(&["--staged"], paths)).map(|_| ())
+	} else {
+		run(repo, Verb::RmCached, &with_paths(&[], paths)).map(|_| ())
+	}
 }
 
 pub fn unstage_all(repo: &Path) -> Result<(), GitError> {
-	run(repo, Verb::Restore, &["--staged", "--", "."]).map(|_| ())
+	if has_head(repo) {
+		run(repo, Verb::Restore, &["--staged", "--", "."]).map(|_| ())
+	} else {
+		run(repo, Verb::RmCached, &["-r", "--", "."]).map(|_| ())
+	}
 }
 
 /// Restores tracked files from the index and removes untracked ones. The caller has already

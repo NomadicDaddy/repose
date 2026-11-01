@@ -100,10 +100,11 @@ impl Changes {
 						});
 					}
 					if let Some(kind) = ChangeKind::from_code(xy[1]) {
+						let keep_from = kind == ChangeKind::Renamed;
 						c.unstaged.push(FileChange {
 							path: e.path.clone(),
 							kind,
-							from: None,
+							from: keep_from.then(|| from.clone()),
 						});
 					}
 				}

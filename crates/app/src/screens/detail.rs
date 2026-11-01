@@ -1,11 +1,11 @@
-//! The right pane: the selected repository's header, the commit box and its Changes. History,
-//! diffs and files arrive with their own records.
+//! The right pane: the selected repository's header, a Changes | History switch, and the pane
+//! chosen. Diffs and files arrive with their own records.
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
-use super::{changes, commit_box, confirm};
+use super::{changes, commit_box, confirm, history};
 use crate::platform::Platform;
-use crate::state::AppState;
+use crate::state::{AppState, View};
 use crate::theme::*;
 
 pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
@@ -55,11 +55,23 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					return;
 				}
 			}
+			ui.add_space(10.0);
+			ui.horizontal(|ui| {
+				for (view, label) in [(View::Changes, "Changes"), (View::History, "History")] {
+					let selected = state.view == view;
+					if ui.selectable_label(selected, label).clicked() {
+						state.view = view;
+					}
+				}
+			});
 			egui::ScrollArea::vertical()
 				.auto_shrink([false, false])
-				.show(ui, |ui| {
-					commit_box::show(ui, state);
-					changes::show(ui, state, platform);
+				.show(ui, |ui| match state.view {
+					View::Changes => {
+						commit_box::show(ui, state);
+						changes::show(ui, state, platform);
+					}
+					View::History => history::show(ui, state),
 				});
 		});
 	confirm::show(&ctx, state);

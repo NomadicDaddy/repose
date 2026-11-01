@@ -4,5 +4,6 @@ pub mod changes;
 pub mod commit_box;
 pub mod confirm;
 pub mod detail;
+pub mod history;
 pub mod repo_list;
 mod row;

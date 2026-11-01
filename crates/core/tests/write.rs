@@ -55,6 +55,20 @@ fn stage_and_unstage_round_trip() {
 }
 
 #[test]
+fn unstage_works_before_the_first_commit() {
+	let repo = TempRepo::new("unborn-unstage");
+	repo.write("a.txt", "a\n");
+	repo.write("b.txt", "b\n");
+	stage(&repo.path, &["a.txt".to_string(), "b.txt".to_string()]).expect("stage");
+	assert!(status(&repo).contains("A  a.txt"), "{}", status(&repo));
+	unstage(&repo.path, &["a.txt".to_string()]).expect("unstage on an unborn branch");
+	let s = status(&repo);
+	assert!(s.contains("?? a.txt"), "a.txt back to untracked: {s}");
+	assert!(s.contains("A  b.txt"), "b.txt still staged: {s}");
+	assert!(repo.path.join("a.txt").exists(), "the working file stays");
+}
+
+#[test]
 fn failing_hook_blocks_the_commit_and_keeps_the_index() {
 	let repo = TempRepo::new("hook-fail");
 	repo.write("a.txt", "a\n");

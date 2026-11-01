@@ -1,6 +1,8 @@
 //! repose: the window. Flags: `--config <path>` overrides the config file location;
 //! `--measure-startup [file]` writes the milliseconds from process start to the first frame that
 //! shows repository rows into the file (default `repose-startup-ms.txt`), prints it, then exits.
+//! `--select <repository path>` opens on that repository and `--view changes|history` on that
+//! pane, so a shortcut or a script can land where the user wants.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod platform;
@@ -111,6 +113,20 @@ fn main() -> eframe::Result {
 		.and_then(|i| args.get(i + 1))
 		.map(PathBuf::from)
 		.unwrap_or_else(config::default_path);
+	let select = args
+		.iter()
+		.position(|a| a == "--select")
+		.and_then(|i| args.get(i + 1))
+		.map(PathBuf::from);
+	let view = match args
+		.iter()
+		.position(|a| a == "--view")
+		.and_then(|i| args.get(i + 1))
+		.map(String::as_str)
+	{
+		Some("history") => state::View::History,
+		_ => state::View::Changes,
+	};
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -131,6 +147,11 @@ fn main() -> eframe::Result {
 	eframe::run_native(
 		"repose",
 		options,
-		Box::new(move |cc| Ok(Box::new(App::new(cc, started, measure, cfg)))),
+		Box::new(move |cc| {
+			let mut app = App::new(cc, started, measure, cfg);
+			app.state.view = view;
+			app.state.requested_selection = select;
+			Ok(Box::new(app))
+		}),
 	)
 }

@@ -20,11 +20,13 @@ pub enum Verb {
 	Restore,
 	Clean,
 	Commit,
+	/// `git rm --cached`: the only way to unstage on a repository with no commit yet.
+	RmCached,
 	RemoteGetUrl,
 }
 
 impl Verb {
-	pub const ALL: [Verb; 12] = [
+	pub const ALL: [Verb; 13] = [
 		Verb::Status,
 		Verb::RevParse,
 		Verb::Log,
@@ -36,6 +38,7 @@ impl Verb {
 		Verb::Restore,
 		Verb::Clean,
 		Verb::Commit,
+		Verb::RmCached,
 		Verb::RemoteGetUrl,
 	];
 
@@ -52,13 +55,17 @@ impl Verb {
 			Verb::Restore => &["restore"],
 			Verb::Clean => &["clean"],
 			Verb::Commit => &["commit"],
+			Verb::RmCached => &["rm", "--cached", "--quiet"],
 			Verb::RemoteGetUrl => &["remote", "get-url"],
 		}
 	}
 
 	/// Writes have no timeout, because a hooked commit can run for minutes.
 	pub fn is_write(self) -> bool {
-		matches!(self, Verb::Add | Verb::Restore | Verb::Clean | Verb::Commit)
+		matches!(
+			self,
+			Verb::Add | Verb::Restore | Verb::Clean | Verb::Commit | Verb::RmCached
+		)
 	}
 }
 

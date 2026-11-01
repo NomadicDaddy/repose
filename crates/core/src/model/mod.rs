@@ -1,11 +1,13 @@
 //! Plain data that crosses from core to the app.
 
 mod changes;
+mod commit;
 
 use std::path::PathBuf;
 use std::time::SystemTime;
 
 pub use changes::{ChangeKind, Changes, FileChange};
+pub use commit::{Commit, CommitFile, parse_iso, relative};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepoKind {
