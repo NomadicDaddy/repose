@@ -5,7 +5,7 @@ use std::time::SystemTime;
 
 use super::commands::{GitError, Verb, run};
 use super::parse::{Porcelain, parse_porcelain_v2};
-use crate::model::RepoSummary;
+use crate::model::{Changes, RepoSummary};
 
 pub const STATUS_ARGS: [&str; 4] = ["--porcelain=v2", "-z", "--branch", "--untracked-files=all"];
 
@@ -24,6 +24,7 @@ pub fn read_status_into(summary: &mut RepoSummary) {
 				summary.short_hash = Some(h);
 			}
 			summary.status = Some(p.summary());
+			summary.changes = Some(Changes::from_entries(&p.entries));
 			summary.error = None;
 		}
 		Err(e) => {

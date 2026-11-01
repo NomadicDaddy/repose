@@ -15,6 +15,15 @@ impl Platform for Windows {
 			.map(|_| ())
 			.map_err(|e| e.to_string())
 	}
+
+	fn reveal_file(&self, file: &Path) -> Result<(), String> {
+		let select = format!("/select,{}", file.display());
+		Command::new("explorer.exe")
+			.arg(select)
+			.spawn()
+			.map(|_| ())
+			.map_err(|e| e.to_string())
+	}
 }
 
 /// Minutes east of UTC, re-read at most once a minute so a daylight change shows within the

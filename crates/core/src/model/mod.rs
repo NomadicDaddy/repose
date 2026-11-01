@@ -1,7 +1,11 @@
 //! Plain data that crosses from core to the app.
 
+mod changes;
+
 use std::path::PathBuf;
 use std::time::SystemTime;
+
+pub use changes::{ChangeKind, Changes, FileChange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepoKind {
@@ -44,6 +48,8 @@ pub struct RepoSummary {
 	pub short_hash: Option<String>,
 	pub submodules: usize,
 	pub status: Option<StatusSummary>,
+	/// The grouped file list behind `status`, for the Changes view.
+	pub changes: Option<Changes>,
 	pub error: Option<String>,
 	pub checked_at: Option<SystemTime>,
 	pub worktrees: Vec<RepoSummary>,
@@ -64,6 +70,7 @@ impl RepoSummary {
 			short_hash: None,
 			submodules: 0,
 			status: None,
+			changes: None,
 			error: None,
 			checked_at: None,
 			worktrees: Vec::new(),

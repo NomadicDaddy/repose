@@ -74,6 +74,9 @@ pub enum GitError {
 		code: Option<i32>,
 		stderr_tail: String,
 	},
+	/// git exited but its output never arrived in time, usually because a process it started is
+	/// still holding the pipe. A read must not be mistaken for an empty result.
+	OutputLost,
 }
 
 impl std::fmt::Display for GitError {
@@ -91,6 +94,7 @@ impl std::fmt::Display for GitError {
 					code.map_or("?".into(), |c| c.to_string())
 				)
 			}
+			Self::OutputLost => write!(f, "git exited but its output was not collected"),
 		}
 	}
 }
@@ -185,8 +189,9 @@ fn drain<R: std::io::Read + Send + 'static>(pipe: Option<R>) -> mpsc::Receiver<V
 }
 
 /// Collects a drained pipe, giving up after `wait` if a grandchild still holds the write end.
-fn collect(rx: &mpsc::Receiver<Vec<u8>>, wait: Duration) -> Vec<u8> {
-	rx.recv_timeout(wait).unwrap_or_default()
+/// None means the bytes never arrived; callers decide whether that is an error.
+fn collect(rx: &mpsc::Receiver<Vec<u8>>, wait: Duration) -> Option<Vec<u8>> {
+	rx.recv_timeout(wait).ok()
 }
 
 /// Runs a verb and returns stdout bytes. Reads time out after `READ_TIMEOUT`; writes never do.
@@ -211,7 +216,7 @@ pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError>
 				if let Some(limit) = timeout.filter(|l| started.elapsed() > *l) {
 					let _ = child.kill();
 					let _ = child.wait();
-					let err = collect(&stderr, Duration::from_millis(500));
+					let err = collect(&stderr, Duration::from_millis(500)).unwrap_or_default();
 					return Err(GitError::TimedOut {
 						after: limit,
 						stderr_tail: tail(&err),
@@ -223,9 +228,15 @@ pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError>
 		}
 	};
 	let out = collect(&stdout, Duration::from_secs(5));
-	let err = collect(&stderr, Duration::from_secs(5));
+	let err = collect(&stderr, Duration::from_secs(5)).unwrap_or_default();
 	if status.success() {
-		Ok(out)
+		// A read whose bytes never arrived is an error, not an empty result: a dirty repository
+		// must never look clean because something held the pipe open.
+		match out {
+			Some(bytes) => Ok(bytes),
+			None if verb.is_write() => Ok(Vec::new()),
+			None => Err(GitError::OutputLost),
+		}
 	} else {
 		Err(GitError::Failed {
 			code: status.code(),

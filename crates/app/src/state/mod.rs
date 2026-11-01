@@ -1,36 +1,54 @@
 //! The one place UI state lives. Discovery and status run on background threads and arrive as
 //! messages tagged with a generation; results are merged by repository path so a refresh never
-//! resets the selection or scroll.
+//! resets the selection or scroll. Writes go through one serial queue.
 
-use std::collections::{HashSet, VecDeque};
+mod scan;
+mod writes;
+
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 use eframe::egui;
 use repose_core::config::Config;
-use repose_core::discovery::discover;
-use repose_core::git::read_status_into;
 use repose_core::model::RepoSummary;
+
+pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
 
 pub enum Msg {
 	Discovered(u64, Vec<RepoSummary>),
 	Status(u64, Box<RepoSummary>),
-	Done(u64),
+	/// The scan finished; carries the machine's UTC offset read on the scan thread.
+	Done(u64, Option<i32>),
+	WriteDone(Box<WriteOutcome>),
+}
+
+/// A pending discard, shown in the confirmation dialog until the user decides.
+#[derive(Debug, Clone)]
+pub struct PendingDiscard {
+	pub repo: PathBuf,
+	pub tracked: Vec<String>,
+	pub untracked: Vec<String>,
 }
 
 pub struct AppState {
 	pub config: Config,
 	pub repos: Vec<RepoSummary>,
 	pub selected: Option<PathBuf>,
+	pub selected_file: Option<String>,
 	pub expanded: HashSet<PathBuf>,
 	pub filter: String,
 	pub focus_filter: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
-	/// Configured roots that were not directories when the app started.
+	/// Configured roots that were not directories at the last scan.
 	pub missing_roots: Vec<PathBuf>,
+	/// Minutes east of UTC as of the last scan; None shows the clock in UTC.
+	pub utc_offset: Option<i32>,
+	pub commit_message: String,
+	pub writes: WriteQueue,
+	pub pending_discard: Option<PendingDiscard>,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -45,11 +63,16 @@ impl AppState {
 			missing_roots,
 			repos: Vec::new(),
 			selected: None,
+			selected_file: None,
 			expanded: HashSet::new(),
 			filter: String::new(),
 			focus_filter: false,
 			scanning: false,
 			checked_at: None,
+			utc_offset: None,
+			commit_message: String::new(),
+			writes: WriteQueue::default(),
+			pending_discard: None,
 			generation: 0,
 			tx,
 			rx,
@@ -60,57 +83,34 @@ impl AppState {
 	pub fn start_scan(&mut self, ctx: &egui::Context) {
 		self.generation += 1;
 		self.scanning = true;
-		let generation = self.generation;
-		let config = self.config.clone();
-		let tx = self.tx.clone();
-		let ctx = ctx.clone();
-		std::thread::spawn(move || {
-			let repos = discover(&config);
-			let mut queue: VecDeque<RepoSummary> = VecDeque::new();
-			for r in &repos {
-				queue.push_back(r.clone());
-				for w in &r.worktrees {
-					queue.push_back(w.clone());
-				}
-			}
-			let _ = tx.send(Msg::Discovered(generation, repos));
-			ctx.request_repaint();
-			let queue = Arc::new(Mutex::new(queue));
-			let workers: Vec<_> = (0..8)
-				.map(|_| {
-					let queue = Arc::clone(&queue);
-					let tx = tx.clone();
-					let ctx = ctx.clone();
-					std::thread::spawn(move || {
-						loop {
-							let next = queue.lock().ok().and_then(|mut q| q.pop_front());
-							let Some(mut repo) = next else { break };
-							repo.worktrees.clear();
-							read_status_into(&mut repo);
-							let _ = tx.send(Msg::Status(generation, Box::new(repo)));
-							ctx.request_repaint();
-						}
-					})
-				})
-				.collect();
-			for w in workers {
-				let _ = w.join();
-			}
-			let _ = tx.send(Msg::Done(generation));
-			ctx.request_repaint();
-		});
+		self.missing_roots = repose_core::config::missing_roots(&self.config);
+		scan::start(
+			self.generation,
+			self.config.clone(),
+			self.tx.clone(),
+			ctx.clone(),
+		);
+	}
+
+	/// Re-reads one repository's status after a write, without rescanning the roots.
+	pub fn refresh_repo(&self, path: &Path, ctx: &egui::Context) {
+		if let Some(repo) = find(&self.repos, path) {
+			scan::refresh_one(self.generation, repo.clone(), self.tx.clone(), ctx.clone());
+		}
 	}
 
 	/// Drains arrived messages into the model. Stale generations are dropped.
-	pub fn pump(&mut self, _ctx: &egui::Context) {
+	pub fn pump(&mut self, ctx: &egui::Context) {
 		while let Ok(msg) = self.rx.try_recv() {
 			match msg {
 				Msg::Discovered(g, repos) if g == self.generation => self.merge_discovered(repos),
 				Msg::Status(g, repo) if g == self.generation => self.merge_status(*repo),
-				Msg::Done(g) if g == self.generation => {
+				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
 					self.checked_at = Some(SystemTime::now());
+					self.utc_offset = offset;
 				}
+				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
 				_ => {}
 			}
 		}
@@ -121,12 +121,14 @@ impl AppState {
 		for row in &mut fresh {
 			if let Some(old) = find(&self.repos, &row.path) {
 				row.status = old.status.clone();
+				row.changes = old.changes.clone();
 				row.error = old.error.clone();
 				row.checked_at = old.checked_at;
 			}
 			for wt in &mut row.worktrees {
 				if let Some(old) = find(&self.repos, &wt.path) {
 					wt.status = old.status.clone();
+					wt.changes = old.changes.clone();
 					wt.error = old.error.clone();
 				}
 			}
@@ -146,6 +148,7 @@ impl AppState {
 			row.branch = fresh.branch;
 			row.short_hash = fresh.short_hash.or(row.short_hash.take());
 			row.status = fresh.status;
+			row.changes = fresh.changes;
 			row.error = fresh.error;
 			row.checked_at = fresh.checked_at;
 		}
@@ -153,6 +156,39 @@ impl AppState {
 
 	pub fn selected_repo(&self) -> Option<&RepoSummary> {
 		self.selected.as_ref().and_then(|p| find(&self.repos, p))
+	}
+
+	pub fn select(&mut self, path: PathBuf) {
+		if self.selected.as_ref() != Some(&path) {
+			self.selected_file = None;
+		}
+		self.selected = Some(path);
+	}
+
+	/// Queues a write; it runs when the writer is free, in order.
+	pub fn request_write(&mut self, repo: PathBuf, kind: WriteKind, ctx: &egui::Context) {
+		self.writes.waiting.push_back(WriteRequest { repo, kind });
+		self.start_next_write(ctx);
+	}
+
+	fn start_next_write(&mut self, ctx: &egui::Context) {
+		if self.writes.running.is_some() {
+			return;
+		}
+		if let Some(next) = self.writes.waiting.pop_front() {
+			self.writes.running = Some(next.clone());
+			writes::spawn(next, self.tx.clone(), ctx.clone());
+		}
+	}
+
+	fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
+		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
+			self.commit_message.clear();
+		}
+		self.refresh_repo(&outcome.repo.clone(), ctx);
+		self.writes.last = Some(outcome);
+		self.writes.running = None;
+		self.start_next_write(ctx);
 	}
 
 	/// Rows in display order after the filter: top-level repositories plus the worktrees of the
@@ -193,7 +229,9 @@ impl AppState {
 			Some(i) => (i as i32 + delta).clamp(0, paths.len() as i32 - 1) as usize,
 			None => 0,
 		};
-		self.selected = paths.get(next).cloned();
+		if let Some(p) = paths.get(next).cloned() {
+			self.select(p);
+		}
 	}
 }
 

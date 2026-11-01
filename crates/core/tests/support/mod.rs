@@ -23,6 +23,9 @@ impl TempRepo {
 		std::fs::create_dir_all(&path).expect("temp dir");
 		let repo = TempRepo { path };
 		repo.git(&["init", "-q", "-b", "main"]);
+		// The code under test runs git with the developer's own global config, this harness runs
+		// it with none; pin line endings locally so the two agree on what "unchanged" means.
+		repo.git(&["config", "core.autocrlf", "false"]);
 		repo
 	}
 

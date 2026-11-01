@@ -1,16 +1,19 @@
-//! The right pane. Until the Changes, History and diff records land it shows the selected
-//! repository's name, branch line, path and status counts.
+//! The right pane: the selected repository's header, the commit box and its Changes. History,
+//! diffs and files arrive with their own records.
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
+use super::{changes, commit_box, confirm};
+use crate::platform::Platform;
 use crate::state::AppState;
 use crate::theme::*;
 
-pub fn show(root: &mut Ui, state: &AppState) {
+pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
+	let ctx = root.ctx().clone();
 	egui::CentralPanel::default()
 		.frame(egui::Frame::new().fill(BG_APP).inner_margin(16.0))
 		.show(root, |ui| {
-			let Some(repo) = state.selected_repo() else {
+			let Some(repo) = state.selected_repo().cloned() else {
 				ui.label(RichText::new("Choose a repository to inspect it.").color(MUTED));
 				return;
 			};
@@ -31,20 +34,14 @@ pub fn show(root: &mut Ui, state: &AppState) {
 					.color(MUTED)
 					.family(FontFamily::Monospace),
 			);
-			ui.add_space(12.0);
+			ui.add_space(8.0);
 			match (&repo.status, &repo.error) {
 				(_, Some(e)) => {
 					ui.label(RichText::new("Status unavailable").color(DANGER));
 					ui.label(RichText::new(e).size(TEXT_SMALL).color(MUTED));
+					return;
 				}
 				(Some(s), None) => {
-					ui.label(
-						RichText::new(format!(
-							"{} staged · {} changed · {} untracked · {} conflicts",
-							s.staged, s.unstaged, s.untracked, s.conflicts
-						))
-						.color(TEXT),
-					);
 					let upstream = match (&s.upstream, s.ahead, s.behind) {
 						(Some(u), Some(a), Some(b)) => {
 							format!("↑{a} ↓{b} against {u} (saved refs)")
@@ -55,7 +52,15 @@ pub fn show(root: &mut Ui, state: &AppState) {
 				}
 				(None, None) => {
 					ui.label(RichText::new("Reading status…").color(MUTED));
+					return;
 				}
 			}
+			egui::ScrollArea::vertical()
+				.auto_shrink([false, false])
+				.show(ui, |ui| {
+					commit_box::show(ui, state);
+					changes::show(ui, state, platform);
+				});
 		});
+	confirm::show(&ctx, state);
 }

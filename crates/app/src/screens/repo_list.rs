@@ -63,7 +63,10 @@ fn status_line(state: &AppState, count: usize) -> String {
 	if state.scanning && state.checked_at.is_none() {
 		return "Scanning…".to_string();
 	}
-	let time = state.checked_at.map(clock).unwrap_or_default();
+	let time = state
+		.checked_at
+		.map(|t| clock(t, state.utc_offset))
+		.unwrap_or_default();
 	let noun = if count == 1 {
 		"repository"
 	} else {
@@ -81,14 +84,14 @@ fn status_line(state: &AppState, count: usize) -> String {
 	}
 }
 
-/// Local wall-clock HH:MM: UTC seconds plus the machine's offset from the platform module, or
-/// UTC marked as such when the offset cannot be read.
-fn clock(t: std::time::SystemTime) -> String {
+/// Local wall-clock HH:MM: UTC seconds plus the offset the last scan read, or UTC marked as such
+/// when the offset is unknown. Nothing here touches the OS, so the UI thread stays free.
+fn clock(t: std::time::SystemTime, offset: Option<i32>) -> String {
 	let secs = t
 		.duration_since(std::time::UNIX_EPOCH)
 		.map(|d| d.as_secs())
 		.unwrap_or(0);
-	let Some(offset) = crate::platform::utc_offset_minutes() else {
+	let Some(offset) = offset else {
 		let minutes = (secs as i64).rem_euclid(86_400) / 60;
 		return format!("{:02}:{:02} UTC", minutes / 60, minutes % 60);
 	};
@@ -153,7 +156,7 @@ fn list(ui: &mut Ui, state: &mut AppState) {
 		state.expanded.insert(p);
 	}
 	if let Some(p) = clicked {
-		state.selected = Some(p);
+		state.select(p);
 	}
 }
 

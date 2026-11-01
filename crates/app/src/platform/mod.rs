@@ -7,6 +7,8 @@ mod windows;
 
 pub trait Platform {
 	fn open_folder(&self, dir: &Path) -> Result<(), String>;
+	/// Opens the file's folder with the file selected.
+	fn reveal_file(&self, file: &Path) -> Result<(), String>;
 }
 
 pub fn current() -> Box<dyn Platform> {
@@ -27,6 +29,9 @@ struct Unsupported;
 impl Platform for Unsupported {
 	fn open_folder(&self, _dir: &Path) -> Result<(), String> {
 		Err("opening folders is implemented on Windows only".into())
+	}
+	fn reveal_file(&self, _file: &Path) -> Result<(), String> {
+		Err("revealing files is implemented on Windows only".into())
 	}
 }
 

@@ -46,7 +46,7 @@ impl eframe::App for App {
 		let ctx = root.ctx().clone();
 		self.state.pump(&ctx);
 		screens::repo_list::show(root, &mut self.state, self.platform.as_ref());
-		screens::detail::show(root, &self.state);
+		screens::detail::show(root, &mut self.state, self.platform.as_ref());
 		if let Some(out) = &self.measure
 			&& !self.state.repos.is_empty()
 		{
@@ -114,9 +114,11 @@ fn main() -> eframe::Result {
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
-			// The release build has no console, so the message goes in a window.
+			// The release build has no console, so the message goes in a window; the process
+			// still exits non-zero so a script or a terminal sees the failure.
 			eprintln!("repose: {e}");
-			return error_window(format!("{e}\n\nConfig file: {}", config_path.display()));
+			let _ = error_window(format!("{e}\n\nConfig file: {}", config_path.display()));
+			std::process::exit(2);
 		}
 	};
 	let options = eframe::NativeOptions {
