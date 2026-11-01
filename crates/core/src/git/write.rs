@@ -157,39 +157,62 @@ pub fn commit_cancellable(
 			hook_stopped: false,
 			tree_killed: true,
 		}),
-		Err(GitError::Cancelled { tree_killed, .. }) if landed_ours(repo, &before, message) => {
-			Ok(Committed {
+		Err(GitError::Cancelled {
+			stderr_tail,
+			tree_killed,
+		}) => match landed_ours(repo, &before, message) {
+			Landed::Ours => Ok(Committed {
 				hook_stopped: true,
 				tree_killed,
-			})
-		}
+			}),
+			Landed::No => Err(GitError::Cancelled {
+				stderr_tail,
+				tree_killed,
+			}),
+			Landed::Unknown => Err(GitError::OutcomeUnknown { tree_killed }),
+		},
 		Err(e) => Err(e),
 	}
 }
 
-/// Whether the commit this call made is HEAD now: both HEAD reads worked, HEAD moved, the new
+/// What HEAD says after a cancelled commit.
+enum Landed {
+	/// HEAD is the commit this call made.
+	Ours,
+	/// HEAD is where it was, or somewhere this call did not put it.
+	No,
+	/// A read failed, so neither answer can be given (Roger 5Q-1 on 28883f9).
+	Unknown,
+}
+
+/// The commit this call made is HEAD now only when both HEAD reads worked, HEAD moved, the new
 /// commit's first parent is the old HEAD (or it has none, when the branch was unborn) and its
 /// message is the one given. A teammate's commit or a branch switch in that checkout during a
-/// long hook fails one of those and stays Cancelled (Morticia L-3 on 08c6f17).
-fn landed_ours(repo: &Path, before: &Result<Option<String>, GitError>, message: &str) -> bool {
-	let (Ok(old), Ok(Some(new))) = (before, head_hash(repo)) else {
-		return false;
+/// long hook fails one of those (Morticia L-3 on 08c6f17, Roger 5Q-2 on 28883f9); the window
+/// is the whole hook run, not the moment of the cancel.
+fn landed_ours(repo: &Path, before: &Result<Option<String>, GitError>, message: &str) -> Landed {
+	let (Ok(old), Ok(after)) = (before, head_hash(repo)) else {
+		return Landed::Unknown;
+	};
+	let Some(new) = after else {
+		return Landed::No;
 	};
 	if old.as_deref() == Some(new.as_str()) {
-		return false;
+		return Landed::No;
 	}
 	let parent = match run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD^"]) {
 		Ok(out) => Some(String::from_utf8_lossy(&out).trim().to_string()),
 		Err(GitError::Failed { code: Some(1), .. }) => None,
-		Err(_) => return false,
+		Err(_) => return Landed::Unknown,
 	};
 	if parent != *old {
-		return false;
+		return Landed::No;
 	}
-	let Ok(body) = run(repo, Verb::Log, &["-1", "--format=%B", "HEAD"]) else {
-		return false;
-	};
-	String::from_utf8_lossy(&body).trim() == message.trim()
+	match run(repo, Verb::Log, &["-1", "--format=%B", "HEAD"]) {
+		Ok(body) if String::from_utf8_lossy(&body).trim() == message.trim() => Landed::Ours,
+		Ok(_) => Landed::No,
+		Err(_) => Landed::Unknown,
+	}
 }
 
 /// HEAD's hash: Ok(None) only for an unborn branch (exit 1 with nothing on stderr, as

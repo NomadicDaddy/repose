@@ -55,6 +55,9 @@ pub struct WriteOutcome {
 	pub notice: Option<String>,
 	/// The error is the user's Cancel, not a failure (a flag, not a match on the text).
 	pub cancelled: bool,
+	/// The user cancelled and git would not say whether the commit landed; the box says so and
+	/// points at History instead of claiming either outcome.
+	pub unknown: bool,
 }
 
 /// The queue the UI sees: one running request per repository and the ones waiting behind them.
@@ -124,6 +127,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		}
 	};
 	let cancelled = matches!(result, Err(GitError::Cancelled { .. }));
+	let unknown = matches!(result, Err(GitError::OutcomeUnknown { .. }));
 	let error = result.err().map(|e| e.to_string());
 	let leftover_lock = if error.is_some() {
 		write::index_lock_path(repo).filter(|p| p.exists())
@@ -137,6 +141,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		leftover_lock,
 		notice,
 		cancelled,
+		unknown,
 	}
 }
 
