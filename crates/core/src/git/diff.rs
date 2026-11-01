@@ -8,10 +8,12 @@ use super::parse::parse_unified;
 use crate::model::{DiffSource, FileDiff};
 
 /// Shared by every diff spawn. The prefixes are explicit so a repository's diff.noprefix or
-/// diff.mnemonicPrefix cannot change what the parser reads.
-const COMMON: [&str; 6] = [
+/// diff.mnemonicPrefix cannot change what the parser reads; no external diff and no textconv
+/// program, so a repository's config cannot run anything from a click (same class as fsmonitor).
+const COMMON: [&str; 7] = [
 	"--no-color",
 	"--no-ext-diff",
+	"--no-textconv",
 	"--find-renames",
 	"--src-prefix=a/",
 	"--dst-prefix=b/",

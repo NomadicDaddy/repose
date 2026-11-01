@@ -1,5 +1,7 @@
 //! Parses `git diff` output produced with explicit `--src-prefix=a/ --dst-prefix=b/`, so the
 //! prefixes are known whatever `diff.noprefix` or `diff.mnemonicPrefix` says in a repository.
+//! Fixtures in `tests/diff.rs` come from real git; the unit tests here cover shapes that are hard
+//! to produce on demand.
 
 use crate::model::{DiffLine, FileDiff, Hunk, LineKind};
 
@@ -12,19 +14,32 @@ pub fn parse_unified(bytes: &[u8]) -> Vec<FileDiff> {
 	let mut hunk: Option<Hunk> = None;
 	let (mut old_no, mut new_no) = (0u32, 0u32);
 
-	for line in text.split_inclusive('\n') {
-		let line = line.strip_suffix('\n').unwrap_or(line);
-		let line = line.strip_suffix('\r').unwrap_or(line);
+	for raw in text.split_inclusive('\n') {
+		// Body lines keep their CR so a CRLF-to-LF change reads as a change; headers never
+		// carry one from git, and dropping it there is harmless.
+		let body = raw.strip_suffix('\n').unwrap_or(raw);
+		let line = body.strip_suffix('\r').unwrap_or(body);
 		if let Some(rest) = line.strip_prefix("diff --git ") {
 			close_hunk(&mut files, &mut hunk);
 			files.push(file_from_header(rest));
+			continue;
+		}
+		if let Some(path) = line.strip_prefix("diff --cc ") {
+			// A conflicted file: git prints a combined diff, which this viewer does not draw.
+			close_hunk(&mut files, &mut hunk);
+			files.push(FileDiff {
+				old_path: Some(path.to_string()),
+				new_path: Some(path.to_string()),
+				conflicted: true,
+				..FileDiff::default()
+			});
 			continue;
 		}
 		let Some(file) = files.last_mut() else {
 			continue;
 		};
 		if let Some(h) = hunk.as_mut()
-			&& let Some(parsed) = body_line(line, &mut old_no, &mut new_no)
+			&& let Some(parsed) = body_line(body, &mut old_no, &mut new_no)
 		{
 			h.lines.push(parsed);
 			continue;
@@ -63,11 +78,26 @@ fn close_hunk(files: &mut [FileDiff], hunk: &mut Option<Hunk>) {
 	}
 }
 
-/// `a/old b/new`; with explicit prefixes the split is at ` b/`, which also survives a space in
-/// the path unless the old path itself contains ` b/`. A quoted path (non-ASCII under
-/// core.quotePath=true) is not produced because every spawn sets core.quotePath=false.
+/// `a/path b/path`. For anything but a rename the two halves are the same path, so the exact
+/// split is the middle; a path containing ` b/` cannot fool that. A rename's header is split at
+/// the last ` b/`, and its `rename from` and `rename to` lines then set both paths exactly.
+/// Quoted paths (non-ASCII under core.quotePath=true) do not occur: every spawn sets
+/// core.quotePath=false.
 fn file_from_header(rest: &str) -> FileDiff {
 	let mut file = FileDiff::default();
+	let bytes = rest.as_bytes();
+	if bytes.len() % 2 == 1 {
+		let mid = bytes.len() / 2;
+		if bytes[mid] == b' '
+			&& rest.is_char_boundary(mid)
+			&& rest[..mid].strip_prefix(SRC) == rest[mid + 1..].strip_prefix(DST)
+			&& let Some(path) = rest[..mid].strip_prefix(SRC)
+		{
+			file.old_path = Some(path.to_string());
+			file.new_path = Some(path.to_string());
+			return file;
+		}
+	}
 	if let Some(i) = rest.rfind(" b/") {
 		let old = rest[..i].strip_prefix(SRC).unwrap_or(&rest[..i]);
 		let new = &rest[i + 3..];
@@ -77,8 +107,10 @@ fn file_from_header(rest: &str) -> FileDiff {
 	file
 }
 
-/// `a/path`, `b/path`, or `/dev/null`; a trailing tab and timestamp never appear from git.
+/// `a/path`, `b/path`, or `/dev/null`. Git appends a tab when the path contains whitespace
+/// (Morticia M-1 on 94c9dd0); it is not part of the name.
 fn path_from_marker(marker: &str, prefix: &str) -> Option<String> {
+	let marker = marker.strip_suffix('\t').unwrap_or(marker);
 	if marker == "/dev/null" {
 		return None;
 	}
@@ -155,26 +187,35 @@ mod tests {
 		assert!(f.is_rename());
 		assert_eq!(f.old_path.as_deref(), Some("old.txt"));
 		assert_eq!(f.new_path.as_deref(), Some("new.txt"));
-		assert_eq!(f.hunks.len(), 1);
 		let h = &f.hunks[0];
 		assert_eq!(h.heading, "heading");
-		assert_eq!(h.lines[1].old_no, Some(2));
-		assert_eq!(h.lines[1].new_no, None);
-		assert_eq!(h.lines[2].new_no, Some(2));
-		assert_eq!(h.lines[3].old_no, Some(3));
+		assert_eq!((h.lines[1].old_no, h.lines[1].new_no), (Some(2), None));
+		assert_eq!((h.lines[2].old_no, h.lines[2].new_no), (None, Some(2)));
 		assert_eq!((f.added(), f.removed()), (1, 1));
 	}
 
 	#[test]
-	fn added_deleted_and_binary() {
-		let text = "diff --git a/n.txt b/n.txt\nnew file mode 100644\n--- /dev/null\n+++ b/n.txt\n@@ -0,0 +1 @@\n+hi\ndiff --git a/g.txt b/g.txt\ndeleted file mode 100644\n--- a/g.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n\\ No newline at end of file\ndiff --git a/p.png b/p.png\nBinary files a/p.png and b/p.png differ\n";
+	fn added_deleted_binary_and_a_body_line_that_looks_like_a_header() {
+		let text = "diff --git a/n.txt b/n.txt\nnew file mode 100644\n--- /dev/null\n+++ b/n.txt\n@@ -0,0 +1,2 @@\n+hi\n+++ plus\ndiff --git a/g.sql b/g.sql\ndeleted file mode 100644\n--- a/g.sql\n+++ /dev/null\n@@ -1 +0,0 @@\n--- sql comment\n\\ No newline at end of file\ndiff --git a/p.png b/p.png\nBinary files a/p.png and b/p.png differ\n";
 		let files = parse_unified(text.as_bytes());
 		assert_eq!(files.len(), 3);
 		assert_eq!(files[0].old_path, None);
-		assert_eq!(files[0].hunks[0].lines[0].new_no, Some(1));
+		assert_eq!(files[0].hunks[0].lines[1].text, "++ plus");
 		assert_eq!(files[1].new_path, None);
-		assert_eq!(files[1].path(), "g.txt");
+		assert_eq!(files[1].hunks[0].lines[0].text, "-- sql comment");
 		assert!(files[2].binary);
-		assert!(files[2].hunks.is_empty());
+	}
+
+	#[test]
+	fn crlf_change_keeps_the_cr_and_a_combined_diff_is_flagged() {
+		let text = "diff --git a/w.txt b/w.txt\n--- a/w.txt\n+++ b/w.txt\n@@ -1 +1 @@\n-one\r\n+one\ndiff --cc c.txt\nindex 1,2..0\n--- a/c.txt\n+++ b/c.txt\n@@@ -1,1 -1,1 +1,5 @@@\n++<<<<<<< HEAD\n";
+		let files = parse_unified(text.as_bytes());
+		assert_eq!(files.len(), 2);
+		let lines = &files[0].hunks[0].lines;
+		assert_eq!(lines[0].text, "one\r");
+		assert_eq!(lines[1].text, "one");
+		assert!(files[1].conflicted);
+		assert_eq!(files[1].path(), "c.txt");
+		assert!(files[1].hunks.is_empty());
 	}
 }

@@ -44,6 +44,8 @@ pub struct FileDiff {
 	/// None for a file that no longer exists (deleted).
 	pub new_path: Option<String>,
 	pub binary: bool,
+	/// An unmerged path: git prints a combined diff, which is not parsed into hunks.
+	pub conflicted: bool,
 	pub hunks: Vec<Hunk>,
 }
 

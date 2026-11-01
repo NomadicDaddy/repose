@@ -101,6 +101,10 @@ pub enum GitError {
 impl std::fmt::Display for GitError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Self::UnreadableRef(r) if r == "HEAD" => write!(
+				f,
+				"HEAD does not resolve to a commit and git cannot name its branch; a ref file may be truncated. Nothing was changed."
+			),
 			Self::UnreadableRef(r) => write!(
 				f,
 				"HEAD points at {r}, which exists but does not resolve to a commit; the ref file may be truncated. Nothing was changed."
