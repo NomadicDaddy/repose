@@ -144,7 +144,10 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				if !paths.contains(&repo.path) {
 					continue;
 				}
-				let expanded = state.expanded.contains(&repo.path);
+				// The chevron reads open whenever worktree rows are showing, whether the user
+				// opened the row or the filter opened it to the matching ones; a click then
+				// opens it fully or closes it (Phillip #31154).
+				let expanded = repo.worktrees.iter().any(|w| paths.contains(&w.path));
 				let is_selected = selected.as_deref() == Some(repo.path.as_path());
 				let out = row::draw(ui, repo, is_selected, 0.0, expanded);
 				if is_selected && state.reveal_selected {
