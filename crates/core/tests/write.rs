@@ -182,13 +182,19 @@ fn failing_hook_blocks_the_commit_and_keeps_the_index() {
 	repo.commit_all("base");
 	repo.write("a.txt", "a2\n");
 	repo.git(&["add", "a.txt"]);
+	// Ten lines, so the user sees the hook's whole complaint and not a three-line tail.
 	repo.write(
 		".githooks/pre-commit",
-		"#!/bin/sh\necho 'hook says no' >&2\nexit 1\n",
+		"#!/bin/sh\nfor i in 1 2 3 4 5 6 7 8 9 10; do echo \"hook line $i\" >&2; done\necho 'hook says no' >&2\nexit 1\n",
 	);
 	repo.git(&["config", "core.hooksPath", ".githooks"]);
 	let err = commit(&repo.path, "blocked").expect_err("hook blocks");
-	assert!(err.to_string().contains("hook says no"), "{err}");
+	let text = err.to_string();
+	assert!(text.contains("hook says no"), "{err}");
+	assert!(
+		text.contains("hook line 1\n") && text.contains("hook line 10\n"),
+		"the whole output, line by line: {err}"
+	);
 	assert!(status(&repo).starts_with("M  a.txt"), "index unchanged");
 	assert!(!repo.git(&["log", "--oneline"]).contains("blocked"));
 }

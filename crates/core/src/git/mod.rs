@@ -5,6 +5,7 @@ pub mod diff;
 pub mod error;
 pub mod log;
 pub mod parse;
+pub mod pool;
 pub mod remote;
 pub mod status;
 pub mod tree;

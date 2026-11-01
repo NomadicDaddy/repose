@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, OnceLock, mpsc};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 /// The verbs repose may run. No fetch, pull, push, clone or ls-remote exists here.
@@ -98,43 +98,8 @@ impl Cancel {
 }
 
 pub const READ_TIMEOUT: Duration = Duration::from_secs(10);
-pub const POOL_SIZE: usize = 8;
-
-struct Pool {
-	free: Mutex<usize>,
-	cv: Condvar,
-}
-
-fn pool() -> &'static Pool {
-	static POOL: OnceLock<Pool> = OnceLock::new();
-	POOL.get_or_init(|| Pool {
-		free: Mutex::new(POOL_SIZE),
-		cv: Condvar::new(),
-	})
-}
-
-struct Permit;
-
-impl Permit {
-	fn acquire() -> Permit {
-		let p = pool();
-		let mut free = p.free.lock().unwrap_or_else(|e| e.into_inner());
-		while *free == 0 {
-			free = p.cv.wait(free).unwrap_or_else(|e| e.into_inner());
-		}
-		*free -= 1;
-		Permit
-	}
-}
-
-impl Drop for Permit {
-	fn drop(&mut self) {
-		let p = pool();
-		let mut free = p.free.lock().unwrap_or_else(|e| e.into_inner());
-		*free += 1;
-		p.cv.notify_one();
-	}
-}
+pub use super::pool::POOL_SIZE;
+use super::pool::Permit;
 
 /// A windowed app has no console, so without this flag every child `git.exe` opens its own
 /// terminal window. CREATE_NO_WINDOW keeps the children invisible; pipes still work.
@@ -257,9 +222,17 @@ pub fn run_cancellable(
 			None => Err(GitError::OutputLost),
 		}
 	} else {
+		// A read's failure is a line of context; a write's is the hook's own output, which the
+		// user has to act on, so a commit keeps the last 40 lines as lines (stage-and-commit:
+		// hook output beyond a three-line tail).
+		let stderr_tail = if verb.is_write() {
+			tail_lines(&err, 40, "\n")
+		} else {
+			tail(&err)
+		};
 		Err(GitError::Failed {
 			code: status.code(),
-			stderr_tail: tail(&err),
+			stderr_tail,
 		})
 	}
 }
@@ -283,7 +256,12 @@ fn kill_tree(child: &mut std::process::Child) {
 }
 
 fn tail(bytes: &[u8]) -> String {
+	tail_lines(bytes, 3, " | ")
+}
+
+/// The last `n` lines of git's stderr, joined by `sep`, in order.
+fn tail_lines(bytes: &[u8], n: usize, sep: &str) -> String {
 	let text = String::from_utf8_lossy(bytes);
-	let lines: Vec<&str> = text.lines().rev().take(3).collect();
-	lines.into_iter().rev().collect::<Vec<_>>().join(" | ")
+	let lines: Vec<&str> = text.lines().rev().take(n).collect();
+	lines.into_iter().rev().collect::<Vec<_>>().join(sep)
 }

@@ -73,12 +73,19 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 					_ => "Change failed",
 				};
 				ui.label(RichText::new(what).color(DANGER).strong());
-				ui.label(
-					RichText::new(error)
-						.size(TEXT_SMALL)
-						.color(TEXT)
-						.family(egui::FontFamily::Monospace),
-				);
+				// A hook's output is kept whole (up to 40 lines) and scrolls in place.
+				egui::ScrollArea::vertical()
+					.id_salt(("write-error", &repo.path))
+					.max_height(160.0)
+					.auto_shrink([false, true])
+					.show(ui, |ui| {
+						ui.label(
+							RichText::new(error)
+								.size(TEXT_SMALL)
+								.color(TEXT)
+								.family(egui::FontFamily::Monospace),
+						);
+					});
 				if let Some(lock) = &last.leftover_lock {
 					ui.label(
 						RichText::new(format!(
