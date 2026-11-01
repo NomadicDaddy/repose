@@ -55,10 +55,12 @@ try {
         "COPIED $name -> $target"
     }
     if (-not $onPath) {
-        $new = if ($entries.Count -eq 0) { $target } else { (($entries + $target) -join ';') }
-        # Keep the value's own type; a PATH that never existed is created as REG_EXPAND_SZ.
+        # Append to the raw value as it is, never split and rejoined, so empty segments and
+        # every byte of the existing entries survive (Roger on ba3a580). The value keeps its own
+        # type; a PATH that never existed is created as REG_EXPAND_SZ.
+        $new = if ($raw -eq '') { $target } elseif ($raw.EndsWith(';')) { "$raw$target" } else { "$raw;$target" }
         $key.SetValue('Path', $new, $kind)
-        "PATH-ADDED $target to the user PATH as $kind, $($entries.Count + 1) entries, existing entries byte for byte"
+        "PATH-ADDED $target to the user PATH as $kind; the existing value is kept byte for byte with the folder appended"
         # Registry writes do not tell running programs; Explorer learns of the change from this
         # broadcast, so a shell started from the Start menu or the taskbar afterwards sees the new
         # PATH. Shells already open do not (Morticia on ba3a580).

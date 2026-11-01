@@ -24,14 +24,20 @@ Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
 Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
-# A per-user install (scripts/install-user.ps1) is not refreshed by the gate; say when it is behind.
-$installed = Join-Path $env:LOCALAPPDATA 'Programs\repose\repose.exe'
-$staged = Join-Path $root 'target\dist\repose.exe'
-if ((Test-Path $installed) -and (Test-Path $staged)) {
-    if ((Get-FileHash $installed).Hash -ne (Get-FileHash $staged).Hash) {
-        Write-Host 'INSTALL stale: the per-user copy is not this build; run scripts/install-user.ps1 to refresh it'
+# A per-user install (scripts/install-user.ps1) is not refreshed by the gate; say when it is behind,
+# judging both files of the pair (Roger on ba3a580).
+$installDir = Join-Path $env:LOCALAPPDATA 'Programs\repose'
+if (Test-Path (Join-Path $installDir 'repose.exe')) {
+    $behind = @()
+    foreach ($name in @('repose.exe', 'THIRD-PARTY-NOTICES.md')) {
+        $here = Join-Path $installDir $name
+        $there = Join-Path $root "target\dist\$name"
+        if (-not (Test-Path $here) -or -not (Test-Path $there) -or (Get-FileHash $here).Hash -ne (Get-FileHash $there).Hash) { $behind += $name }
+    }
+    if ($behind.Count -gt 0) {
+        Write-Host "INSTALL stale: the per-user copy differs in $($behind -join ', '); run scripts/install-user.ps1 to refresh it"
     } else {
-        Write-Host 'INSTALL current: the per-user copy is this build'
+        Write-Host 'INSTALL current: the per-user copy is this build, both files'
     }
 }
 Write-Host '== file length (300 lines)'
