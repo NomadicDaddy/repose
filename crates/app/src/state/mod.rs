@@ -2,6 +2,7 @@
 //! messages tagged with a generation; results are merged by repository path so a refresh never
 //! resets the selection or scroll. Writes go through one serial queue.
 
+mod backstop;
 mod diff;
 mod files;
 mod history;
@@ -35,6 +36,8 @@ pub enum Msg {
 	Status(u64, Box<RepoSummary>),
 	/// The scan finished; carries the machine's UTC offset read on the scan thread.
 	Done(u64, Option<i32>),
+	/// A backstop pass over every row finished, with the UTC offset read on its thread.
+	PassDone(u64, Option<i32>),
 	WriteDone(Box<WriteOutcome>),
 	History(HistoryMsg),
 	Diff(DiffMsg),
@@ -69,8 +72,10 @@ pub struct AppState {
 	pub focus_filter: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
-	/// When the last backstop re-read started (or the app, before the first).
+	/// When the last backstop pass or scan finished (or the app started, before the first).
 	backstop_at: Option<std::time::Instant>,
+	/// A backstop pass is reading statuses right now; the next waits for it.
+	backstop_running: bool,
 	/// Configured roots that were not directories at the last scan.
 	pub missing_roots: Vec<PathBuf>,
 	/// Minutes east of UTC as of the last scan; None shows the clock in UTC.
@@ -126,6 +131,7 @@ impl AppState {
 			scanning: false,
 			checked_at: None,
 			backstop_at: None,
+			backstop_running: false,
 			utc_offset: None,
 			commit_messages: HashMap::new(),
 			writes: WriteQueue::default(),
@@ -168,25 +174,6 @@ impl AppState {
 	pub fn refresh_repo(&self, path: &Path, ctx: &egui::Context) {
 		if let Some(repo) = find(&self.repos, path) {
 			scan::refresh_one(self.generation, repo.clone(), self.tx.clone(), ctx.clone());
-		}
-	}
-
-	/// The backstop behind the watcher: once every `BACKSTOP` with no scan running, every row's
-	/// status is re-read in place, in case an event was missed. Called every frame; it asks for
-	/// a repaint at the next deadline so the timer runs while the window is idle.
-	pub fn tick(&mut self, ctx: &egui::Context) {
-		let now = std::time::Instant::now();
-		let last = *self.backstop_at.get_or_insert(now);
-		if self.scanning || self.repos.is_empty() {
-			ctx.request_repaint_after(BACKSTOP);
-			return;
-		}
-		if now.duration_since(last) >= BACKSTOP {
-			self.backstop_at = Some(now);
-			scan::refresh_all(self.generation, &self.repos, self.tx.clone(), ctx.clone());
-			ctx.request_repaint_after(BACKSTOP);
-		} else {
-			ctx.request_repaint_after(BACKSTOP - now.duration_since(last));
 		}
 	}
 
@@ -234,15 +221,17 @@ impl AppState {
 						self.refresh_history(&path, ctx);
 						self.refresh_files_for(&path, ctx);
 					}
-					if merged.applied {
+					// Only a status that differs re-reads an open diff; the backstop's unchanged
+					// passes leave it alone (Morticia L-2 on 39951dc).
+					if merged.changed {
 						self.reload_diff_for(&path, ctx);
 					}
 				}
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
-					self.checked_at = Some(SystemTime::now());
-					self.utc_offset = offset;
+					self.pass_done(offset);
 				}
+				Msg::PassDone(g, offset) if g == self.generation => self.pass_done(offset),
 				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
 				Msg::History(h) => self.merge_history(h),
 				Msg::Diff(m) => self.merge_diff(m),

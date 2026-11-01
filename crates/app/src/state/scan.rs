@@ -71,7 +71,7 @@ pub fn refresh_all(generation: u64, repos: &[RepoSummary], tx: Sender<Msg>, ctx:
 	std::thread::spawn(move || {
 		read_all(generation, queue, &tx, &ctx);
 		let offset = crate::platform::utc_offset_minutes();
-		let _ = tx.send(Msg::Done(generation, offset));
+		let _ = tx.send(Msg::PassDone(generation, offset));
 		ctx.request_repaint();
 	});
 }

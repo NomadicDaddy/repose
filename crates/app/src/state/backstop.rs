@@ -1,0 +1,39 @@
+//! The 60 second backstop behind the file-system watcher: every row's status re-read in place,
+//! one pass at a time, with the next deadline counted from the end of the last pass or scan
+//! rather than its start, so a slow pass never starts a second one beside it (Roger 5Q-1 and
+//! Morticia L-1 on 39951dc).
+
+use std::time::Instant;
+
+use eframe::egui;
+
+use super::{AppState, BACKSTOP, scan};
+
+impl AppState {
+	/// Called every frame; asks for a repaint at the next deadline so the timer runs while the
+	/// window is idle. Nothing starts while a scan or an earlier pass is still running.
+	pub fn tick(&mut self, ctx: &egui::Context) {
+		let now = Instant::now();
+		let since = *self.backstop_at.get_or_insert(now);
+		if self.scanning || self.backstop_running || self.repos.is_empty() {
+			ctx.request_repaint_after(BACKSTOP);
+			return;
+		}
+		let elapsed = now.duration_since(since);
+		if elapsed >= BACKSTOP {
+			self.backstop_running = true;
+			scan::refresh_all(self.generation, &self.repos, self.tx.clone(), ctx.clone());
+			ctx.request_repaint_after(BACKSTOP);
+		} else {
+			ctx.request_repaint_after(BACKSTOP - elapsed);
+		}
+	}
+
+	/// A pass or a full scan finished under the current generation: the clock restarts here.
+	pub(super) fn pass_done(&mut self, offset: Option<i32>) {
+		self.backstop_running = false;
+		self.backstop_at = Some(Instant::now());
+		self.checked_at = Some(std::time::SystemTime::now());
+		self.utc_offset = offset;
+	}
+}

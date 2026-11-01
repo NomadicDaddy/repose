@@ -9,7 +9,9 @@ use super::AppState;
 
 /// What a status merge did.
 pub(super) struct Merged {
-	pub applied: bool,
+	/// The read was accepted and something on the row differs from before: branch, hash,
+	/// counts, file list or error.
+	pub changed: bool,
 	pub head_changed: bool,
 }
 
@@ -85,7 +87,7 @@ impl AppState {
 	/// upstream or the ahead count changed, which is when a loaded history is stale.
 	pub(super) fn merge_status(&mut self, fresh: RepoSummary) -> Merged {
 		let none = Merged {
-			applied: false,
+			changed: false,
 			head_changed: false,
 		};
 		let Some(row) = find_mut(&mut self.repos, &fresh.path) else {
@@ -100,6 +102,11 @@ impl AppState {
 			|s: &Option<StatusSummary>| s.as_ref().map(|s| (s.upstream.clone(), s.ahead));
 		let head_changed = fresh.short_hash.is_some() && fresh.short_hash != row.short_hash
 			|| tracking(&fresh.status) != tracking(&row.status);
+		let changed = fresh.branch != row.branch
+			|| (fresh.short_hash.is_some() && fresh.short_hash != row.short_hash)
+			|| fresh.status != row.status
+			|| fresh.changes != row.changes
+			|| fresh.error != row.error;
 		row.branch = fresh.branch;
 		row.short_hash = fresh.short_hash.or(row.short_hash.take());
 		row.status = fresh.status;
@@ -107,7 +114,7 @@ impl AppState {
 		row.error = fresh.error;
 		row.checked_at = fresh.checked_at;
 		Merged {
-			applied: true,
+			changed,
 			head_changed,
 		}
 	}
