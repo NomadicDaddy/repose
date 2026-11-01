@@ -62,6 +62,8 @@ fn remote_urls_become_pages() {
 			Some("http://gitea.local/example/thing"),
 		),
 		("D:\\applications\\thing", None),
+		("C:/repos/thing", None),
+		("c:/repos/thing.git", None),
 		("file:///D:/applications/thing", None),
 		("/srv/git/thing.git", None),
 		("", None),

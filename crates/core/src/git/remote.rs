@@ -52,7 +52,8 @@ pub fn https_page(url: &str) -> Option<String> {
 	// scp form: [user@]host:path
 	let (host_part, path) = url.split_once(':')?;
 	let host = host_part.split_once('@').map_or(host_part, |(_, h)| h);
-	if host.is_empty() || path.is_empty() || host.contains('/') {
+	// A one-letter "host" is a Windows drive (C:/repos/x), which git also reads as a path.
+	if host.is_empty() || path.is_empty() || host.contains('/') || host.len() == 1 {
 		return None;
 	}
 	Some(format!(
