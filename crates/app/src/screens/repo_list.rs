@@ -190,6 +190,11 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 }
 
 fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) {
+	// The discard modal blocks pointer input and focus, not raw key reads, so while it stands no
+	// key may move the selection, open Explorer or a row menu behind it (Morticia Low on a2e978f).
+	if state.pending_discard.is_some() {
+		return;
+	}
 	let typing = ctx.memory(|m| m.focused().is_some());
 	let (down, up, enter, find) = ctx.input(|i| {
 		(

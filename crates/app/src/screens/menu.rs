@@ -29,7 +29,12 @@ pub(super) enum Action {
 /// remembered for as long as it stays open.
 pub(super) fn row_menu(ui: &Ui, response: &Response, selected: bool, add: impl FnOnce(&mut Ui)) {
 	let ctx = ui.ctx();
-	let by_key = (selected || response.has_focus()) && ctx.input(|i| i.key_pressed(Key::Menu));
+	// A modal blocks the pointer and focus but not raw key reads, so the Menu key opens nothing
+	// on a row behind one; egui's own layer check, read from the previous frame (Morticia Low on
+	// a2e978f).
+	let live = ctx.memory(|m| m.allows_interaction(ui.layer_id()));
+	let by_key =
+		live && (selected || response.has_focus()) && ctx.input(|i| i.key_pressed(Key::Menu));
 	let opening = by_key || response.secondary_clicked();
 	let flag = Popup::default_response_id(response).with("by-key");
 	if opening {
