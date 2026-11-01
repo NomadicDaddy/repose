@@ -24,6 +24,16 @@ Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
 Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
+# A per-user install (scripts/install-user.ps1) is not refreshed by the gate; say when it is behind.
+$installed = Join-Path $env:LOCALAPPDATA 'Programs\repose\repose.exe'
+$staged = Join-Path $root 'target\dist\repose.exe'
+if ((Test-Path $installed) -and (Test-Path $staged)) {
+    if ((Get-FileHash $installed).Hash -ne (Get-FileHash $staged).Hash) {
+        Write-Host 'INSTALL stale: the per-user copy is not this build; run scripts/install-user.ps1 to refresh it'
+    } else {
+        Write-Host 'INSTALL current: the per-user copy is this build'
+    }
+}
 Write-Host '== file length (300 lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
     Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
