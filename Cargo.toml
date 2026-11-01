@@ -14,6 +14,9 @@ serde = { version = "1", features = ["derive"] }
 toml = "1"
 eframe = "0.37"
 similar = "2"
+# Syntax colouring: fancy-regex engines only, so no C dependency (ADR open decision 3).
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+two-face = { version = "0.4", default-features = false, features = ["syntect-fancy"] }
 
 [profile.release]
 opt-level = 3

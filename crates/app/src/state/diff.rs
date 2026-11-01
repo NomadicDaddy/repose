@@ -10,6 +10,7 @@ use repose_core::model::{DiffSource, FileDiff};
 
 use super::{AppState, Msg};
 use crate::diff_rows::{Row, build_rows};
+use crate::highlight::{Span, colour_lines};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenDiff {
@@ -37,7 +38,12 @@ pub struct DiffState {
 	/// Drawable rows per file, built once per content and mode.
 	pub rows: Vec<Vec<Row>>,
 	pub rows_inline: bool,
+	/// Syntax colour spans per file, hunk and line, built with the rows.
+	pub colours: Vec<FileColours>,
 }
+
+/// Colour spans indexed like the file's hunks and their lines.
+pub type FileColours = Vec<Vec<Vec<Span>>>;
 
 pub struct DiffMsg {
 	pub generation: u64,
@@ -45,6 +51,19 @@ pub struct DiffMsg {
 	/// Rows built on the reader thread for the mode that was current when the read started.
 	pub rows: Vec<Vec<Row>>,
 	pub rows_inline: bool,
+	pub colours: Vec<FileColours>,
+}
+
+/// Colours every line of a file in hunk order, so state carries within a hunk.
+fn colour_file(file: &FileDiff) -> FileColours {
+	let path = file.path().to_string();
+	file.hunks
+		.iter()
+		.map(|h| {
+			let lines: Vec<&str> = h.lines.iter().map(|l| l.text.as_str()).collect();
+			colour_lines(&path, &lines)
+		})
+		.collect()
 }
 
 impl AppState {
@@ -72,6 +91,7 @@ impl AppState {
 			generation,
 			rows: Vec::new(),
 			rows_inline: inline,
+			colours: Vec::new(),
 		});
 		spawn_read(open, generation, inline, self.tx.clone(), ctx.clone());
 	}
@@ -120,6 +140,7 @@ impl AppState {
 			d.content = msg.content;
 			d.rows = msg.rows;
 			d.rows_inline = msg.rows_inline;
+			d.colours = msg.colours;
 		}
 	}
 }
@@ -204,16 +225,20 @@ fn spawn_read(open: OpenDiff, generation: u64, inline: bool, tx: Sender<Msg>, ct
 			},
 			Err(e) => DiffContent::Error(e),
 		};
-		// Rows, with their word marks, are built here and not on the UI thread.
-		let rows = match &content {
-			DiffContent::Files(files) => files.iter().map(|f| build_rows(f, inline)).collect(),
-			_ => Vec::new(),
+		// Rows, with their word marks and syntax colours, are built here and not on the UI thread.
+		let (rows, colours) = match &content {
+			DiffContent::Files(files) => (
+				files.iter().map(|f| build_rows(f, inline)).collect(),
+				files.iter().map(colour_file).collect(),
+			),
+			_ => (Vec::new(), Vec::new()),
 		};
 		let _ = tx.send(Msg::Diff(DiffMsg {
 			generation,
 			content,
 			rows,
 			rows_inline: inline,
+			colours,
 		}));
 		ctx.request_repaint();
 	});

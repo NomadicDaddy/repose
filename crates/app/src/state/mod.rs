@@ -17,7 +17,7 @@ use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::RepoSummary;
 
-pub use diff::{DiffContent, DiffMsg, DiffState, OpenDiff};
+pub use diff::{DiffContent, DiffMsg, DiffState, FileColours, OpenDiff};
 pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};

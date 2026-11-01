@@ -3,9 +3,9 @@
 //! are drawn only when visible, so a long diff costs what is on screen.
 
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
-use repose_core::model::{DiffSource, FileDiff};
+use repose_core::model::DiffSource;
 
-use super::diff_draw::{ROW_H, draw_row};
+use super::diff_draw::{ROW_H, Source, draw_row};
 use crate::diff_rows::Row;
 use crate::platform::Platform;
 use crate::state::{AppState, DiffContent, DiffState};
@@ -42,6 +42,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		inline,
 		rows,
 		rows_inline,
+		colours,
 		..
 	} = d;
 	match content {
@@ -84,8 +85,12 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			if rows.len() != files.len() || *rows_inline != *inline {
 				ui.label(RichText::new("Laying out…").size(TEXT_SMALL).color(MUTED));
 			}
-			for (file, file_rows) in files.iter().zip(rows.iter()) {
-				file_block(ui, file, file_rows);
+			for (i, (file, file_rows)) in files.iter().zip(rows.iter()).enumerate() {
+				let src = Source {
+					file,
+					colours: colours.get(i),
+				};
+				file_block(ui, &src, file_rows);
 			}
 		}
 	}
@@ -152,7 +157,8 @@ fn source_label(source: &DiffSource) -> String {
 	}
 }
 
-fn file_block(ui: &mut Ui, file: &FileDiff, rows: &[Row]) {
+fn file_block(ui: &mut Ui, src: &Source<'_>, rows: &[Row]) {
+	let file = src.file;
 	ui.horizontal(|ui| {
 		if file.is_rename() {
 			ui.label(
@@ -197,7 +203,7 @@ fn file_block(ui: &mut Ui, file: &FileDiff, rows: &[Row]) {
 			let width = ui.available_width();
 			for row in &rows[range] {
 				let (rect, _) = ui.allocate_exact_size(vec2(width, ROW_H), Sense::hover());
-				draw_row(ui, rect, file, row);
+				draw_row(ui, rect, src, row);
 			}
 		});
 }

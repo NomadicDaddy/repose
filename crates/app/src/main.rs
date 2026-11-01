@@ -7,6 +7,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
+mod highlight;
 mod platform;
 mod screens;
 mod state;
