@@ -192,6 +192,25 @@ fn refresh_preserves_selection() {
 		.send(Msg::Status(state.generation, Box::new(fresh)))
 		.unwrap_or_else(|e| panic!("{e}"));
 	state.pump(&ctx);
+	// That status started a real re-read of the fixture's diff on a reader thread; the fixture
+	// path holds no repository, so it ends in an error. Take that one result off the queue
+	// before anything synthetic is sent under the same generation, so the two can never race
+	// (Roger 5Q-1 on 72e355d). It is dropped, not merged: the test's subject is the view, not
+	// what git says about a folder that does not exist.
+	let mut reader_done = false;
+	while !reader_done {
+		match state.rx.recv_timeout(Duration::from_secs(20)) {
+			Ok(Msg::Diff(m)) => {
+				assert!(
+					matches!(m.content, DiffContent::Error(_)),
+					"the reader's result for a missing repository is an error"
+				);
+				reader_done = true;
+			}
+			Ok(_) => {}
+			Err(e) => panic!("the re-read never reported: {e}"),
+		}
+	}
 	settle(&ctx, &mut state);
 
 	assert_eq!(
