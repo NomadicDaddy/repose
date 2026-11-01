@@ -16,13 +16,10 @@ Step 'cargo fmt --check' { cargo fmt --all -- --check }
 Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
 Step 'cargo test' { cargo test --workspace }
 # Advisories (quality-gate clause 8, Phillip Yes #31026): cargo-audit is installed per user with
-# `cargo install cargo-audit`. An accepted advisory goes here as an --ignore with the room
-# message that accepted it, so nothing is ignored silently; none so far. Unmaintained-crate
-# warnings are printed, not failed.
-$acceptedAdvisories = @()
-# scripts/audit.ps1 runs plain cargo audit (fetch and scan) and falls back to the database on
-# disk only when the fetch itself failed, saying how old that database is.
-Step 'cargo audit' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'audit.ps1') -Ignore $acceptedAdvisories }
+# `cargo install cargo-audit`. scripts/audit.ps1 runs plain cargo audit (fetch and scan), falls
+# back to the database on disk only when the fetch itself failed, says how old that database is,
+# and holds the list of accepted advisory ids. Unmaintained-crate warnings are printed, not failed.
+Step 'cargo audit' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'audit.ps1') }
 Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.

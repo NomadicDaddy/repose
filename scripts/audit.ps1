@@ -2,13 +2,15 @@
 # refreshes the RustSec database and scans; cargo-audit 0.22 has no fetch subcommand (Morticia
 # M-2 on 4f22cd3). Only when that run failed on the fetch itself, not on a finding, the scan
 # reruns against the database on disk with --no-fetch, and the log says how old that database
-# is, so an offline gate is never mistaken for a fresh one. An accepted advisory is an --ignore
-# with the room message that accepted it, listed in qc.ps1. Exit code: cargo audit's.
-param(
-    [string[]] $Ignore = @()
-)
+# is, so an offline gate is never mistaken for a fresh one. Exit code: cargo audit's.
+#
+# An accepted advisory goes in this list as its RUSTSEC id with the room message that accepted
+# it, so nothing is ignored silently; none so far. The list lives here rather than being passed
+# from qc.ps1, because an array through `pwsh -File` arrives as one value or none (Morticia M-3
+# on 1d7c871).
 $ErrorActionPreference = 'Continue'
-$ignoreArgs = @($Ignore | ForEach-Object { '--ignore'; $_ })
+$acceptedAdvisories = @()
+$ignoreArgs = @($acceptedAdvisories | ForEach-Object { '--ignore'; $_ })
 $output = & cargo audit @ignoreArgs 2>&1 | ForEach-Object { "$_" }
 $code = $LASTEXITCODE
 $output | ForEach-Object { Write-Host $_ }
