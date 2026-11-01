@@ -2,8 +2,21 @@
 
 ## ADR-001: UI toolkit (open)
 
-Status: measured 2026-11-01, awaiting Phillip's choice. Decided by the `ui-toolkit-decision`
-record: two prototypes of the repository list, measured and screenshotted, then Phillip's choice.
+Status: accepted 2026-11-01. Phillip chose eframe/egui (Room #30715) from the numbers and captures
+below, after the corrections in the next paragraph were posted to him (#30720). Decided by the
+`ui-toolkit-decision` record: two prototypes of the repository list, measured and screenshotted,
+then Phillip's choice.
+
+Corrections from Morticia's and Roger's reviews of the first table (02777d7): egui's three starts
+ran during the last seconds of Alice's aidd gate and Tauri's on a quieter machine, so the toolkit
+share column is partly load and the starts were warm, not cold; the Tauri working set sums seven
+processes' working sets, which counts shared pages more than once, so it is an upper bound and the
+172 against 335 ratio is not measured; and egui's 125% and 100% captures are 2304x1296 and
+2880x1620 images (the window is 1920/scale points on a 150% display), not the same physical window
+as its 150% capture. The smallest text in both prototypes is the 10.5 pt section label, which at
+the 100% emulation is 10.5 px, under the spec's 11 px floor; the row meta line is 11.5 pt. Clause
+3 of the record (captures at real Windows 100/125/150) is not met by this spike; the captures at
+the display's own 150% are real, the other two are emulated, and Phillip chose with that stated.
 
 Candidates: eframe/egui 0.37 and Tauri 2.9 (WebView2). Both prototypes list the 72 repositories
 under `D:\applications` and `D:\applications.worktrees` with name, branch, short hash and grouped
@@ -19,7 +32,7 @@ number the median of three cold starts unless stated. Evidence: `.aidd/screensho
 | Toolkit share of start (start minus scan)        | about 770 ms                    | about 150 ms                              |
 | Working set after 60 s                           | 172 MB, one process             | 26 MB app + 309 MB in 6 WebView2 processes = 335 MB |
 | Executable size (release)                        | 18.8 MB                         | 7.9 MB, plus the OS WebView2 runtime      |
-| Smallest text at 100% / 125% / 150%              | 11.5 / 14.4 / 17 px (computed from the 11.5 pt meta line) | the same           |
+| Smallest text at 100% / 125% / 150%              | 10.5 / 13.1 / 15.75 px (computed from the 10.5 pt section label; the meta line is 11.5 pt) | the same, in CSS px |
 | Captures                                         | `egui-150-native.png`, `egui-125-emulated.png`, `egui-100-emulated.png` | `tauri-150-native.png`, `tauri-125-emulated.png`, `tauri-100-emulated.png` |
 
 How the scales were produced: the display runs at 150%, so the `-native` captures are what the
@@ -33,7 +46,12 @@ app scans asynchronously after the first paint; neither prototype met the spec's
 toolkit share is mostly GPU device and shader setup on first run; Tauri's working set is spread
 over processes the app does not own and that the OS updates with Edge.
 
-Decision and reason: pending Phillip's choice (control posted 2026-11-01).
+Decision and reason: eframe/egui, Phillip #30715. The reason he was given and chose on: one
+process against a browser engine in seven, with text that held up at the display's scaling; the
+start-time and memory-ratio columns are indicative only, as corrected above. Consequences: the
+spec's 300 ms paint budget is re-measured on a quiet machine once the real app paints before it
+scans; the idle budget is restated as private working set of one process; the Tauri prototype is
+deleted from scratch and the egui one is kept as the starting point for `visual-theme`.
 
 ## ADR-002: git through the installed executable
 
