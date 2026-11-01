@@ -9,13 +9,12 @@ pub use classify::{Found, classify};
 pub use group::group;
 pub use walk::walk;
 
-use std::path::Path;
-
 use crate::config::Config;
 use crate::model::RepoSummary;
 
 /// One scan of every root. Repositories come back sorted by name with their worktrees attached.
 /// Nothing here spawns git; branch and hash are read from `.git` files so the list paints fast.
+/// A root that is missing is skipped here and named by `config::missing_roots`.
 pub fn discover(config: &Config) -> Vec<RepoSummary> {
 	let mut found = Vec::new();
 	for root in &config.roots {
@@ -27,9 +26,4 @@ pub fn discover(config: &Config) -> Vec<RepoSummary> {
 /// Whether a directory name is pruned from the walk.
 pub fn skipped(name: &str, exclude: &[String]) -> bool {
 	name == ".git" || exclude.iter().any(|e| e == name)
-}
-
-/// A root that is itself a repository is listed too.
-pub fn is_root_repo(root: &Path) -> bool {
-	root.join(".git").exists()
 }

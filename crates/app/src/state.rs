@@ -29,6 +29,8 @@ pub struct AppState {
 	pub focus_filter: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
+	/// Configured roots that were not directories when the app started.
+	pub missing_roots: Vec<PathBuf>,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -37,8 +39,10 @@ pub struct AppState {
 impl AppState {
 	pub fn new(config: Config) -> Self {
 		let (tx, rx) = channel();
+		let missing_roots = repose_core::config::missing_roots(&config);
 		Self {
 			config,
+			missing_roots,
 			repos: Vec::new(),
 			selected: None,
 			expanded: HashSet::new(),

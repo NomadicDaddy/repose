@@ -17,20 +17,28 @@ impl Platform for Windows {
 	}
 }
 
-/// Minutes east of UTC, read once. `std` has no local-time API, so this asks `w32tm /tz`, which
-/// prints the zone's bias and daylight adjustment in minutes.
-pub fn utc_offset_minutes() -> i32 {
-	use std::sync::OnceLock;
-	static OFFSET: OnceLock<i32> = OnceLock::new();
-	*OFFSET.get_or_init(|| {
-		let mut cmd = Command::new("w32tm");
-		repose_core::git::commands::hide_console(&mut cmd);
-		let out = cmd.arg("/tz").output().ok();
-		let text = out
-			.map(|o| String::from_utf8_lossy(&o.stdout).to_string())
-			.unwrap_or_default();
-		parse_w32tm(&text).unwrap_or(0)
-	})
+/// Minutes east of UTC, re-read at most once a minute so a daylight change shows within the
+/// minute. `std` has no local-time API, so this asks `w32tm /tz`, which prints the zone's bias and
+/// daylight adjustment in minutes. When that fails the clock is shown in UTC and says so.
+pub fn utc_offset_minutes() -> Option<i32> {
+	use std::sync::Mutex;
+	use std::time::{Duration, Instant};
+	static CACHE: Mutex<Option<(Instant, Option<i32>)>> = Mutex::new(None);
+	let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+	if let Some((at, offset)) = *cache
+		&& at.elapsed() < Duration::from_secs(60)
+	{
+		return offset;
+	}
+	let mut cmd = Command::new("w32tm");
+	repose_core::git::commands::hide_console(&mut cmd);
+	let out = cmd.arg("/tz").output().ok();
+	let text = out
+		.map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+		.unwrap_or_default();
+	let offset = parse_w32tm(&text);
+	*cache = Some((Instant::now(), offset));
+	offset
 }
 
 /// `Time zone: Current:TIME_ZONE_ID_STANDARD Bias: 360min (UTC=LocalTime+Bias)` and a

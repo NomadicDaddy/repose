@@ -30,14 +30,15 @@ impl Platform for Unsupported {
 	}
 }
 
-/// Minutes east of UTC for the machine's current local time, without a time-zone crate.
-pub fn utc_offset_minutes() -> i32 {
+/// Minutes east of UTC for the machine's current local time, or None when it cannot be read,
+/// in which case callers show UTC and say so.
+pub fn utc_offset_minutes() -> Option<i32> {
 	#[cfg(windows)]
 	{
 		windows::utc_offset_minutes()
 	}
 	#[cfg(not(windows))]
 	{
-		0
+		None
 	}
 }

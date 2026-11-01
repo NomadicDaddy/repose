@@ -2,7 +2,7 @@
 //! `.gitmodules`. No git process is spawned here.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::model::{BranchState, RepoKind, RepoSummary};
 
@@ -42,9 +42,22 @@ pub fn classify(dir: &Path) -> Option<Found> {
 	Some(Found::Repository(summary))
 }
 
+/// Resolves `gitdir:` against the checkout and folds `.` and `..` away, so a worktree written with
+/// `--relative-paths` still matches its main repository's `.git/worktrees/`.
 fn resolve_gitdir(dir: &Path, raw: &str) -> PathBuf {
 	let p = PathBuf::from(raw);
-	if p.is_absolute() { p } else { dir.join(p) }
+	let joined = if p.is_absolute() { p } else { dir.join(p) };
+	let mut out = PathBuf::new();
+	for part in joined.components() {
+		match part {
+			Component::CurDir => {}
+			Component::ParentDir => {
+				out.pop();
+			}
+			other => out.push(other.as_os_str()),
+		}
+	}
+	out
 }
 
 /// A submodule's `.git` file points into its parent's `.git/modules/<path>`.

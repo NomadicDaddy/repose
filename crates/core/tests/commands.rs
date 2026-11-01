@@ -1,9 +1,59 @@
 //! Assertions A1 and A3: no remote verb exists, every spawn carries the shared environment, and a
-//! commit never passes --no-verify.
+//! commit never passes --no-verify. Plus the pipe-capacity cases Morticia found on cdfc251: output
+//! larger than the pipe buffer on a read and on a hook must not deadlock.
+#![allow(clippy::expect_used)]
+
+mod support;
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
-use repose_core::git::{Verb, commands};
+use repose_core::git::{Verb, commands, run};
+use support::TempRepo;
+
+#[test]
+fn large_status_output_does_not_deadlock() {
+	let repo = TempRepo::new("big-status");
+	// About 130 KB of porcelain output, past any pipe buffer (64 KB on Windows).
+	for i in 0..5000 {
+		repo.write(&format!("files/untracked-{i:04}.txt"), "x\n");
+	}
+	let started = Instant::now();
+	let out = run(
+		&repo.path,
+		Verb::Status,
+		&["--porcelain=v2", "-z", "--untracked-files=all"],
+	)
+	.expect("status over the pipe capacity");
+	assert!(out.len() > 65_536, "got {} bytes", out.len());
+	assert!(
+		started.elapsed() < Duration::from_secs(5),
+		"took {:?}",
+		started.elapsed()
+	);
+}
+
+#[test]
+fn chatty_hook_on_a_write_does_not_deadlock() {
+	let repo = TempRepo::new("chatty-hook");
+	repo.write("a.txt", "a\n");
+	repo.git(&["add", "a.txt"]);
+	repo.write(
+		".githooks/pre-commit",
+		"#!/bin/sh\nhead -c 300000 /dev/zero | tr '\\0' 'a'\necho\nexit 0\n",
+	);
+	repo.git(&["config", "core.hooksPath", ".githooks"]);
+	let started = Instant::now();
+	let result = run(&repo.path, Verb::Commit, &["-q", "-m", "chatty"]);
+	assert!(result.is_ok(), "commit failed: {result:?}");
+	assert!(
+		started.elapsed() < Duration::from_secs(20),
+		"took {:?}",
+		started.elapsed()
+	);
+	let log = repo.git(&["log", "--oneline"]);
+	assert!(log.contains("chatty"));
+}
 
 #[test]
 fn no_remote_commands() {

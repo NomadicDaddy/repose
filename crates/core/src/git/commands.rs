@@ -3,7 +3,7 @@
 
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::{Condvar, Mutex, OnceLock};
+use std::sync::{Condvar, Mutex, OnceLock, mpsc};
 use std::time::{Duration, Instant};
 
 /// The verbs repose may run. No fetch, pull, push, clone or ls-remote exists here.
@@ -170,7 +170,27 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 	cmd
 }
 
+/// Drains one pipe on its own thread from the moment of spawn, so output larger than the pipe's
+/// buffer never blocks git. The bytes arrive on the channel when the pipe closes.
+fn drain<R: std::io::Read + Send + 'static>(pipe: Option<R>) -> mpsc::Receiver<Vec<u8>> {
+	let (tx, rx) = mpsc::channel();
+	std::thread::spawn(move || {
+		let mut buf = Vec::new();
+		if let Some(mut pipe) = pipe {
+			let _ = pipe.read_to_end(&mut buf);
+		}
+		let _ = tx.send(buf);
+	});
+	rx
+}
+
+/// Collects a drained pipe, giving up after `wait` if a grandchild still holds the write end.
+fn collect(rx: &mpsc::Receiver<Vec<u8>>, wait: Duration) -> Vec<u8> {
+	rx.recv_timeout(wait).unwrap_or_default()
+}
+
 /// Runs a verb and returns stdout bytes. Reads time out after `READ_TIMEOUT`; writes never do.
+/// Both pipes are read concurrently from spawn, so large output cannot deadlock the child.
 pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError> {
 	let _permit = Permit::acquire();
 	let mut child = command(repo, verb, extra).spawn().map_err(|e| {
@@ -180,36 +200,36 @@ pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError>
 			GitError::Spawn(e.to_string())
 		}
 	})?;
+	let stdout = drain(child.stdout.take());
+	let stderr = drain(child.stderr.take());
 	let started = Instant::now();
 	let timeout = (!verb.is_write()).then_some(READ_TIMEOUT);
-	loop {
+	let status = loop {
 		match child.try_wait() {
-			Ok(Some(_)) => break,
+			Ok(Some(status)) => break status,
 			Ok(None) => {
 				if let Some(limit) = timeout.filter(|l| started.elapsed() > *l) {
 					let _ = child.kill();
-					let out = child
-						.wait_with_output()
-						.map_err(|e| GitError::Spawn(e.to_string()))?;
+					let _ = child.wait();
+					let err = collect(&stderr, Duration::from_millis(500));
 					return Err(GitError::TimedOut {
 						after: limit,
-						stderr_tail: tail(&out.stderr),
+						stderr_tail: tail(&err),
 					});
 				}
 				std::thread::sleep(Duration::from_millis(5));
 			}
 			Err(e) => return Err(GitError::Spawn(e.to_string())),
 		}
-	}
-	let out = child
-		.wait_with_output()
-		.map_err(|e| GitError::Spawn(e.to_string()))?;
-	if out.status.success() {
-		Ok(out.stdout)
+	};
+	let out = collect(&stdout, Duration::from_secs(5));
+	let err = collect(&stderr, Duration::from_secs(5));
+	if status.success() {
+		Ok(out)
 	} else {
 		Err(GitError::Failed {
-			code: out.status.code(),
-			stderr_tail: tail(&out.stderr),
+			code: status.code(),
+			stderr_tail: tail(&err),
 		})
 	}
 }

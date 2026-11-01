@@ -58,7 +58,6 @@ impl Default for Config {
 pub enum ConfigError {
 	Io(PathBuf, std::io::Error),
 	Parse(PathBuf, toml::de::Error),
-	MissingRoot(PathBuf),
 	BadCommand(String),
 }
 
@@ -67,7 +66,6 @@ impl std::fmt::Display for ConfigError {
 		match self {
 			Self::Io(p, e) => write!(f, "could not read {}: {e}", p.display()),
 			Self::Parse(p, e) => write!(f, "could not parse {}: {e}", p.display()),
-			Self::MissingRoot(p) => write!(f, "root does not exist: {}", p.display()),
 			Self::BadCommand(c) => {
 				write!(f, "command must be a program name or an absolute path: {c}")
 			}
@@ -105,14 +103,10 @@ pub fn load_or_create(path: &Path) -> Result<Config, ConfigError> {
 	Ok(config)
 }
 
-/// A missing root or a command that is not a program name or absolute path is an error with the
-/// offending value named, never a panic.
+/// A command that is not a program name or absolute path is an error with the offending value
+/// named, never a panic. A missing root is not an error: the app starts and reports it, because
+/// one unplugged drive should not keep the other roots from showing.
 pub fn validate(config: &Config) -> Result<(), ConfigError> {
-	for root in &config.roots {
-		if !root.is_dir() {
-			return Err(ConfigError::MissingRoot(root.clone()));
-		}
-	}
 	for command in [&config.commands.editor, &config.commands.terminal] {
 		let plain = !command.contains([' ', '"', '\'', '|', '&', ';']);
 		let shape = Path::new(command).is_absolute() || !command.contains(['/', '\\']);
@@ -121,6 +115,16 @@ pub fn validate(config: &Config) -> Result<(), ConfigError> {
 		}
 	}
 	Ok(())
+}
+
+/// The configured roots that are not directories right now, for the status line to name.
+pub fn missing_roots(config: &Config) -> Vec<PathBuf> {
+	config
+		.roots
+		.iter()
+		.filter(|r| !r.is_dir())
+		.cloned()
+		.collect()
 }
 
 #[cfg(test)]
@@ -145,14 +149,12 @@ mod tests {
 	}
 
 	#[test]
-	fn rejects_a_missing_root() {
+	fn a_missing_root_is_reported_not_fatal() {
 		let config = Config {
 			roots: vec![PathBuf::from("Q:\\no\\such\\root\\for\\repose")],
 			..Config::default()
 		};
-		assert!(matches!(
-			validate(&config),
-			Err(ConfigError::MissingRoot(_))
-		));
+		assert!(validate(&config).is_ok());
+		assert_eq!(missing_roots(&config), config.roots);
 	}
 }

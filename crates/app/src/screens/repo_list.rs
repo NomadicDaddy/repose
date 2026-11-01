@@ -69,20 +69,29 @@ fn status_line(state: &AppState, count: usize) -> String {
 	} else {
 		"repositories"
 	};
+	let missing = match state.missing_roots.len() {
+		0 => String::new(),
+		1 => format!(" · 1 root not found: {}", state.missing_roots[0].display()),
+		n => format!(" · {n} roots not found"),
+	};
 	if state.scanning {
-		format!("{count} {noun} · Checking… · Saved refs; no fetch")
+		format!("{count} {noun} · Checking… · Saved refs; no fetch{missing}")
 	} else {
-		format!("{count} {noun} · Checked {time} · Saved refs; no fetch")
+		format!("{count} {noun} · Checked {time} · Saved refs; no fetch{missing}")
 	}
 }
 
-/// Local wall-clock HH:MM: UTC seconds plus the machine's offset, read once by the platform module.
+/// Local wall-clock HH:MM: UTC seconds plus the machine's offset from the platform module, or
+/// UTC marked as such when the offset cannot be read.
 fn clock(t: std::time::SystemTime) -> String {
 	let secs = t
 		.duration_since(std::time::UNIX_EPOCH)
 		.map(|d| d.as_secs())
 		.unwrap_or(0);
-	let offset = crate::platform::utc_offset_minutes();
+	let Some(offset) = crate::platform::utc_offset_minutes() else {
+		let minutes = (secs as i64).rem_euclid(86_400) / 60;
+		return format!("{:02}:{:02} UTC", minutes / 60, minutes % 60);
+	};
 	let local = secs as i64 + i64::from(offset) * 60;
 	let minutes = local.rem_euclid(86_400) / 60;
 	format!("{:02}:{:02}", minutes / 60, minutes % 60)

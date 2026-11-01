@@ -13,7 +13,6 @@ repose-core = { path = "crates/core" }
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 eframe = "0.37"
-notify = "8"
 
 [profile.release]
 opt-level = 3

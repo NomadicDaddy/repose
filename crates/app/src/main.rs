@@ -64,6 +64,39 @@ impl eframe::App for App {
 	}
 }
 
+/// A small window that shows a startup error and exits when closed, so a double-click never
+/// fails silently.
+fn error_window(message: String) -> eframe::Result {
+	struct ErrorApp(String);
+	impl eframe::App for ErrorApp {
+		fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
+			egui::CentralPanel::default().show(root, |ui| {
+				ui.heading("repose could not start");
+				ui.add_space(8.0);
+				ui.label(&self.0);
+				ui.add_space(12.0);
+				if ui.button("Close").clicked() {
+					ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+				}
+			});
+		}
+	}
+	let options = eframe::NativeOptions {
+		viewport: egui::ViewportBuilder::default()
+			.with_inner_size([560.0, 240.0])
+			.with_title("repose"),
+		..Default::default()
+	};
+	eframe::run_native(
+		"repose-error",
+		options,
+		Box::new(move |cc| {
+			theme::apply(&cc.egui_ctx);
+			Ok(Box::new(ErrorApp(message)))
+		}),
+	)
+}
+
 fn main() -> eframe::Result {
 	let started = Instant::now();
 	let args: Vec<String> = std::env::args().collect();
@@ -81,8 +114,9 @@ fn main() -> eframe::Result {
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
+			// The release build has no console, so the message goes in a window.
 			eprintln!("repose: {e}");
-			std::process::exit(2);
+			return error_window(format!("{e}\n\nConfig file: {}", config_path.display()));
 		}
 	};
 	let options = eframe::NativeOptions {
