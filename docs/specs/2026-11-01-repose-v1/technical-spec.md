@@ -76,7 +76,12 @@ and `git restore -- '[1].txt'` also restores `1.txt` (Morticia, 2026-11-01). Rea
 timeout, after which the row shows an error badge with the stderr tail. Writes (`add`, `restore`,
 `clean`, `commit`) have no timeout, because a hooked commit in this fleet can run format, leak
 guard and tests for minutes; the row shows a running state with a Cancel that kills the process
-only when the user asks.
+only when the user asks. Cancel kills the whole process tree (`taskkill /T` semantics through the
+Windows job object the spawn is placed in), so a hook's children do not outlive it, and if
+`.git/index.lock` remains afterwards the app reports it with the path and never deletes it. Writes
+run one at a time per repository: a second stage, discard or commit queues behind the first. Every
+spawn has stdin set to null, so a hook that reads input fails at once instead of waiting for a
+Cancel.
 
 ### Discovery
 
@@ -95,7 +100,8 @@ the owning repository by longest path prefix, with one exception: an event under
 `<main>/.git/worktrees/<name>/` belongs to that worktree, whose index and HEAD live there rather
 than under its own folder. Events are dropped if under an excluded directory or under `.git`
 other than `HEAD`, `index`, `ORIG_HEAD`, `MERGE_HEAD`, `packed-refs`, `refs/`, `logs/HEAD` and
-`worktrees/<name>/{HEAD,index}`, then debounced per repository at 250 ms (trailing edge). A refresh re-runs status for
+`worktrees/<name>/{HEAD,index,logs/HEAD}`, then debounced per repository at 250 ms (trailing
+edge). A refresh re-runs status for
 that repository, and the open Changes, diff or History view if it belongs to it. A 60 s timer
 re-reads all statuses as a backstop. Watch overflow (the OS buffer filled) triggers one full
 re-read and a status-line note.
