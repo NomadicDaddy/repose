@@ -102,8 +102,9 @@ fn every_spawn_sets_literal_pathspecs_and_reads_set_optional_locks_off() {
 }
 
 // CREATE_NO_WINDOW on child processes cannot be read back from a Command, so it has no unit
-// test; the release build was run against 72 repositories on 2026-11-01 with the console host
-// count unchanged before and after, which is the check that matters.
+// test; the release build was run against the 77 repositories under the default roots on
+// 2026-11-01 with the console host count unchanged before and after, which is the check that
+// matters.
 
 #[test]
 fn no_verify_is_never_passed() {
