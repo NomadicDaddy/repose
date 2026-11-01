@@ -41,6 +41,14 @@ impl AppState {
 		out
 	}
 
+	/// The filter text changed: a row the user closed by hand stays closed only while the filter
+	/// it was closed under stands, so a later filter that matches one of its worktrees shows
+	/// that worktree again instead of a bare parent with nothing to say why (Morticia Low on
+	/// d9e6939). Rows the user opened stay open.
+	pub fn filter_changed(&mut self) {
+		self.expanded.retain(|_, open| *open);
+	}
+
 	pub fn move_selection(&mut self, delta: i32) {
 		let paths = self.visible_paths();
 		if paths.is_empty() {
@@ -135,5 +143,28 @@ mod tests {
 		);
 		state.expanded.insert(PathBuf::from("D:/t/summon"), true);
 		assert_eq!(state.visible_paths().len(), 4, "opened by hand: all three");
+	}
+
+	/// Morticia Low on d9e6939: a hand-close lasts while that filter stands; a new filter that
+	/// matches a worktree shows it again. A hand-open outlives the filter change.
+	#[test]
+	fn a_closed_row_reopens_to_matches_when_the_filter_changes() {
+		let mut state = fixture();
+		state.filter = "summon".into();
+		state.expanded.insert(PathBuf::from("D:/t/summon"), false);
+		state.filter = "stop".into();
+		state.filter_changed();
+		assert_eq!(
+			state.visible_paths(),
+			vec![
+				PathBuf::from("D:/t/summon"),
+				PathBuf::from("D:/w/summon/stop-confirm")
+			],
+			"the close was dropped with the filter it was made under"
+		);
+		state.expanded.insert(PathBuf::from("D:/t/summon"), true);
+		state.filter = "sum".into();
+		state.filter_changed();
+		assert_eq!(state.visible_paths().len(), 4, "a hand-open stays open");
 	}
 }

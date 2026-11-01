@@ -54,8 +54,12 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 		response.request_focus();
 		state.focus_filter = false;
 	}
-	if response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
+	let cleared = response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape));
+	if cleared {
 		state.filter.clear();
+	}
+	if response.changed() || cleared {
+		state.filter_changed();
 	}
 }
 
