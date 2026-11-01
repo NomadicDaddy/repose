@@ -4,10 +4,10 @@
 use std::path::Path;
 
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
-use repose_core::model::{ChangeKind, DiscardPlan, FileChange, RepoSummary};
+use repose_core::model::{ChangeKind, DiffSource, DiscardPlan, FileChange, RepoSummary};
 
 use crate::platform::Platform;
-use crate::state::{AppState, PendingDiscard, WriteKind};
+use crate::state::{AppState, OpenDiff, PendingDiscard, WriteKind};
 use crate::theme::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -200,6 +200,25 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	);
 	if response.clicked() {
 		state.selected_file = Some(file.path.clone());
+		let source = match g.which {
+			Group::Staged => DiffSource::Staged,
+			Group::Working | Group::Conflicts => DiffSource::Working,
+		};
+		let mut paths = vec![file.path.clone()];
+		if let Some(from) = &file.from {
+			paths.push(from.clone());
+		}
+		let ctx = ui.ctx().clone();
+		state.open_diff(
+			OpenDiff {
+				repo: g.repo.path.clone(),
+				source,
+				paths,
+				display: file.path.clone(),
+				untracked: file.kind == ChangeKind::Untracked,
+			},
+			&ctx,
+		);
 	}
 	if response.hovered() || selected {
 		hover_actions(ui, state, g, file, rect);

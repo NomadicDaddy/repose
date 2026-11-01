@@ -2,7 +2,9 @@
 //! messages tagged with a generation; results are merged by repository path so a refresh never
 //! resets the selection or scroll. Writes go through one serial queue.
 
+mod diff;
 mod history;
+mod merge;
 mod scan;
 mod writes;
 
@@ -15,7 +17,9 @@ use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::RepoSummary;
 
+pub use diff::{DiffContent, DiffMsg, DiffState, OpenDiff};
 pub use history::{HistoryMsg, HistoryState};
+pub use merge::find;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
 
 pub enum Msg {
@@ -25,6 +29,7 @@ pub enum Msg {
 	Done(u64, Option<i32>),
 	WriteDone(Box<WriteOutcome>),
 	History(HistoryMsg),
+	Diff(DiffMsg),
 }
 
 /// Which pane the right side shows for the selected repository.
@@ -62,6 +67,8 @@ pub struct AppState {
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
 	pub history: HashMap<PathBuf, HistoryState>,
+	/// The diff open in the right pane, if any.
+	pub diff: Option<DiffState>,
 	/// A repository asked for on the command line, applied when discovery first lists it.
 	pub requested_selection: Option<PathBuf>,
 	generation: u64,
@@ -90,6 +97,7 @@ impl AppState {
 			pending_discard: None,
 			view: View::Changes,
 			history: HashMap::new(),
+			diff: None,
 			requested_selection: None,
 			generation: 0,
 			tx,
@@ -124,8 +132,12 @@ impl AppState {
 				Msg::Discovered(g, repos) if g == self.generation => self.merge_discovered(repos),
 				Msg::Status(g, repo) if g == self.generation => {
 					let path = repo.path.clone();
-					if self.merge_status(*repo) {
+					let merged = self.merge_status(*repo);
+					if merged.head_changed {
 						self.refresh_history(&path, ctx);
+					}
+					if merged.applied {
+						self.reload_diff_for(&path, ctx);
 					}
 				}
 				Msg::Done(g, offset) if g == self.generation => {
@@ -135,73 +147,10 @@ impl AppState {
 				}
 				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
 				Msg::History(h) => self.merge_history(h),
+				Msg::Diff(m) => self.merge_diff(m),
 				_ => {}
 			}
 		}
-	}
-
-	fn merge_discovered(&mut self, mut fresh: Vec<RepoSummary>) {
-		// Keep statuses already known for paths that are still present.
-		for row in &mut fresh {
-			if let Some(old) = find(&self.repos, &row.path) {
-				row.status = old.status.clone();
-				row.changes = old.changes.clone();
-				row.error = old.error.clone();
-				row.checked_at = old.checked_at;
-			}
-			for wt in &mut row.worktrees {
-				if let Some(old) = find(&self.repos, &wt.path) {
-					wt.status = old.status.clone();
-					wt.changes = old.changes.clone();
-					wt.error = old.error.clone();
-				}
-			}
-		}
-		self.repos = fresh;
-		if let Some(wanted) = self.requested_selection.take() {
-			let key = |p: &Path| p.to_string_lossy().to_lowercase().replace('\\', "/");
-			let hit = self
-				.repos
-				.iter()
-				.flat_map(|r| std::iter::once(r).chain(r.worktrees.iter()))
-				.find(|r| key(&r.path) == key(&wanted))
-				.map(|r| r.path.clone());
-			if hit.is_some() {
-				self.selected = hit;
-			}
-		}
-		if self
-			.selected
-			.as_ref()
-			.is_none_or(|p| find(&self.repos, p).is_none())
-		{
-			self.selected = self.repos.first().map(|r| r.path.clone());
-		}
-	}
-
-	/// Merges a status read into its row. Returns true when HEAD, the upstream or the ahead count
-	/// changed, which is when a loaded history is stale.
-	fn merge_status(&mut self, fresh: RepoSummary) -> bool {
-		let Some(row) = find_mut(&mut self.repos, &fresh.path) else {
-			return false;
-		};
-		// A full Refresh can overlap a post-write re-read; the one that started reading later
-		// wins, so an older scan result never overwrites a newer status.
-		if row.checked_at > fresh.checked_at {
-			return false;
-		}
-		let tracking = |s: &Option<repose_core::model::StatusSummary>| {
-			s.as_ref().map(|s| (s.upstream.clone(), s.ahead))
-		};
-		let head_changed = fresh.short_hash.is_some() && fresh.short_hash != row.short_hash
-			|| tracking(&fresh.status) != tracking(&row.status);
-		row.branch = fresh.branch;
-		row.short_hash = fresh.short_hash.or(row.short_hash.take());
-		row.status = fresh.status;
-		row.changes = fresh.changes;
-		row.error = fresh.error;
-		row.checked_at = fresh.checked_at;
-		head_changed
 	}
 
 	pub fn selected_repo(&self) -> Option<&RepoSummary> {
@@ -281,28 +230,4 @@ impl AppState {
 			self.select(p);
 		}
 	}
-}
-
-pub fn find<'a>(repos: &'a [RepoSummary], path: &Path) -> Option<&'a RepoSummary> {
-	for r in repos {
-		if r.path == path {
-			return Some(r);
-		}
-		if let Some(w) = r.worktrees.iter().find(|w| w.path == path) {
-			return Some(w);
-		}
-	}
-	None
-}
-
-fn find_mut<'a>(repos: &'a mut [RepoSummary], path: &Path) -> Option<&'a mut RepoSummary> {
-	for r in repos.iter_mut() {
-		if r.path == path {
-			return Some(r);
-		}
-		if let Some(w) = r.worktrees.iter_mut().find(|w| w.path == path) {
-			return Some(w);
-		}
-	}
-	None
 }

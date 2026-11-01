@@ -18,7 +18,11 @@ pub const ACCENT_LINE: Color32 = Color32::from_rgb(0x60, 0x8b, 0x7b);
 pub const INFO: Color32 = Color32::from_rgb(0x80, 0x9f, 0xce);
 pub const WARN: Color32 = Color32::from_rgb(0xe3, 0xbe, 0x7b);
 pub const DANGER: Color32 = Color32::from_rgb(0xf0, 0x78, 0x78);
-// The diff colours (added and removed, foreground and background) arrive with the diff viewer.
+/// Diff line backgrounds, and the stronger fill behind the changed words within a line.
+pub const ADDED_BG: Color32 = Color32::from_rgb(0x17, 0x30, 0x27);
+pub const ADDED_MARK: Color32 = Color32::from_rgb(0x25, 0x52, 0x3d);
+pub const REMOVED_BG: Color32 = Color32::from_rgb(0x38, 0x1f, 0x25);
+pub const REMOVED_MARK: Color32 = Color32::from_rgb(0x5e, 0x2c, 0x35);
 
 /// Base interface text size in points at 100% scaling.
 pub const TEXT_BASE: f32 = 13.0;

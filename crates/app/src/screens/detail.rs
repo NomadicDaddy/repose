@@ -3,7 +3,7 @@
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
-use super::{changes, commit_box, confirm, history};
+use super::{changes, commit_box, confirm, diff, history};
 use crate::platform::Platform;
 use crate::state::{AppState, View};
 use crate::theme::*;
@@ -56,6 +56,10 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				}
 			}
 			ui.add_space(10.0);
+			if state.diff.is_some() {
+				diff::show(ui, state, platform);
+				return;
+			}
 			ui.horizontal(|ui| {
 				for (view, label) in [(View::Changes, "Changes"), (View::History, "History")] {
 					let selected = state.view == view;

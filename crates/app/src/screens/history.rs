@@ -2,9 +2,9 @@
 //! on the upstream, each commit expanding to its message and files, and Load more.
 
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
-use repose_core::model::{BranchState, ChangeKind, Commit, RepoSummary, relative};
+use repose_core::model::{BranchState, ChangeKind, Commit, DiffSource, RepoSummary, relative};
 
-use crate::state::AppState;
+use crate::state::{AppState, OpenDiff};
 use crate::theme::*;
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
@@ -173,7 +173,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 		}
 	});
 	if open {
-		expanded_block(ui, c, files.get(&c.hash).map(Vec::as_slice));
+		expanded_block(ui, state, repo, c, files.get(&c.hash).map(Vec::as_slice));
 	}
 }
 
@@ -181,7 +181,13 @@ fn iso_tooltip(c: &Commit) -> String {
 	format!("{}\n{}\n{}", c.date, c.author, c.hash)
 }
 
-fn expanded_block(ui: &mut Ui, c: &Commit, files: Option<&[repose_core::model::CommitFile]>) {
+fn expanded_block(
+	ui: &mut Ui,
+	state: &mut AppState,
+	repo: &RepoSummary,
+	c: &Commit,
+	files: Option<&[repose_core::model::CommitFile]>,
+) {
 	egui::Frame::new()
 		.fill(BG_PANEL)
 		.inner_margin(10.0)
@@ -218,7 +224,29 @@ fn expanded_block(ui: &mut Ui, c: &Commit, files: Option<&[repose_core::model::C
 								Some(from) => format!("{}  ←  {from}", f.path),
 								None => f.path.clone(),
 							};
-							ui.label(RichText::new(text).size(TEXT_BASE).color(TEXT));
+							if ui
+								.selectable_label(
+									false,
+									RichText::new(text).size(TEXT_BASE).color(TEXT),
+								)
+								.clicked()
+							{
+								let mut paths = vec![f.path.clone()];
+								if let Some(from) = &f.from {
+									paths.push(from.clone());
+								}
+								let ctx = ui.ctx().clone();
+								state.open_diff(
+									OpenDiff {
+										repo: repo.path.clone(),
+										source: DiffSource::Commit(c.hash.clone()),
+										paths,
+										display: f.path.clone(),
+										untracked: false,
+									},
+									&ctx,
+								);
+							}
 						});
 					}
 				}

@@ -5,6 +5,7 @@
 //! pane, so a shortcut or a script can land where the user wants.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod diff_rows;
 mod platform;
 mod screens;
 mod state;
