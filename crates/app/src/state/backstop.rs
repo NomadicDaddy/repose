@@ -31,10 +31,16 @@ impl AppState {
 	}
 
 	/// A pass or a full scan finished under the current generation: the clock restarts here.
-	pub(super) fn pass_done(&mut self, offset: Option<i32>) {
+	/// Watcher caught up is claimed only now, when the pass that answered an overflow has
+	/// completed, and it stands until the next pass or scan completes (Roger 5Q-2 on 7e70f1f);
+	/// a full re-read that was reported meanwhile starts at once.
+	pub(super) fn pass_done(&mut self, offset: Option<i32>, ctx: &egui::Context) {
 		self.backstop_running = false;
 		self.backstop_at = Some(Instant::now());
 		self.checked_at = Some(std::time::SystemTime::now());
 		self.utc_offset = offset;
+		self.watching.caught_up = self.watching.overflow_pass;
+		self.watching.overflow_pass = false;
+		self.start_full_reread_if_due(ctx);
 	}
 }

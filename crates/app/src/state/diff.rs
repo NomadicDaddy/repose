@@ -183,11 +183,15 @@ impl AppState {
 		}
 		self.diff_serial += 1;
 		d.generation = self.diff_serial;
+		// While a layout for the other mode is still on its way (the Inline toggle restarted the
+		// read), this later read must send rows even for unchanged bytes: it carries the newer
+		// generation, and the toggle's result would be dropped (Morticia L-3 on dec2749).
+		let known = (d.rows_inline == d.inline).then_some(d.raw_hash).flatten();
 		spawn_read(
 			d.open.clone(),
 			d.generation,
 			d.inline,
-			d.raw_hash,
+			known,
 			self.tx.clone(),
 			ctx.clone(),
 		);

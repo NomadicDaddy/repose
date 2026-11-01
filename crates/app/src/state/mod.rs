@@ -46,6 +46,8 @@ pub enum Msg {
 	Files(FilesMsg),
 	/// The origin of a repository, read under a scan generation: a URL, none, or the failure.
 	Remote(u64, PathBuf, Remote),
+	/// An external action that ran on a thread failed; shown under the repository header.
+	Notice(String),
 }
 
 /// Which pane the right side shows for the selected repository.
@@ -233,10 +235,10 @@ impl AppState {
 				}
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
-					self.watching.caught_up = false;
-					self.pass_done(offset);
+					self.pass_done(offset, ctx);
 				}
-				Msg::PassDone(g, offset) if g == self.generation => self.pass_done(offset),
+				Msg::PassDone(g, offset) if g == self.generation => self.pass_done(offset, ctx),
+				Msg::Notice(text) => self.notice = Some(text),
 				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
 				Msg::History(h) => self.merge_history(h),
 				Msg::Diff(m) => self.merge_diff(m),
@@ -245,6 +247,11 @@ impl AppState {
 				_ => {}
 			}
 		}
+	}
+
+	/// For work done on a thread that has something to report back (a failed external action).
+	pub(crate) fn sender(&self) -> Sender<Msg> {
+		self.tx.clone()
 	}
 
 	pub fn selected_repo(&self) -> Option<&RepoSummary> {

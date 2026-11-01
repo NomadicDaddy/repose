@@ -21,8 +21,15 @@ pub struct Watching {
 	pub rx: Receiver<Refresh>,
 	/// A lasting condition for the status line: a root that could not be watched, or no watcher.
 	pub note: Option<String>,
-	/// Events were lost and every row was re-read; shown until the next full scan completes.
+	/// An overflow pass finished: every row was re-read after events were lost. Shown until the
+	/// next pass or scan completes.
 	pub caught_up: bool,
+	/// The watcher reported lost events and no pass has covered them yet. Kept until a pass
+	/// starts after the report, so an overflow during a pass or a scan is never dropped (Roger
+	/// 5Q-1 on 7e70f1f).
+	pub full_pending: bool,
+	/// The pass running now is the answer to an overflow.
+	pub overflow_pass: bool,
 	last_overflow: Option<Instant>,
 }
 
@@ -35,6 +42,8 @@ impl Default for Watching {
 			rx,
 			note: None,
 			caught_up: false,
+			full_pending: false,
+			overflow_pass: false,
 			last_overflow: None,
 		}
 	}
@@ -80,35 +89,103 @@ impl AppState {
 		}
 	}
 
-	/// Drains the watcher's refreshes: one repository each, or everything after an overflow.
+	/// Drains the watcher's refreshes: one repository each, and a lost-events report that marks a
+	/// full re-read pending. The single repositories are refreshed even when a full re-read is
+	/// pending, since that one may have to wait for a running pass.
 	pub(super) fn pump_watch(&mut self, ctx: &egui::Context) {
 		let mut repos = Vec::new();
-		let mut all = false;
 		while let Ok(r) = self.watching.rx.try_recv() {
 			match r {
 				Refresh::Repo(p) => repos.push(p),
-				Refresh::All => all = true,
+				Refresh::All => self.watching.full_pending = true,
 			}
-		}
-		if all {
-			let now = Instant::now();
-			let recent = self
-				.watching
-				.last_overflow
-				.is_some_and(|t| now.duration_since(t) < OVERFLOW_QUIET);
-			if !recent && !self.scanning && !self.backstop_running {
-				self.watching.last_overflow = Some(now);
-				self.watching.caught_up = true;
-				// The same single pass as the backstop; PassDone clears the flag.
-				self.backstop_running = true;
-				scan::refresh_all(self.generation, &self.repos, self.tx.clone(), ctx.clone());
-			}
-			return;
 		}
 		repos.sort();
 		repos.dedup();
 		for p in repos {
 			self.refresh_repo(&p, ctx);
 		}
+		self.start_full_reread_if_due(ctx);
+	}
+
+	/// Starts the pending full re-read when nothing else is reading and the last one started at
+	/// least `OVERFLOW_QUIET` ago; otherwise it stays pending and is tried again at the next frame
+	/// and at the next pass completion. Returns whether a pass started.
+	pub(super) fn start_full_reread_if_due(&mut self, ctx: &egui::Context) -> bool {
+		if !self.watching.full_pending || self.scanning || self.backstop_running {
+			return false;
+		}
+		let now = Instant::now();
+		let recent = self
+			.watching
+			.last_overflow
+			.is_some_and(|t| now.duration_since(t) < OVERFLOW_QUIET);
+		if recent || self.repos.is_empty() {
+			return false;
+		}
+		self.watching.full_pending = false;
+		self.watching.last_overflow = Some(now);
+		self.watching.overflow_pass = true;
+		// The same single pass as the backstop; pass_done clears the flag and shows the note.
+		self.backstop_running = true;
+		scan::refresh_all(self.generation, &self.repos, self.tx.clone(), ctx.clone());
+		true
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::PathBuf;
+
+	use repose_core::config::Config;
+	use repose_core::model::{RepoKind, RepoSummary};
+	use repose_core::watch::Refresh;
+
+	use crate::state::AppState;
+
+	/// Roger 5Q-1 on 7e70f1f: a lost-events report that arrives while a scan or a pass is
+	/// running must not be dropped; it waits and runs when the pass has finished.
+	#[test]
+	fn an_overflow_during_a_pass_waits_and_then_runs_once() {
+		let ctx = eframe::egui::Context::default();
+		let mut state = AppState::new(Config::default());
+		state.repos = vec![RepoSummary::new(
+			PathBuf::from("D:/t/a"),
+			RepoKind::Repository,
+		)];
+		state.backstop_running = true;
+		state
+			.watching
+			.tx
+			.send(Refresh::All)
+			.unwrap_or_else(|e| panic!("{e}"));
+		state.pump_watch(&ctx);
+		assert!(state.watching.full_pending, "kept while a pass runs");
+		assert!(!state.watching.overflow_pass);
+		// The pass finishes: the pending re-read starts now, as an overflow pass.
+		state.pass_done(None, &ctx);
+		assert!(!state.watching.full_pending);
+		assert!(state.watching.overflow_pass);
+		assert!(state.backstop_running);
+		assert!(
+			!state.watching.caught_up,
+			"not claimed before the pass completes"
+		);
+		// A second report inside the quiet window stays pending rather than being lost.
+		state
+			.watching
+			.tx
+			.send(Refresh::All)
+			.unwrap_or_else(|e| panic!("{e}"));
+		state.pump_watch(&ctx);
+		assert!(state.watching.full_pending);
+		// That pass completes: Watcher caught up shows, and the second report waits for quiet.
+		state.pass_done(None, &ctx);
+		assert!(state.watching.caught_up);
+		assert!(!state.watching.overflow_pass);
+		assert!(
+			state.watching.full_pending,
+			"inside OVERFLOW_QUIET it waits"
+		);
 	}
 }

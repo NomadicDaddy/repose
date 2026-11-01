@@ -10,9 +10,6 @@ pub fn keep(rel: &str, exclude: &[String]) -> bool {
 	let Some(first) = parts.first() else {
 		return false;
 	};
-	if parts.last().is_some_and(|p| p.ends_with(".lock")) {
-		return false;
-	}
 	if first.eq_ignore_ascii_case(".git") {
 		return keep_in_git(&parts[1..]);
 	}
@@ -22,8 +19,13 @@ pub fn keep(rel: &str, exclude: &[String]) -> bool {
 }
 
 /// HEAD, index, ORIG_HEAD, MERGE_HEAD, packed-refs, anything under refs/, logs/HEAD, and the same
-/// three for a linked worktree under worktrees/<name>/.
+/// three for a linked worktree under worktrees/<name>/. Git's own `.lock` files are dropped
+/// here, and only here: in the working tree a `.lock` is a tracked file (Cargo.lock, bun.lock)
+/// whose change must refresh (Morticia L-2 on 7e70f1f).
 fn keep_in_git(parts: &[&str]) -> bool {
+	if parts.last().is_some_and(|p| p.ends_with(".lock")) {
+		return false;
+	}
 	matches!(
 		parts,
 		[] | ["HEAD" | "index" | "ORIG_HEAD" | "MERGE_HEAD" | "packed-refs"]
@@ -61,6 +63,9 @@ mod tests {
 			".git/worktrees/task/index",
 			".git/worktrees/task/logs/HEAD",
 			"docs/target.md",
+			"Cargo.lock",
+			"frontend/bun.lock",
+			"src/tmp.lock",
 		] {
 			assert!(keep(path, &exclude), "kept: {path}");
 		}
@@ -80,7 +85,7 @@ mod tests {
 			".git/config",
 			".git/worktrees/task/COMMIT_EDITMSG",
 			".git/worktrees/task/logs/refs/heads/x",
-			"src/tmp.lock",
+			".git/worktrees/task/index.lock",
 		] {
 			assert!(!keep(path, &exclude), "dropped: {path}");
 		}

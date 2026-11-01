@@ -196,7 +196,21 @@ pub(super) fn perform(
 		Action::Editor { target, line } => {
 			platform.open_in_editor(&state.config.commands.editor, &target, line)
 		}
-		Action::Terminal(dir) => platform.open_terminal(&state.config.commands.terminal, &dir),
+		Action::Terminal(dir) => {
+			// The shell fallback waits for a helper process to report; that wait belongs off the
+			// UI thread (Roger 5Q-1 on 17aa443). A failure arrives later as a notice.
+			let command = state.config.commands.terminal.clone();
+			let tx = state.sender();
+			let wake = ctx.clone();
+			std::thread::spawn(move || {
+				let platform = crate::platform::current();
+				if let Err(e) = platform.open_terminal(&command, &dir) {
+					let _ = tx.send(crate::state::Msg::Notice(e));
+					wake.request_repaint();
+				}
+			});
+			Ok(())
+		}
 		Action::Copy(text) => {
 			ctx.copy_text(text);
 			Ok(())
