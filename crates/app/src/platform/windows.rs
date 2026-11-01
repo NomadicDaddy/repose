@@ -50,11 +50,12 @@ impl Platform for Windows {
 			Some(n) => vec!["--goto".into(), format!("{}:{n}", target.display())],
 			None => vec![target.display().to_string()],
 		};
-		start_detached(command, &args, true)
+		start_detached(command, &args, Console::Hidden)
 	}
 
-	/// Windows Terminal opens a pwsh tab in the folder; without it pwsh itself opens there. The
-	/// terminal gets a console window of its own, so it is not hidden.
+	/// Windows Terminal opens a pwsh tab in the folder; without it pwsh itself opens there. Both
+	/// get a new console of their own with its handles, because pwsh started with its standard
+	/// input at NUL ignores -NoExit and leaves at once (Morticia M-1 on 85ec3b0).
 	fn open_terminal(&self, command: &str, dir: &Path) -> Result<(), String> {
 		let dir = dir.display().to_string();
 		let via_terminal = [
@@ -63,40 +64,36 @@ impl Platform for Windows {
 			"pwsh".to_string(),
 			"-NoLogo".to_string(),
 		];
-		match start_detached(command, &via_terminal, false) {
+		match start_detached(command, &via_terminal, Console::New) {
 			Ok(()) => Ok(()),
-			Err(_) => start_detached(
-				"pwsh",
-				&[
-					"-NoLogo".into(),
-					"-NoExit".into(),
-					"-WorkingDirectory".into(),
-					dir,
-				],
-				false,
-			)
-			.map_err(|e| format!("{command} and pwsh: {e}")),
+			Err(_) => start_detached("pwsh", &pwsh_here(dir), Console::New)
+				.map_err(|e| format!("{command} and pwsh: {e}")),
 		}
 	}
 }
 
-/// Starts a program with no pipes and, when asked, no console window, retrying a bare name as
-/// its `.cmd` when it is not on PATH. The error names the command.
-fn start_detached(command: &str, args: &[String], hide: bool) -> Result<(), String> {
+fn pwsh_here(dir: String) -> [String; 4] {
+	[
+		"-NoLogo".into(),
+		"-NoExit".into(),
+		"-WorkingDirectory".into(),
+		dir,
+	]
+}
+
+/// What console a started program gets: none (an editor, which has its own window), or a new
+/// one with real handles (a shell).
+#[derive(Clone, Copy)]
+enum Console {
+	Hidden,
+	New,
+}
+
+/// Starts a program with no pipes back to this process, hidden or in a new console, retrying a
+/// bare name as its `.cmd` when it is not on PATH. The error names the command.
+fn start_detached(command: &str, args: &[String], console: Console) -> Result<(), String> {
 	use std::io::ErrorKind;
-	use std::process::Stdio;
-	let start = |program: &str| {
-		let mut cmd = Command::new(program);
-		if hide {
-			repose_core::git::commands::hide_console(&mut cmd);
-		}
-		cmd.args(args)
-			.stdin(Stdio::null())
-			.stdout(Stdio::null())
-			.stderr(Stdio::null())
-			.spawn()
-			.map(|_| ())
-	};
+	let start = |program: &str| spawn_detached(program, args, console).map(|_| ());
 	let not_found = || format!("{command} was not found on PATH");
 	match start(command) {
 		Ok(()) => Ok(()),
@@ -108,6 +105,32 @@ fn start_detached(command: &str, args: &[String], hide: bool) -> Result<(), Stri
 		}
 		Err(e) => Err(e.to_string()),
 	}
+}
+
+/// The spawn behind `start_detached`: hidden with every handle at NUL, or in a new console that
+/// supplies the standard handles, with nothing redirected.
+fn spawn_detached(
+	program: &str,
+	args: &[String],
+	console: Console,
+) -> std::io::Result<std::process::Child> {
+	use std::os::windows::process::CommandExt;
+	use std::process::Stdio;
+	const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+	let mut cmd = Command::new(program);
+	cmd.args(args);
+	match console {
+		Console::Hidden => {
+			repose_core::git::commands::hide_console(&mut cmd);
+			cmd.stdin(Stdio::null())
+				.stdout(Stdio::null())
+				.stderr(Stdio::null());
+		}
+		Console::New => {
+			cmd.creation_flags(CREATE_NEW_CONSOLE);
+		}
+	}
+	cmd.spawn()
 }
 
 /// Minutes east of UTC, re-read at most once a minute so a daylight change shows within the
@@ -171,5 +194,22 @@ mod tests {
 	fn central_daylight_time() {
 		let text = "Time zone: Current:TIME_ZONE_ID_DAYLIGHT Bias: 360min (UTC=LocalTime+Bias)\n  [Standard Name:\"Central Standard Time\" Bias:0min Date:(M:11 D:1 DoW:0)]\n  [Daylight Name:\"Central Daylight Time\" Bias:-60min Date:(M:3 D:2 DoW:0)]\n";
 		assert_eq!(parse_w32tm(text), Some(-300));
+	}
+
+	/// Morticia M-1 on 85ec3b0: pwsh with its standard input at NUL ignores -NoExit and exits at
+	/// once, so the fallback terminal must get a console of its own. Ignored by default because
+	/// it opens a console window on the developer's screen; run with --ignored in a slot and the
+	/// result goes in the external-actions record.
+	#[test]
+	#[ignore]
+	fn pwsh_no_exit_stays_open_in_a_new_console() {
+		let dir = std::env::temp_dir().display().to_string();
+		let mut child = super::spawn_detached("pwsh", &super::pwsh_here(dir), super::Console::New)
+			.unwrap_or_else(|e| panic!("pwsh did not start: {e}"));
+		std::thread::sleep(std::time::Duration::from_millis(2500));
+		let exited = child.try_wait().unwrap_or_else(|e| panic!("try_wait: {e}"));
+		let _ = child.kill();
+		let _ = child.wait();
+		assert!(exited.is_none(), "pwsh -NoExit left at once: {exited:?}");
 	}
 }

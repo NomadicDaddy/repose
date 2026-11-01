@@ -221,8 +221,10 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		);
 	}
 	let mut action = None;
+	let absent = (file.kind == ChangeKind::Deleted)
+		.then_some("Deleted in the working tree; there is no file to open");
 	menu::row_menu(ui, &response, selected, |ui| {
-		action = menu::file_items(ui, &g.repo.path, &file.path, None);
+		action = menu::file_items(ui, &g.repo.path, &file.path, None, absent);
 	});
 	if let Some(a) = action {
 		let ctx = ui.ctx().clone();

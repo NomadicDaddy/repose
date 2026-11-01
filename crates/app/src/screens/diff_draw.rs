@@ -13,8 +13,11 @@ use crate::state::FileColours;
 use crate::theme::*;
 
 pub(super) const ROW_H: f32 = 20.0;
-const GUTTER: f32 = 48.0;
+pub(super) const GUTTER: f32 = 48.0;
 const MONO: f32 = 12.0;
+/// The advance of one glyph at `MONO`, for sizing a row to its longest line; an estimate, since
+/// the galley is laid out only for visible rows.
+pub(super) const MONO_ADVANCE: f32 = 7.4;
 
 /// One file's parsed lines and their colours, as the rows refer to them.
 pub(super) struct Source<'a> {

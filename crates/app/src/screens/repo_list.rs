@@ -132,7 +132,9 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				} else if out.response.clicked() {
 					clicked = Some(repo.path.clone());
 				}
-				if out.response.secondary_clicked() || (is_selected && menu_key) {
+				if out.response.secondary_clicked()
+					|| ((is_selected || out.response.has_focus()) && menu_key)
+				{
 					wants_remote = Some(repo.path.clone());
 				}
 				menu::row_menu(ui, &out.response, is_selected, |ui| {
@@ -147,7 +149,9 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					if out.response.clicked() {
 						clicked = Some(wt.path.clone());
 					}
-					if out.response.secondary_clicked() || (is_selected && menu_key) {
+					if out.response.secondary_clicked()
+						|| ((is_selected || out.response.has_focus()) && menu_key)
+					{
 						wants_remote = Some(wt.path.clone());
 					}
 					menu::row_menu(ui, &out.response, is_selected, |ui| {
@@ -186,6 +190,11 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 	});
 	if find {
 		state.focus_filter = true;
+	}
+	// While a row's menu is open the arrows belong to it; moving the selection underneath would
+	// leave the menu on the old row (Morticia L-4 on 85ec3b0).
+	if egui::Popup::is_any_open(ctx) {
+		return;
 	}
 	if down {
 		state.move_selection(1);

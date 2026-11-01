@@ -24,6 +24,7 @@ pub use diff::{DiffContent, DiffMsg, DiffState, FileColours, OpenDiff};
 pub use files::{FileContent, FileRev, FileViewState, FilesMsg, FilesState, OpenFile};
 pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
+pub use remote::Remote;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
 
 /// How often every status is re-read even when the watcher reported nothing.
@@ -38,8 +39,8 @@ pub enum Msg {
 	History(HistoryMsg),
 	Diff(DiffMsg),
 	Files(FilesMsg),
-	/// The origin URL of a repository, None when it has none or could not be read.
-	Remote(PathBuf, Option<String>),
+	/// The origin of a repository, read under a scan generation: a URL, none, or the failure.
+	Remote(u64, PathBuf, Remote),
 }
 
 /// Which pane the right side shows for the selected repository.
@@ -100,8 +101,8 @@ pub struct AppState {
 	/// The last external action's failure, shown under the repository header until the next
 	/// action succeeds.
 	pub notice: Option<String>,
-	/// Origin URLs read so far; None for a repository without one. Cleared by Refresh.
-	pub remotes: HashMap<PathBuf, Option<String>>,
+	/// Origins read so far: a URL, none, or why the read failed. Cleared by Refresh.
+	pub remotes: HashMap<PathBuf, Remote>,
 	/// Repositories whose origin is being read right now.
 	pub(crate) remote_reads: HashSet<PathBuf>,
 	generation: u64,
@@ -153,6 +154,7 @@ impl AppState {
 		self.generation += 1;
 		self.scanning = true;
 		self.remotes.clear();
+		self.remote_reads.clear();
 		self.missing_roots = repose_core::config::missing_roots(&self.config);
 		scan::start(
 			self.generation,
@@ -245,7 +247,7 @@ impl AppState {
 				Msg::History(h) => self.merge_history(h),
 				Msg::Diff(m) => self.merge_diff(m),
 				Msg::Files(m) => self.merge_files(m),
-				Msg::Remote(repo, url) => self.merge_remote(repo, url),
+				Msg::Remote(g, repo, remote) => self.merge_remote(g, repo, remote),
 				_ => {}
 			}
 		}

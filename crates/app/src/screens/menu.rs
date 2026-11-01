@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use eframe::egui::{self, Key, Popup, Response, RichText, SetOpenCommand, Ui};
 
 use crate::platform::Platform;
-use crate::state::AppState;
+use crate::state::{AppState, Remote};
 use crate::theme::*;
 
 pub(super) enum Action {
@@ -23,11 +23,13 @@ pub(super) enum Action {
 }
 
 /// Shows the menu on a secondary click anywhere on the row, or on the Menu key when the row is
-/// the selected one; a keyboard-opened menu sits under the row rather than at the pointer, and
-/// that choice is remembered for as long as it stays open.
+/// the selected one or holds keyboard focus (Tab reaches every row, so a file row with no
+/// selection of its own still opens from the keyboard; Roger 5Q-2 on 85ec3b0). A
+/// keyboard-opened menu sits under the row rather than at the pointer, and that choice is
+/// remembered for as long as it stays open.
 pub(super) fn row_menu(ui: &Ui, response: &Response, selected: bool, add: impl FnOnce(&mut Ui)) {
 	let ctx = ui.ctx();
-	let by_key = selected && ctx.input(|i| i.key_pressed(Key::Menu));
+	let by_key = (selected || response.has_focus()) && ctx.input(|i| i.key_pressed(Key::Menu));
 	let opening = by_key || response.secondary_clicked();
 	let flag = Popup::default_response_id(response).with("by-key");
 	if opening {
@@ -63,12 +65,8 @@ fn disabled(ui: &mut Ui, label: &str, why: &str) {
 		.on_disabled_hover_text(why);
 }
 
-/// `remote` is None while the origin URL is still being read, Some(None) for no origin.
-pub(super) fn repo_items(
-	ui: &mut Ui,
-	repo: &Path,
-	remote: Option<&Option<String>>,
-) -> Option<Action> {
+/// `remote` is None while the origin is still being read, then the URL, none, or the failure.
+pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> Option<Action> {
 	ui.label(
 		RichText::new(repo.display().to_string())
 			.size(TEXT_SMALL)
@@ -96,7 +94,7 @@ pub(super) fn repo_items(
 			disabled(ui, "Copy remote URL", "Reading the origin remote…");
 			disabled(ui, "Open remote page", "Reading the origin remote…");
 		}
-		Some(None) => {
+		Some(Ok(None)) => {
 			disabled(
 				ui,
 				"Copy remote URL",
@@ -108,7 +106,12 @@ pub(super) fn repo_items(
 				"This repository has no origin remote",
 			);
 		}
-		Some(Some(url)) => {
+		Some(Err(e)) => {
+			let why = format!("The origin could not be read: {e}");
+			disabled(ui, "Copy remote URL", &why);
+			disabled(ui, "Open remote page", &why);
+		}
+		Some(Ok(Some(url))) => {
 			if item(ui, "Copy remote URL") {
 				return Some(Action::Copy(url.clone()));
 			}
@@ -142,22 +145,34 @@ pub(super) fn commit_items(ui: &mut Ui, hash: &str, subject: &str) -> Option<Act
 	None
 }
 
-/// `line` is the line the editor should open at, when the row knows one.
+/// `line` is the line the editor should open at, when the row knows one. `absent` is the reason
+/// the working copy is not the file this row shows (a deleted file, a file at an older commit),
+/// in which case the editor and Explorer items are disabled with it and only the paths can be
+/// copied (Morticia L-2 on 85ec3b0, L-3 on e176de4).
 pub(super) fn file_items(
 	ui: &mut Ui,
 	repo: &Path,
 	path: &str,
 	line: Option<usize>,
+	absent: Option<&str>,
 ) -> Option<Action> {
 	let full = repo.join(path.replace('/', "\\"));
-	if item(ui, "Open in VS Code") {
-		return Some(Action::Editor {
-			target: full,
-			line: Some(line.unwrap_or(1)),
-		});
-	}
-	if item(ui, "Reveal in Explorer") {
-		return Some(Action::Reveal(full));
+	match absent {
+		Some(why) => {
+			disabled(ui, "Open in VS Code", why);
+			disabled(ui, "Reveal in Explorer", why);
+		}
+		None => {
+			if item(ui, "Open in VS Code") {
+				return Some(Action::Editor {
+					target: full,
+					line: Some(line.unwrap_or(1)),
+				});
+			}
+			if item(ui, "Reveal in Explorer") {
+				return Some(Action::Reveal(full));
+			}
+		}
 	}
 	ui.separator();
 	if item(ui, "Copy path") {

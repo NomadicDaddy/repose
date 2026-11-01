@@ -136,6 +136,10 @@ impl AppState {
 		{
 			self.file_serial += 1;
 			v.generation = self.file_serial;
+			// The size came from the old tree; the new HEAD's copy is measured afresh, so a file
+			// that grew past the limit is refused and one that shrank opens (Morticia L-1 on
+			// e176de4).
+			v.open.size = None;
 			spawn_file(v.open.clone(), v.generation, self.tx.clone(), ctx.clone());
 		}
 	}

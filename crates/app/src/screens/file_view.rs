@@ -5,7 +5,7 @@
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 
 use super::crumb;
-use super::diff_draw::{ROW_H, draw_file_line};
+use super::diff_draw::{GUTTER, MONO_ADVANCE, ROW_H, draw_file_line};
 use crate::platform::Platform;
 use crate::state::{AppState, FileContent, FileRev, FileViewState};
 use crate::theme::*;
@@ -71,6 +71,7 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 		open,
 		content,
 		current_line,
+		notice,
 		..
 	} = v;
 	match content {
@@ -85,8 +86,22 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 				))
 				.color(WARN),
 			);
-			if ui.button("Reveal in Explorer").clicked() {
-				let _ = platform.reveal_file(&open.repo.join(open.path.replace('/', "\\")));
+			// Explorer can only show the working copy, which is this file at HEAD alone; a
+			// failure is reported, not dropped (Morticia L-3 on e176de4).
+			let at_head = open.rev == FileRev::Head;
+			let button = ui.add_enabled(at_head, egui::Button::new("Reveal in Explorer"));
+			let button = if at_head {
+				button
+			} else {
+				button.on_disabled_hover_text(format!(
+					"The working copy may differ from the file at {}. Back to HEAD first.",
+					open.rev.label()
+				))
+			};
+			if button.clicked() {
+				*notice = platform
+					.reveal_file(&open.repo.join(open.path.replace('/', "\\")))
+					.err();
 			}
 		}
 		FileContent::Binary => {
@@ -111,10 +126,16 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 					.color(MUTED),
 			);
 			ui.add_space(4.0);
-			egui::ScrollArea::vertical()
+			// Rows are as wide as the longest line, so a line wider than the pane scrolls
+			// sideways instead of being cut off (Morticia L-2 on e176de4). Width is estimated
+			// from the character count at the monospace size; a line of wide glyphs may still
+			// clip at its very end.
+			let longest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+			let needed = GUTTER + 16.0 + longest as f32 * MONO_ADVANCE;
+			egui::ScrollArea::both()
 				.auto_shrink([false, false])
 				.show_rows(ui, ROW_H, lines.len(), |ui, range| {
-					let width = ui.available_width();
+					let width = ui.available_width().max(needed);
 					for i in range {
 						let (rect, response) =
 							ui.allocate_exact_size(vec2(width, ROW_H), Sense::click());

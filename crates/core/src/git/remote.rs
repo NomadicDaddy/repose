@@ -22,36 +22,38 @@ pub fn read_origin_url(repo: &Path) -> Result<Option<String>, GitError> {
 	}
 }
 
-/// The web page for a remote URL, or None when the form is not one a browser can open:
-/// `git@github.com:org/repo.git` and `ssh://git@github.com/org/repo.git` become
-/// `https://github.com/org/repo`; an `https://` or `http://` URL keeps its scheme and loses a
-/// trailing `.git`; a local path or a `file://` URL has no page.
+/// The web page for a remote URL, or None when the form is not one a browser can open.
+/// `scheme://[user@]host[:port]/path`: http and https keep their scheme, host and port; ssh,
+/// git+ssh and git become https on the host alone; the scp form `[user@]host:path` becomes
+/// https on the host. User info is only ever removed from the authority, never from the path,
+/// so a path that contains `@` keeps it (Roger 5Q-1, Morticia L-1 on 85ec3b0). A local path, a
+/// Windows drive or a `file://` URL has no page. A trailing `.git` or `/` is dropped.
 pub fn https_page(url: &str) -> Option<String> {
 	let url = url.trim();
-	let strip_git = |s: &str| s.trim_end_matches('/').trim_end_matches(".git").to_string();
-	if let Some(rest) = url
-		.strip_prefix("https://")
-		.or_else(|| url.strip_prefix("http://"))
-	{
-		let scheme = &url[..url.len() - rest.len()];
-		let rest = rest.split_once('@').map_or(rest, |(_, r)| r);
-		return Some(format!("{scheme}{}", strip_git(rest)));
+	if let Some((scheme, rest)) = url.split_once("://") {
+		let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+		let authority = authority
+			.rsplit_once('@')
+			.map_or(authority, |(_, host)| host);
+		if authority.is_empty() {
+			return None;
+		}
+		let (page_scheme, host) = match scheme {
+			"https" | "http" => (scheme, authority),
+			"ssh" | "git+ssh" | "git" => (
+				"https",
+				authority.split_once(':').map_or(authority, |(h, _)| h),
+			),
+			_ => return None,
+		};
+		return Some(format!("{page_scheme}://{host}/{}", strip_git(path)));
 	}
-	if let Some(rest) = url
-		.strip_prefix("ssh://")
-		.or_else(|| url.strip_prefix("git+ssh://"))
-	{
-		let rest = rest.split_once('@').map_or(rest, |(_, r)| r);
-		let (host, path) = rest.split_once('/')?;
-		let host = host.split_once(':').map_or(host, |(h, _)| h);
-		return Some(format!("https://{host}/{}", strip_git(path)));
-	}
-	if url.starts_with("file://") || url.contains(":\\") || url.starts_with('/') {
+	if url.contains(":\\") || url.starts_with('/') || url.starts_with('.') {
 		return None;
 	}
 	// scp form: [user@]host:path
 	let (host_part, path) = url.split_once(':')?;
-	let host = host_part.split_once('@').map_or(host_part, |(_, h)| h);
+	let host = host_part.rsplit_once('@').map_or(host_part, |(_, h)| h);
 	// A one-letter "host" is a Windows drive (C:/repos/x), which git also reads as a path.
 	if host.is_empty() || path.is_empty() || host.contains('/') || host.len() == 1 {
 		return None;
@@ -60,4 +62,9 @@ pub fn https_page(url: &str) -> Option<String> {
 		"https://{host}/{}",
 		strip_git(path.trim_start_matches('/'))
 	))
+}
+
+fn strip_git(path: &str) -> &str {
+	let path = path.trim_end_matches('/');
+	path.strip_suffix(".git").unwrap_or(path)
 }

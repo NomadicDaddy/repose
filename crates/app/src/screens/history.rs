@@ -228,7 +228,20 @@ fn expanded_block(
 					);
 				}
 				Some(list) => {
+					// The working copy matches only this commit's files when it is HEAD; a file
+					// deleted here has none (Morticia L-2 on 85ec3b0).
+					let at_head = repo
+						.short_hash
+						.as_deref()
+						.is_some_and(|s| c.hash.starts_with(s));
 					for f in list {
+						let absent = if f.kind == ChangeKind::Deleted {
+							Some("Deleted in this commit; there is no working copy")
+						} else if !at_head {
+							Some("Changed at an older commit; the working copy may differ. Open it from Changes or the Files tab at HEAD.")
+						} else {
+							None
+						};
 						ui.horizontal(|ui| {
 							ui.label(
 								RichText::new(f.kind.letter())
@@ -244,7 +257,7 @@ fn expanded_block(
 								RichText::new(text).size(TEXT_BASE).color(TEXT),
 							);
 							menu::row_menu(ui, &row, false, |ui| {
-								action = menu::file_items(ui, &repo.path, &f.path, None);
+								action = menu::file_items(ui, &repo.path, &f.path, None, absent);
 							});
 							if row.clicked() {
 								let mut paths = vec![f.path.clone()];

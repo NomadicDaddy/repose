@@ -61,6 +61,29 @@ fn remote_urls_become_pages() {
 			"http://gitea.local/example/thing.git/",
 			Some("http://gitea.local/example/thing"),
 		),
+		(
+			"https://github.com/org/name@team/repo.git",
+			Some("https://github.com/org/name@team/repo"),
+		),
+		(
+			"https://github.com/a/b@evil.example",
+			Some("https://github.com/a/b@evil.example"),
+		),
+		(
+			"ssh://git@github.com/x/y@evil.example.git",
+			Some("https://github.com/x/y@evil.example"),
+		),
+		("git://github.com/x/y.git", Some("https://github.com/x/y")),
+		(
+			"https://host.example:8443/org/repo.git",
+			Some("https://host.example:8443/org/repo"),
+		),
+		(
+			"user@host.example:org/na@me.git",
+			Some("https://host.example/org/na@me"),
+		),
+		("svn://host.example/x", None),
+		("../relative/repo", None),
 		("D:\\applications\\thing", None),
 		("C:/repos/thing", None),
 		("c:/repos/thing.git", None),

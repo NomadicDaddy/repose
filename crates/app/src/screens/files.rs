@@ -17,6 +17,14 @@ struct Picked {
 	action: Option<Action>,
 }
 
+/// What every row of one walk shares.
+struct Walk<'a> {
+	salt: &'a (std::path::PathBuf, String),
+	repo: &'a std::path::Path,
+	/// Why the working copy is not this file, at a revision other than HEAD.
+	absent: Option<&'a str>,
+}
+
 pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
@@ -56,7 +64,20 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let rev = f.rev.clone();
 	let salt = (repo.path.clone(), rev.label().to_string());
 	let mut picked = Picked::default();
-	folder_body(ui, &f.tree, &salt, &repo.path, &mut picked);
+	// At an older commit the working copy is not this file, so the editor and Explorer items
+	// stay off and only the paths can be copied.
+	let absent = (rev != FileRev::Head).then(|| {
+		format!(
+			"Shown at {}; the working copy may differ or be gone. Back to HEAD to open it.",
+			rev.label()
+		)
+	});
+	let walk = Walk {
+		salt: &salt,
+		repo: &repo.path,
+		absent: absent.as_deref(),
+	};
+	folder_body(ui, &f.tree, &walk, &mut picked);
 	if let Some(entry) = picked.open {
 		state.open_file(
 			OpenFile {
@@ -115,26 +136,20 @@ fn header(ui: &mut Ui, f: &FilesState, back_to_head: &mut bool) {
 }
 
 /// Subfolders first, then files, each in git's order. A click or a menu choice lands in `picked`.
-fn folder_body(
-	ui: &mut Ui,
-	folder: &Folder,
-	salt: &(std::path::PathBuf, String),
-	repo: &std::path::Path,
-	picked: &mut Picked,
-) {
+fn folder_body(ui: &mut Ui, folder: &Folder, walk: &Walk<'_>, picked: &mut Picked) {
 	for child in &folder.folders {
 		let header =
 			egui::CollapsingHeader::new(RichText::new(&child.name).size(TEXT_BASE).color(TEXT))
-				.id_salt((salt, &child.path))
+				.id_salt((walk.salt, &child.path))
 				.default_open(false);
-		header.show(ui, |ui| folder_body(ui, child, salt, repo, picked));
+		header.show(ui, |ui| folder_body(ui, child, walk, picked));
 	}
 	for file in &folder.files {
-		file_row(ui, file, repo, picked);
+		file_row(ui, file, walk, picked);
 	}
 }
 
-fn file_row(ui: &mut Ui, file: &TreeEntry, repo: &std::path::Path, picked: &mut Picked) {
+fn file_row(ui: &mut Ui, file: &TreeEntry, walk: &Walk<'_>, picked: &mut Picked) {
 	ui.horizontal(|ui| {
 		ui.add_space(18.0);
 		if file.submodule {
@@ -151,7 +166,7 @@ fn file_row(ui: &mut Ui, file: &TreeEntry, repo: &std::path::Path, picked: &mut 
 			picked.open = Some(file.clone());
 		}
 		menu::row_menu(ui, &label, false, |ui| {
-			picked.action = menu::file_items(ui, repo, &file.path, None);
+			picked.action = menu::file_items(ui, walk.repo, &file.path, None, walk.absent);
 		});
 		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
 			ui.add_space(8.0);
