@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
+use repose_core::git::Cancel;
 use repose_core::git::write;
 
-use super::Msg;
+use super::{AppState, Msg};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WriteKind {
@@ -39,6 +40,8 @@ impl WriteKind {
 pub struct WriteRequest {
 	pub repo: PathBuf,
 	pub kind: WriteKind,
+	/// Set by the user's Cancel while the request runs; a commit's hooks are stopped with it.
+	pub cancel: Cancel,
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +64,14 @@ pub struct WriteQueue {
 }
 
 impl WriteQueue {
+	/// The user's Cancel on the request running in this repository; the outcome arrives as any
+	/// other, with the cancel named as its error.
+	pub fn cancel(&self, repo: &Path) {
+		if let Some(r) = self.running.get(repo) {
+			r.cancel.cancel();
+		}
+	}
+
 	pub fn busy_for(&self, repo: &Path) -> Option<&'static str> {
 		if let Some(r) = self.running.get(repo) {
 			return Some(r.kind.label());
@@ -89,7 +100,9 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		WriteKind::Unstage(paths) => write::unstage(repo, paths),
 		WriteKind::UnstageAll => write::unstage_all(repo),
 		WriteKind::Discard { tracked, untracked } => write::discard(repo, tracked, untracked),
-		WriteKind::Commit(message) => write::commit(repo, message),
+		WriteKind::Commit(message) => {
+			write::commit_cancellable(repo, message, Some(&request.cancel))
+		}
 	};
 	let error = result.err().map(|e| e.to_string());
 	let leftover_lock = if error.is_some() {
@@ -112,4 +125,35 @@ pub fn spawn(request: WriteRequest, tx: Sender<Msg>, ctx: egui::Context) {
 		let _ = tx.send(Msg::WriteDone(Box::new(outcome)));
 		ctx.request_repaint();
 	});
+}
+
+impl AppState {
+	/// Queues a write; it runs when its repository has nothing running, in order.
+	pub fn request_write(&mut self, repo: PathBuf, kind: WriteKind, ctx: &egui::Context) {
+		self.writes.waiting.push_back(WriteRequest {
+			repo,
+			kind,
+			cancel: Cancel::new(),
+		});
+		self.start_next_write(ctx);
+	}
+
+	/// Starts every waiting request whose repository is idle; the rest keep waiting.
+	fn start_next_write(&mut self, ctx: &egui::Context) {
+		while let Some(next) = self.writes.take_startable() {
+			self.writes.running.insert(next.repo.clone(), next.clone());
+			spawn(next, self.tx.clone(), ctx.clone());
+		}
+	}
+
+	/// A successful commit clears its repository's draft; a cancelled or failed one keeps it.
+	pub(super) fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
+		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
+			self.commit_messages.remove(&outcome.repo);
+		}
+		self.refresh_repo(&outcome.repo.clone(), ctx);
+		self.writes.running.remove(&outcome.repo);
+		self.writes.last.insert(outcome.repo.clone(), outcome);
+		self.start_next_write(ctx);
+	}
 }

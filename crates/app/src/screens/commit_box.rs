@@ -31,6 +31,21 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	let can_commit = staged > 0 && busy.is_none() && !message.trim().is_empty();
 	ui.horizontal(|ui| {
 		let button = ui.add_enabled(can_commit, egui::Button::new("Commit"));
+		// A commit waits for its hooks however long they take; Cancel kills git and the hook's
+		// whole process tree, and the message stays in the box (stage-and-commit clauses 8, 9).
+		let committing = state
+			.writes
+			.running
+			.get(&repo.path)
+			.is_some_and(|r| matches!(r.kind, WriteKind::Commit(_)));
+		if committing
+			&& ui
+				.button("Cancel")
+				.on_hover_text("Stop git and its hooks; the index is left as git left it")
+				.clicked()
+		{
+			state.writes.cancel(&repo.path);
+		}
 		let reason = if let Some(label) = busy {
 			format!("{label}…")
 		} else if staged == 0 {
@@ -52,6 +67,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		match &last.error {
 			Some(error) => {
 				let what = match &last.kind {
+					WriteKind::Commit(_) if error.starts_with("cancelled") => "Commit cancelled",
 					WriteKind::Commit(_) => "Commit failed",
 					WriteKind::Discard { .. } => "Discard failed",
 					_ => "Change failed",

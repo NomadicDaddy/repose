@@ -28,7 +28,7 @@ pub use files::{FileContent, FileRev, FileViewState, FilesMsg, FilesState, OpenF
 pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
 pub use remote::Remote;
-pub use writes::{WriteKind, WriteOutcome, WriteQueue, WriteRequest};
+pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
 /// How often every status is re-read even when the watcher reported nothing.
 pub const BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
@@ -271,29 +271,5 @@ impl AppState {
 			}
 		}
 		self.selected = Some(path);
-	}
-
-	/// Queues a write; it runs when the writer is free, in order.
-	pub fn request_write(&mut self, repo: PathBuf, kind: WriteKind, ctx: &egui::Context) {
-		self.writes.waiting.push_back(WriteRequest { repo, kind });
-		self.start_next_write(ctx);
-	}
-
-	/// Starts every waiting request whose repository is idle; the rest keep waiting.
-	fn start_next_write(&mut self, ctx: &egui::Context) {
-		while let Some(next) = self.writes.take_startable() {
-			self.writes.running.insert(next.repo.clone(), next.clone());
-			writes::spawn(next, self.tx.clone(), ctx.clone());
-		}
-	}
-
-	fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
-		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
-			self.commit_messages.remove(&outcome.repo);
-		}
-		self.refresh_repo(&outcome.repo.clone(), ctx);
-		self.writes.running.remove(&outcome.repo);
-		self.writes.last.insert(outcome.repo.clone(), outcome);
-		self.start_next_write(ctx);
 	}
 }

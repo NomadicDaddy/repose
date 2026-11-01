@@ -3,7 +3,8 @@
 
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::{Condvar, Mutex, OnceLock, mpsc};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex, OnceLock, mpsc};
 use std::time::{Duration, Instant};
 
 /// The verbs repose may run. No fetch, pull, push, clone or ls-remote exists here.
@@ -75,64 +76,24 @@ impl Verb {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub enum GitError {
-	NotFound,
-	Spawn(String),
-	TimedOut {
-		after: Duration,
-		stderr_tail: String,
-	},
-	Failed {
-		code: Option<i32>,
-		stderr_tail: String,
-	},
-	/// git exited but its output never arrived in time, usually because a process it started is
-	/// still holding the pipe. A read must not be mistaken for an empty result.
-	OutputLost,
-	/// git reported success but the paths it was asked to remove are still there, as `git clean`
-	/// does for a nested repository. Success must not be claimed for them.
-	StillPresent(Vec<String>),
-	/// HEAD names a branch whose ref file exists but does not resolve: a truncated or corrupt
-	/// ref, not a branch with no commits yet. No write may treat it as unborn.
-	UnreadableRef(String),
-}
+pub use super::error::GitError;
 
-impl std::fmt::Display for GitError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::UnreadableRef(r) if r == "HEAD" => write!(
-				f,
-				"HEAD does not resolve to a commit and git cannot name its branch; a ref file may be truncated. Nothing was changed."
-			),
-			Self::UnreadableRef(r) => write!(
-				f,
-				"HEAD points at {r}, which exists but does not resolve to a commit; the ref file may be truncated. Nothing was changed."
-			),
-			Self::StillPresent(paths) => write!(
-				f,
-				"git clean left {} in place (a nested repository is not removed): {}",
-				if paths.len() == 1 {
-					"this path"
-				} else {
-					"these paths"
-				},
-				paths.join(", ")
-			),
-			Self::NotFound => write!(f, "git was not found on PATH"),
-			Self::Spawn(e) => write!(f, "git could not start: {e}"),
-			Self::TimedOut { after, stderr_tail } => {
-				write!(f, "git timed out after {}s: {stderr_tail}", after.as_secs())
-			}
-			Self::Failed { code, stderr_tail } => {
-				write!(
-					f,
-					"git exited {}: {stderr_tail}",
-					code.map_or("?".into(), |c| c.to_string())
-				)
-			}
-			Self::OutputLost => write!(f, "git exited but its output was not collected"),
-		}
+/// A handle the user's Cancel sets; a write that was given it stops polling, kills git and the
+/// whole tree git started, and returns `GitError::Cancelled`.
+#[derive(Debug, Clone, Default)]
+pub struct Cancel(Arc<AtomicBool>);
+
+impl Cancel {
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	pub fn cancel(&self) {
+		self.0.store(true, Ordering::SeqCst);
+	}
+
+	pub fn is_cancelled(&self) -> bool {
+		self.0.load(Ordering::SeqCst)
 	}
 }
 
@@ -237,6 +198,17 @@ fn collect(rx: &mpsc::Receiver<Vec<u8>>, wait: Duration) -> Option<Vec<u8>> {
 /// Runs a verb and returns stdout bytes. Reads time out after `READ_TIMEOUT`; writes never do.
 /// Both pipes are read concurrently from spawn, so large output cannot deadlock the child.
 pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError> {
+	run_cancellable(repo, verb, extra, None)
+}
+
+/// `run` with a Cancel: when it is set while git runs, git and every process it started (a
+/// hook and the hook's children) are killed and the result is `GitError::Cancelled`.
+pub fn run_cancellable(
+	repo: &Path,
+	verb: Verb,
+	extra: &[&str],
+	cancel: Option<&Cancel>,
+) -> Result<Vec<u8>, GitError> {
 	let _permit = Permit::acquire();
 	let mut child = command(repo, verb, extra).spawn().map_err(|e| {
 		if e.kind() == std::io::ErrorKind::NotFound {
@@ -253,6 +225,13 @@ pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError>
 		match child.try_wait() {
 			Ok(Some(status)) => break status,
 			Ok(None) => {
+				if cancel.is_some_and(Cancel::is_cancelled) {
+					kill_tree(&mut child);
+					let err = collect(&stderr, Duration::from_millis(500)).unwrap_or_default();
+					return Err(GitError::Cancelled {
+						stderr_tail: tail(&err),
+					});
+				}
 				if let Some(limit) = timeout.filter(|l| started.elapsed() > *l) {
 					let _ = child.kill();
 					let _ = child.wait();
@@ -283,6 +262,24 @@ pub fn run(repo: &Path, verb: Verb, extra: &[&str]) -> Result<Vec<u8>, GitError>
 			stderr_tail: tail(&err),
 		})
 	}
+}
+
+/// Kills git and everything under it. Killing git alone would leave a hook and the hook's
+/// children running on; on Windows `taskkill /T` takes the tree, and the child is reaped after.
+fn kill_tree(child: &mut std::process::Child) {
+	#[cfg(windows)]
+	{
+		let mut kill = Command::new("taskkill");
+		hide_console(&mut kill);
+		let _ = kill
+			.args(["/PID", &child.id().to_string(), "/T", "/F"])
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.status();
+	}
+	let _ = child.kill();
+	let _ = child.wait();
 }
 
 fn tail(bytes: &[u8]) -> String {
