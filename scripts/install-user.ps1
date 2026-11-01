@@ -58,7 +58,18 @@ try {
         $new = if ($entries.Count -eq 0) { $target } else { (($entries + $target) -join ';') }
         # Keep the value's own type; a PATH that never existed is created as REG_EXPAND_SZ.
         $key.SetValue('Path', $new, $kind)
-        "PATH-ADDED $target to the user PATH as $kind, $($entries.Count + 1) entries, existing entries byte for byte; open a new shell to use it"
+        "PATH-ADDED $target to the user PATH as $kind, $($entries.Count + 1) entries, existing entries byte for byte"
+        # Registry writes do not tell running programs; Explorer learns of the change from this
+        # broadcast, so a shell started from the Start menu or the taskbar afterwards sees the new
+        # PATH. Shells already open do not (Morticia on ba3a580).
+        Add-Type -Namespace Win -Name Env -MemberDefinition '[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);'
+        $result = [UIntPtr]::Zero
+        $sent = [Win.Env]::SendMessageTimeout([IntPtr] 0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref] $result)
+        if ($sent -ne [IntPtr]::Zero) {
+            "PATH-BROADCAST WM_SETTINGCHANGE sent; shells started from Explorer from now on see it, shells already open do not"
+        } else {
+            "PATH-BROADCAST failed (code $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())); sign out and in, or open shells from a new Explorer window"
+        }
     } else {
         "PATH-OK $target was already on the user PATH"
     }
