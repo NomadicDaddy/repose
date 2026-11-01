@@ -112,6 +112,26 @@ fn cell(
 	text_cell(ui, text_rect, &l.text, marks, mark, src.spans(r));
 }
 
+/// One line of a file in the read-only viewer: a single gutter and the coloured text, drawn with
+/// the same font, row height and colours as a diff line; the current line sits on the accent
+/// fill.
+pub(super) fn draw_file_line(
+	ui: &Ui,
+	rect: Rect,
+	no: u32,
+	text: &str,
+	spans: &[Span],
+	current: bool,
+) {
+	let p = ui.painter_at(rect);
+	if current {
+		p.rect_filled(rect, 0.0, ACCENT_BG);
+	}
+	gutter(&p, rect.left(), rect, Some(no));
+	let text_rect = Rect::from_min_max(pos2(rect.left() + GUTTER, rect.top()), rect.max);
+	text_cell(ui, text_rect, text, &[], Color32::TRANSPARENT, spans);
+}
+
 fn gutter(p: &egui::Painter, left: f32, rect: Rect, no: Option<u32>) {
 	if let Some(n) = no {
 		p.text(

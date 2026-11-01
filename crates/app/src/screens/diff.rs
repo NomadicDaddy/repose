@@ -5,6 +5,7 @@
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 use repose_core::model::DiffSource;
 
+use super::crumb;
 use super::diff_draw::{ROW_H, Source, draw_row};
 use crate::diff_rows::Row;
 use crate::platform::Platform;
@@ -103,36 +104,8 @@ fn breadcrumb(
 	close: &mut bool,
 	toggle: &mut bool,
 ) {
-	let repo_name = d
-		.open
-		.repo
-		.file_name()
-		.map(|n| n.to_string_lossy().to_string())
-		.unwrap_or_default();
-	let (folder, file) = match d.open.display.rsplit_once('/') {
-		Some((f, n)) => (f, n),
-		None => ("", d.open.display.as_str()),
-	};
-	let sep = |ui: &mut Ui| {
-		ui.label(RichText::new("›").color(MUTED));
-	};
 	ui.horizontal(|ui| {
-		if ui
-			.link(
-				RichText::new(repo_name)
-					.family(FontFamily::Monospace)
-					.color(ACCENT),
-			)
-			.clicked()
-		{
-			*go_repo = true;
-		}
-		if !folder.is_empty() {
-			sep(ui);
-			ui.label(RichText::new(folder).color(MUTED));
-		}
-		sep(ui);
-		ui.label(RichText::new(file).color(TEXT_BRIGHT).strong());
+		*go_repo = crumb::path(ui, &d.open.repo, &d.open.display);
 		ui.label(
 			RichText::new(source_label(&d.open.source))
 				.size(TEXT_SMALL)

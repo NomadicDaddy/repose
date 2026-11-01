@@ -1,12 +1,14 @@
 //! repose: the window. Flags: `--config <path>` overrides the config file location;
 //! `--measure-startup [file]` writes the milliseconds from process start to the first frame that
 //! shows repository rows into the file (default `repose-startup-ms.txt`), prints it, then exits.
-//! `--select <repository path>` opens on that repository and `--view changes|history` on that
-//! pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
-//! file's working-tree diff there, `--inline` in inline mode.
+//! `--select <repository path>` opens on that repository and `--view changes|history|files` on
+//! that pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
+//! file's working-tree diff there, `--inline` in inline mode; `--open <path>` opens the file
+//! read-only as HEAD holds it.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
+mod file_tree;
 mod highlight;
 mod platform;
 mod screens;
@@ -128,6 +130,7 @@ fn main() -> eframe::Result {
 		.map(String::as_str)
 	{
 		Some("history") => state::View::History,
+		Some("files") => state::View::Files,
 		_ => state::View::Changes,
 	};
 	let file = args
@@ -136,6 +139,11 @@ fn main() -> eframe::Result {
 		.and_then(|i| args.get(i + 1))
 		.cloned();
 	let inline = args.iter().any(|a| a == "--inline");
+	let open = args
+		.iter()
+		.position(|a| a == "--open")
+		.and_then(|i| args.get(i + 1))
+		.cloned();
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -161,6 +169,7 @@ fn main() -> eframe::Result {
 			app.state.view = view;
 			app.state.requested_selection = select;
 			app.state.requested_diff = file.map(|f| (f, inline));
+			app.state.requested_file = open;
 			Ok(Box::new(app))
 		}),
 	)

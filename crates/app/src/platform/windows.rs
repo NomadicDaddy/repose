@@ -34,6 +34,38 @@ impl Platform for Windows {
 			.map(|_| ())
 			.map_err(|e| e.to_string())
 	}
+
+	/// `<command> --goto <file>:<line>`. VS Code's launcher on Windows is `code.cmd`; a bare
+	/// `code` names the Unix shell script beside it, which cannot be started, so a command with
+	/// no extension that is not found is retried as its `.cmd`, which std runs through cmd.exe
+	/// with its own quoting. Nothing from the file's content reaches the command line.
+	fn open_in_editor(&self, command: &str, file: &Path, line: usize) -> Result<(), String> {
+		use std::io::ErrorKind;
+		use std::process::Stdio;
+		let target = format!("{}:{line}", file.display());
+		let start = |program: &str| {
+			let mut cmd = Command::new(program);
+			repose_core::git::commands::hide_console(&mut cmd);
+			cmd.arg("--goto")
+				.arg(&target)
+				.stdin(Stdio::null())
+				.stdout(Stdio::null())
+				.stderr(Stdio::null())
+				.spawn()
+				.map(|_| ())
+		};
+		let not_found = || format!("{command} was not found on PATH");
+		match start(command) {
+			Ok(()) => Ok(()),
+			Err(e) if e.kind() == ErrorKind::NotFound => {
+				if Path::new(command).extension().is_some() {
+					return Err(not_found());
+				}
+				start(&format!("{command}.cmd")).map_err(|_| not_found())
+			}
+			Err(e) => Err(e.to_string()),
+		}
+	}
 }
 
 /// Minutes east of UTC, re-read at most once a minute so a daylight change shows within the

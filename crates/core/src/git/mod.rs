@@ -5,6 +5,7 @@ pub mod diff;
 pub mod log;
 pub mod parse;
 pub mod status;
+pub mod tree;
 pub mod write;
 
 pub use commands::{GitError, Verb, run};

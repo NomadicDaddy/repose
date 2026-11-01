@@ -9,6 +9,10 @@ pub trait Platform {
 	fn open_folder(&self, dir: &Path) -> Result<(), String>;
 	/// Opens the file's folder with the file selected.
 	fn reveal_file(&self, file: &Path) -> Result<(), String>;
+	/// Opens a working-tree file at a line in the configured editor (`commands.editor`, by
+	/// default `code`). An editor that is not on PATH is an error naming the command, never a
+	/// silent no-op.
+	fn open_in_editor(&self, command: &str, file: &Path, line: usize) -> Result<(), String>;
 }
 
 pub fn current() -> Box<dyn Platform> {
@@ -32,6 +36,9 @@ impl Platform for Unsupported {
 	}
 	fn reveal_file(&self, _file: &Path) -> Result<(), String> {
 		Err("revealing files is implemented on Windows only".into())
+	}
+	fn open_in_editor(&self, _command: &str, _file: &Path, _line: usize) -> Result<(), String> {
+		Err("opening an editor is implemented on Windows only".into())
 	}
 }
 

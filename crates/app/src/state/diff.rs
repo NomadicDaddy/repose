@@ -103,6 +103,7 @@ impl AppState {
 		{
 			return;
 		}
+		self.close_file();
 		self.diff_serial += 1;
 		let generation = self.diff_serial;
 		self.diff = Some(DiffState {

@@ -3,7 +3,7 @@
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
-use super::{changes, commit_box, confirm, diff, history};
+use super::{changes, commit_box, confirm, diff, file_view, files, history};
 use crate::platform::Platform;
 use crate::state::{AppState, View};
 use crate::theme::*;
@@ -60,8 +60,16 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				diff::show(ui, state, platform);
 				return;
 			}
+			if state.file_view.is_some() {
+				file_view::show(ui, state, platform);
+				return;
+			}
 			ui.horizontal(|ui| {
-				for (view, label) in [(View::Changes, "Changes"), (View::History, "History")] {
+				for (view, label) in [
+					(View::Changes, "Changes"),
+					(View::History, "History"),
+					(View::Files, "Files"),
+				] {
 					let selected = state.view == view;
 					if ui.selectable_label(selected, label).clicked() {
 						state.view = view;
@@ -76,6 +84,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 						changes::show(ui, state, platform);
 					}
 					View::History => history::show(ui, state),
+					View::Files => files::show(ui, state),
 				});
 		});
 	confirm::show(&ctx, state);

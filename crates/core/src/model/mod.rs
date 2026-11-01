@@ -3,6 +3,7 @@
 mod changes;
 mod commit;
 mod diff;
+mod tree;
 
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -10,6 +11,7 @@ use std::time::SystemTime;
 pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange};
 pub use commit::{Commit, CommitFile, parse_iso, relative};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind};
+pub use tree::TreeEntry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepoKind {

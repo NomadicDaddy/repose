@@ -114,7 +114,8 @@ impl AppState {
 		);
 	}
 
-	/// Expands one commit (collapsing any other) and fetches its files once.
+	/// Expands one commit (collapsing any other) and fetches its files once. The Files tab
+	/// follows the commit opened here, so its tree can be browsed as it was then.
 	pub fn toggle_commit(&mut self, repo: &Path, hash: &str, ctx: &egui::Context) {
 		let Some(h) = self.history.get_mut(repo) else {
 			return;
@@ -124,7 +125,9 @@ impl AppState {
 			return;
 		}
 		h.expanded = Some(hash.to_string());
-		if !h.files.contains_key(hash) {
+		let fetch = !h.files.contains_key(hash);
+		self.set_files_rev(repo, super::FileRev::Commit(hash.to_string()));
+		if fetch {
 			spawn_files(
 				repo.to_path_buf(),
 				hash.to_string(),
