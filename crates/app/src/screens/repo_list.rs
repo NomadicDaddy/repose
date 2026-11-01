@@ -111,6 +111,11 @@ fn clock(t: std::time::SystemTime, offset: Option<i32>) -> String {
 	format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
+/// Where the list publishes its scroll area's id each frame.
+pub(crate) fn scroll_key() -> egui::Id {
+	egui::Id::unique("repo-list-scroll")
+}
+
 fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let paths = state.visible_paths();
 	if paths.is_empty() && !state.filter.trim().is_empty() {
@@ -131,7 +136,7 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	// origin read when the menu it would feed cannot open (Roger 5Q-1 on 8791260).
 	let menu_key = ui.memory(|m| m.allows_interaction(ui.layer_id()))
 		&& ui.input(|i| i.key_pressed(Key::Menu));
-	egui::ScrollArea::vertical()
+	let rows = egui::ScrollArea::vertical()
 		.auto_shrink([false, false])
 		.show(ui, |ui| {
 			for repo in &state.repos {
@@ -174,6 +179,9 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				}
 			}
 		});
+	// The list's scroll state lives in egui memory under this id; it is published so the UI test
+	// refresh_preserves_selection can read the offset back (live-refresh clause 5).
+	ui.data_mut(|d| d.insert_temp(scroll_key(), rows.id));
 	if let Some(p) = toggled
 		&& !state.expanded.remove(&p)
 	{

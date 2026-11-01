@@ -12,6 +12,8 @@ mod refresh;
 mod remote;
 mod scan;
 mod select;
+#[cfg(test)]
+mod ui_tests;
 mod writes;
 
 use std::collections::{HashMap, HashSet};

@@ -170,7 +170,7 @@ fn file_block(ui: &mut Ui, src: &Source<'_>, rows: &[Row]) {
 		return;
 	}
 	ui.add_space(4.0);
-	egui::ScrollArea::vertical()
+	let out = egui::ScrollArea::vertical()
 		.auto_shrink([false, false])
 		.show_rows(ui, ROW_H, rows.len(), |ui, range| {
 			let width = ui.available_width();
@@ -179,4 +179,12 @@ fn file_block(ui: &mut Ui, src: &Source<'_>, rows: &[Row]) {
 				draw_row(ui, rect, src, row);
 			}
 		});
+	// Published for the UI test refresh_preserves_selection (live-refresh clause 5); with
+	// several files in one diff it names the last block's.
+	ui.data_mut(|d| d.insert_temp(scroll_key(), out.id));
+}
+
+/// Where the diff pane publishes its rows' scroll area id each frame.
+pub(crate) fn scroll_key() -> egui::Id {
+	egui::Id::unique("diff-rows-scroll")
 }
