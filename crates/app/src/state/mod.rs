@@ -8,6 +8,7 @@ mod diff_size;
 mod files;
 mod history;
 mod merge;
+mod refresh;
 mod remote;
 mod scan;
 mod select;
@@ -111,6 +112,8 @@ pub struct AppState {
 	pub remotes: HashMap<PathBuf, Remote>,
 	/// Repositories whose origin is being read right now.
 	pub(crate) remote_reads: HashSet<PathBuf>,
+	/// The file-system watcher, its channel and its status-line note.
+	pub(crate) watching: refresh::Watching,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -150,6 +153,7 @@ impl AppState {
 			notice: None,
 			remotes: HashMap::new(),
 			remote_reads: HashSet::new(),
+			watching: refresh::Watching::default(),
 			generation: 0,
 			tx,
 			rx,
@@ -184,6 +188,7 @@ impl AppState {
 			match msg {
 				Msg::Discovered(g, repos) if g == self.generation => {
 					let landed = self.merge_discovered(repos);
+					self.sync_watch(ctx);
 					// A --file diff opens only on the repository that was asked for; a --select
 					// that matched nothing falls back to the first row, and that row's working
 					// tree is not the one the caller meant.
@@ -228,6 +233,7 @@ impl AppState {
 				}
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
+					self.watching.caught_up = false;
 					self.pass_done(offset);
 				}
 				Msg::PassDone(g, offset) if g == self.generation => self.pass_done(offset),

@@ -13,6 +13,7 @@ impl AppState {
 	/// Called every frame; asks for a repaint at the next deadline so the timer runs while the
 	/// window is idle. Nothing starts while a scan or an earlier pass is still running.
 	pub fn tick(&mut self, ctx: &egui::Context) {
+		self.pump_watch(ctx);
 		let now = Instant::now();
 		let since = *self.backstop_at.get_or_insert(now);
 		if self.scanning || self.backstop_running || self.repos.is_empty() {

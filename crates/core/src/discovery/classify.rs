@@ -33,6 +33,7 @@ pub fn classify(dir: &Path) -> Option<Found> {
 	if let Some(main) = worktree_main(&gitdir) {
 		let mut summary = RepoSummary::new(dir.to_path_buf(), RepoKind::Worktree);
 		summary.main_path = Some(main.clone());
+		summary.gitdir = Some(gitdir.clone());
 		read_head(&gitdir, &main.join(".git"), &mut summary);
 		return Some(Found::Worktree { main, summary });
 	}

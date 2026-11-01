@@ -77,10 +77,21 @@ fn status_line(state: &AppState, count: usize) -> String {
 		1 => format!(" · 1 root not found: {}", state.missing_roots[0].display()),
 		n => format!(" · {n} roots not found"),
 	};
+	// The watcher's notes: a root it could not watch or no watcher at all (lasting), and Watcher
+	// caught up after an overflow (until the next full scan completes).
+	let mut note = state
+		.watching
+		.note
+		.as_deref()
+		.map(|n| format!(" · {n}"))
+		.unwrap_or_default();
+	if state.watching.caught_up {
+		note.push_str(" · Watcher caught up");
+	}
 	if state.scanning {
-		format!("{count} {noun} · Checking… · Saved refs; no fetch{missing}")
+		format!("{count} {noun} · Checking… · Saved refs; no fetch{missing}{note}")
 	} else {
-		format!("{count} {noun} · Checked {time} · Saved refs; no fetch{missing}")
+		format!("{count} {noun} · Checked {time} · Saved refs; no fetch{missing}{note}")
 	}
 }
 

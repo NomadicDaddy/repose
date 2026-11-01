@@ -50,6 +50,8 @@ pub struct RepoSummary {
 	pub kind: RepoKind,
 	/// For a worktree, the main repository it belongs to.
 	pub main_path: Option<PathBuf>,
+	/// For a worktree, its `<main>/.git/worktrees/<name>` folder, where its HEAD and index live.
+	pub gitdir: Option<PathBuf>,
 	pub branch: BranchState,
 	pub short_hash: Option<String>,
 	pub submodules: usize,
@@ -72,6 +74,7 @@ impl RepoSummary {
 			name,
 			kind,
 			main_path: None,
+			gitdir: None,
 			branch: BranchState::Unborn,
 			short_hash: None,
 			submodules: 0,

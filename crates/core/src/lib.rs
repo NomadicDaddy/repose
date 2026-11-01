@@ -5,6 +5,7 @@ pub mod config;
 pub mod discovery;
 pub mod git;
 pub mod model;
+pub mod watch;
 
 pub use config::Config;
 pub use model::{BranchState, RepoKind, RepoSummary, StatusSummary};

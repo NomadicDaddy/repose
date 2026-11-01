@@ -9,6 +9,7 @@ description = "repose core: repository discovery, git status through the install
 [dependencies]
 serde = { workspace = true }
 toml = { workspace = true }
+notify = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"
