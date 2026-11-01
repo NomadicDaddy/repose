@@ -78,7 +78,7 @@ impl AppState {
 				// A linked worktree's row is drawn only under an expanded parent, so a start
 				// from inside one opens the parent too (Morticia Low on dd01d61).
 				if let Some(parent) = parent {
-					self.expanded.insert(parent);
+					self.expanded.insert(parent, true);
 				}
 				self.selected = Some(path);
 				self.reveal_selected = true;
@@ -186,8 +186,9 @@ mod tests {
 		state.requested_selection = Some(PathBuf::from("d:\\t\\A-WT"));
 		assert!(state.merge_discovered(vec![main, repo("b")]));
 		assert_eq!(state.selected, Some(PathBuf::from("D:/t/a-wt")));
-		assert!(
-			state.expanded.contains(&PathBuf::from("D:/t/a")),
+		assert_eq!(
+			state.expanded.get(&PathBuf::from("D:/t/a")),
+			Some(&true),
 			"the parent is open"
 		);
 		assert!(state.reveal_selected);

@@ -6,7 +6,7 @@ use eframe::egui::{self, Key, RichText, Ui};
 
 use super::{menu, row};
 use crate::platform::Platform;
-use crate::state::AppState;
+use crate::state::{AppState, find};
 use crate::theme::*;
 
 pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
@@ -197,10 +197,13 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let _ = rows;
 	// The selected row was scrolled to this frame if it asked; the next move asks again.
 	state.reveal_selected = false;
-	if let Some(p) = toggled
-		&& !state.expanded.remove(&p)
-	{
-		state.expanded.insert(p);
+	// A click on the chevron closes a row whose worktrees are showing, whether the user or the
+	// filter opened it, and opens a row whose are not; the entry overrides the filter from then
+	// on, so the rows always change (Morticia L-6 on 4dc97d1).
+	if let Some(p) = toggled {
+		let showing = find(&state.repos, &p)
+			.is_some_and(|r| r.worktrees.iter().any(|w| paths.contains(&w.path)));
+		state.expanded.insert(p, !showing);
 	}
 	let ctx = ui.ctx().clone();
 	if let Some(p) = clicked {

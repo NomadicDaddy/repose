@@ -80,7 +80,11 @@ pub struct AppState {
 	/// selected row into view once and then clears this. Never every frame: that would fight
 	/// the wheel (Morticia L-2 on 4b39403).
 	pub reveal_selected: bool,
-	pub expanded: HashSet<PathBuf>,
+	/// A repository the user opened (true) or closed (false) by its chevron. A repository with
+	/// no entry is left to the filter: open to the worktrees whose names match while a filter is
+	/// typed, closed otherwise. An entry overrides the filter either way, so a click always
+	/// changes the rows (Morticia L-6 on 4dc97d1).
+	pub expanded: HashMap<PathBuf, bool>,
 	pub filter: String,
 	pub focus_filter: bool,
 	pub scanning: bool,
@@ -141,7 +145,7 @@ impl AppState {
 			selected: None,
 			selected_file: None,
 			reveal_selected: false,
-			expanded: HashSet::new(),
+			expanded: HashMap::new(),
 			filter: String::new(),
 			focus_filter: false,
 			scanning: false,
