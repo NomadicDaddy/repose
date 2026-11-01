@@ -1,133 +1,17 @@
-//! Whole frames drawn through the real screens on an egui context, with no window. The scroll
-//! offsets are read back through the ids the two panes publish each frame.
+//! Whole frames drawn through the real screens on an egui context, with no window; the fixtures
+//! and frame helpers live in ui_harness.rs. The scroll offsets are read back through the ids the
+//! two panes publish each frame in test builds.
 
-use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use eframe::egui::{self, Event, MouseWheelUnit, Pos2, Rect, Vec2, pos2, vec2};
+use eframe::egui::{self, pos2};
 use repose_core::config::Config;
-use repose_core::git::parse::parse_unified;
-use repose_core::model::{
-	BranchState, ChangeKind, Changes, DiffSource, FileChange, RepoKind, RepoSummary, StatusSummary,
-};
+use repose_core::model::{ChangeKind, DiffSource, FileChange, StatusSummary};
 
-use super::{AppState, DiffContent, DiffMsg, DiffState, Msg, OpenDiff};
+use super::ui_harness::{diff_of, frame, landed, offset, repo, settle, wheel};
+use super::{AppState, DiffContent, DiffState, Msg, OpenDiff};
 use crate::diff_rows::build_rows;
-use crate::platform::Platform;
-use crate::screens::{detail, diff, repo_list};
-
-/// A platform that opens nothing; the frames here never click an action.
-struct Headless;
-
-impl Platform for Headless {
-	fn open_folder(&self, _dir: &Path) -> Result<(), String> {
-		Err("headless".into())
-	}
-	fn reveal_file(&self, _file: &Path) -> Result<(), String> {
-		Err("headless".into())
-	}
-	fn open_in_editor(&self, _c: &str, _t: &Path, _l: Option<usize>) -> Result<(), String> {
-		Err("headless".into())
-	}
-	fn open_terminal(&self, _c: &str, _dir: &Path) -> Result<(), String> {
-		Err("headless".into())
-	}
-}
-
-const SCREEN: Vec2 = vec2(1200.0, 400.0);
-
-/// One frame of the app as main.rs draws it: the left list, then the right pane.
-fn frame(ctx: &egui::Context, state: &mut AppState, events: Vec<Event>) {
-	let input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
-		events,
-		..Default::default()
-	};
-	let mut out = ctx.run_ui(input, |root| {
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
-	});
-	// No renderer takes the font texture here; epaint insists the deltas are cleared, not dropped.
-	out.textures_delta.clear();
-}
-
-/// Enough quiet frames (1/60 s each) for a scroll animation to finish.
-fn settle(ctx: &egui::Context, state: &mut AppState) {
-	for _ in 0..40 {
-		frame(ctx, state, Vec::new());
-	}
-}
-
-/// A wheel turn with the pointer over `at`, enough to move a long list or diff.
-fn wheel(at: Pos2) -> Vec<Event> {
-	vec![
-		Event::PointerMoved(at),
-		Event::MouseWheel {
-			unit: MouseWheelUnit::Point,
-			delta: vec2(0.0, -240.0),
-			phase: egui::TouchPhase::Move,
-			source: egui::MouseWheelSource::Wheel,
-			modifiers: egui::Modifiers::default(),
-		},
-	]
-}
-
-/// The clamped offset of the scroll area whose id was published under `key` on the last frame.
-fn offset(ctx: &egui::Context, key: egui::Id) -> Vec2 {
-	let id: egui::Id = ctx
-		.data(|d| d.get_temp(key))
-		.unwrap_or_else(|| panic!("no scroll id published under {key:?}"));
-	egui::scroll_area::State::load(ctx, id)
-		.unwrap_or_else(|| panic!("no scroll state for {id:?}"))
-		.clamped_offset()
-}
-
-fn repo(name: &str, checked_at: SystemTime) -> RepoSummary {
-	let mut r = RepoSummary::new(
-		std::env::temp_dir().join("repose-ui").join(name),
-		RepoKind::Repository,
-	);
-	r.branch = BranchState::Branch("main".into());
-	r.short_hash = Some("0123abc".into());
-	r.status = Some(StatusSummary {
-		unstaged: 1,
-		..StatusSummary::default()
-	});
-	r.changes = Some(Changes {
-		unstaged: vec![FileChange {
-			path: "x.txt".into(),
-			kind: ChangeKind::Modified,
-			from: None,
-		}],
-		..Changes::default()
-	});
-	r.checked_at = Some(checked_at);
-	r
-}
-
-/// A one-file diff of `lines` added lines; 200 is long enough to scroll inside a 400 px window.
-fn diff_of(lines: usize) -> Vec<repose_core::model::FileDiff> {
-	let mut text =
-		format!("diff --git a/x.txt b/x.txt\n--- a/x.txt\n+++ b/x.txt\n@@ -1,0 +1,{lines} @@\n");
-	for i in 0..lines {
-		text.push_str(&format!("+line {i}\n"));
-	}
-	parse_unified(text.as_bytes())
-}
-
-/// What the reader thread sends when a re-read of the open diff lands with different bytes.
-fn landed(generation: u64, lines: usize, raw_hash: u64) -> Msg {
-	let files = diff_of(lines);
-	let rows = vec![build_rows(&files[0], false)];
-	Msg::Diff(DiffMsg {
-		generation,
-		content: DiffContent::Files(files),
-		rows,
-		rows_inline: false,
-		colours: Vec::new(),
-		raw_hash: Some(raw_hash),
-	})
-}
+use crate::screens::{diff, repo_list};
 
 /// live-refresh clause 5: a status that arrives for the selected repository, through the same
 /// message path a watcher refresh uses, leaves the selected repository, the selected file, the

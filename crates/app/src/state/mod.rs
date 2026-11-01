@@ -13,6 +13,8 @@ mod remote;
 mod scan;
 mod select;
 #[cfg(test)]
+mod ui_harness;
+#[cfg(test)]
 mod ui_tests;
 mod writes;
 
