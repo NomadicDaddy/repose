@@ -4,8 +4,10 @@
 //! `--select <repository path>` opens on that repository and `--view changes|history|files` on
 //! that pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
 //! file's working-tree diff there, `--inline` in inline mode; `--open <path>` opens the file
-//! read-only as HEAD holds it. `--scale <factor>` multiplies the window's zoom (1.25 renders as
-//! Windows 125% scaling would), for eyesight and for the scaling captures in the records.
+//! read-only as HEAD holds it. `--scale <factor>` multiplies the window's zoom on top of the
+//! desktop's own scaling (so 1.25 on a 100% desktop renders as 125% would, and 0.8333 on a 150%
+//! desktop too), for eyesight and for the scaling captures in the records. Without `--select`,
+//! a start from inside a repository selects that repository when it is in the list.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
@@ -16,7 +18,7 @@ mod screens;
 mod state;
 mod theme;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use eframe::egui;
@@ -73,6 +75,16 @@ impl eframe::App for App {
 	}
 }
 
+/// The repository the process was started in: the nearest ancestor of the current directory
+/// that holds a `.git` folder or file (a linked worktree has the file). The selection it asks
+/// for lands only when discovery lists that path; otherwise the first row is selected as usual.
+fn repo_at_cwd() -> Option<PathBuf> {
+	let cwd = std::env::current_dir().ok()?;
+	cwd.ancestors()
+		.find(|dir| dir.join(".git").exists())
+		.map(Path::to_path_buf)
+}
+
 /// A small window that shows a startup error and exits when closed, so a double-click never
 /// fails silently.
 fn error_window(message: String) -> eframe::Result {
@@ -124,7 +136,8 @@ fn main() -> eframe::Result {
 		.iter()
 		.position(|a| a == "--select")
 		.and_then(|i| args.get(i + 1))
-		.map(PathBuf::from);
+		.map(PathBuf::from)
+		.or_else(repo_at_cwd);
 	let view = match args
 		.iter()
 		.position(|a| a == "--view")
