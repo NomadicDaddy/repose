@@ -81,34 +81,17 @@ impl AppState {
 		self.diff = None;
 	}
 
-	/// Switches between side by side and inline. The rows are rebuilt on a thread from the files
-	/// already read, under the same serial as a read, so the UI thread never lays out a diff
-	/// (Morticia on 54be14f: 500 capped lines could still cost seconds here).
+	/// Switches between side by side and inline by restarting the read in the new mode under a
+	/// new serial. Re-reading git costs one diff; it means a read still in flight (first load or
+	/// a reload) is simply superseded, so the rows that land always match the mode shown, and the
+	/// UI thread never lays out a diff (Morticia on 54be14f, Roger on 15ce293).
 	pub fn toggle_inline(&mut self, ctx: &egui::Context) {
-		self.diff_serial += 1;
-		let generation = self.diff_serial;
 		let Some(d) = self.diff.as_mut() else {
 			return;
 		};
 		d.inline = !d.inline;
-		let inline = d.inline;
-		let DiffContent::Files(files) = &d.content else {
-			d.rows_inline = inline;
-			return;
-		};
-		d.generation = generation;
-		let files = files.clone();
-		let (tx, ctx) = (self.tx.clone(), ctx.clone());
-		std::thread::spawn(move || {
-			let rows = files.iter().map(|f| build_rows(f, inline)).collect();
-			let _ = tx.send(Msg::Diff(DiffMsg {
-				generation,
-				content: DiffContent::Files(files),
-				rows,
-				rows_inline: inline,
-			}));
-			ctx.request_repaint();
-		});
+		let repo = d.open.repo.clone();
+		self.reload_diff_for(&repo, ctx);
 	}
 
 	/// Re-reads the open diff after a write in its repository (a stage moves lines between the
