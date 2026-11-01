@@ -34,6 +34,9 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					.color(MUTED)
 					.family(FontFamily::Monospace),
 			);
+			if let Some(n) = &state.notice {
+				ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
+			}
 			ui.add_space(8.0);
 			match (&repo.status, &repo.error) {
 				(_, Some(e)) => {
@@ -83,8 +86,8 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 						commit_box::show(ui, state);
 						changes::show(ui, state, platform);
 					}
-					View::History => history::show(ui, state),
-					View::Files => files::show(ui, state),
+					View::History => history::show(ui, state, platform),
+					View::Files => files::show(ui, state, platform),
 				});
 		});
 	confirm::show(&ctx, state);

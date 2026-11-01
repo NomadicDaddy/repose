@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Key, RichText, Ui};
 
-use super::row;
+use super::{menu, row};
 use crate::platform::Platform;
 use crate::state::AppState;
 use crate::theme::*;
@@ -26,7 +26,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					.color(MUTED),
 			);
 			ui.add_space(6.0);
-			list(ui, state);
+			list(ui, state, platform);
 		});
 }
 
@@ -100,7 +100,7 @@ fn clock(t: std::time::SystemTime, offset: Option<i32>) -> String {
 	format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
-fn list(ui: &mut Ui, state: &mut AppState) {
+fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let paths = state.visible_paths();
 	if paths.is_empty() && !state.filter.trim().is_empty() {
 		ui.label(
@@ -113,6 +113,10 @@ fn list(ui: &mut Ui, state: &mut AppState) {
 	let selected = state.selected.clone();
 	let mut clicked: Option<PathBuf> = None;
 	let mut toggled: Option<PathBuf> = None;
+	let mut action: Option<menu::Action> = None;
+	// A menu opening on a row asks for that repository's origin URL; it lands a frame later.
+	let mut wants_remote: Option<PathBuf> = None;
+	let menu_key = ui.input(|i| i.key_pressed(Key::Menu));
 	egui::ScrollArea::vertical()
 		.auto_shrink([false, false])
 		.show(ui, |ui| {
@@ -121,32 +125,34 @@ fn list(ui: &mut Ui, state: &mut AppState) {
 					continue;
 				}
 				let expanded = state.expanded.contains(&repo.path);
-				let out = row::draw(
-					ui,
-					repo,
-					selected.as_deref() == Some(repo.path.as_path()),
-					0.0,
-					expanded,
-				);
+				let is_selected = selected.as_deref() == Some(repo.path.as_path());
+				let out = row::draw(ui, repo, is_selected, 0.0, expanded);
 				if out.chevron_clicked {
 					toggled = Some(repo.path.clone());
 				} else if out.response.clicked() {
 					clicked = Some(repo.path.clone());
 				}
+				if out.response.secondary_clicked() || (is_selected && menu_key) {
+					wants_remote = Some(repo.path.clone());
+				}
+				menu::row_menu(ui, &out.response, is_selected, |ui| {
+					action = menu::repo_items(ui, &repo.path, state.remotes.get(&repo.path));
+				});
 				for wt in &repo.worktrees {
 					if !paths.contains(&wt.path) {
 						continue;
 					}
-					let out = row::draw(
-						ui,
-						wt,
-						selected.as_deref() == Some(wt.path.as_path()),
-						16.0,
-						false,
-					);
+					let is_selected = selected.as_deref() == Some(wt.path.as_path());
+					let out = row::draw(ui, wt, is_selected, 16.0, false);
 					if out.response.clicked() {
 						clicked = Some(wt.path.clone());
 					}
+					if out.response.secondary_clicked() || (is_selected && menu_key) {
+						wants_remote = Some(wt.path.clone());
+					}
+					menu::row_menu(ui, &out.response, is_selected, |ui| {
+						action = menu::repo_items(ui, &wt.path, state.remotes.get(&wt.path));
+					});
 				}
 			}
 		});
@@ -155,8 +161,16 @@ fn list(ui: &mut Ui, state: &mut AppState) {
 	{
 		state.expanded.insert(p);
 	}
+	let ctx = ui.ctx().clone();
 	if let Some(p) = clicked {
+		state.ensure_remote(&p, &ctx);
 		state.select(p);
+	}
+	if let Some(p) = wants_remote {
+		state.ensure_remote(&p, &ctx);
+	}
+	if let Some(a) = action {
+		menu::perform(a, state, platform, &ctx);
 	}
 }
 

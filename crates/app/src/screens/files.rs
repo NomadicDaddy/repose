@@ -4,11 +4,20 @@
 use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::model::{BranchState, TreeEntry};
 
+use super::menu::{self, Action};
 use crate::file_tree::{Folder, size_label};
+use crate::platform::Platform;
 use crate::state::{AppState, FileRev, FilesState, OpenFile};
 use crate::theme::*;
 
-pub fn show(ui: &mut Ui, state: &mut AppState) {
+/// What a walk of the tree collected: the file to open and the menu action to perform.
+#[derive(Default)]
+struct Picked {
+	open: Option<TreeEntry>,
+	action: Option<Action>,
+}
+
+pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
 	};
@@ -46,17 +55,21 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	}
 	let rev = f.rev.clone();
 	let salt = (repo.path.clone(), rev.label().to_string());
-	let clicked = folder_body(ui, &f.tree, &salt);
-	if let Some(entry) = clicked {
+	let mut picked = Picked::default();
+	folder_body(ui, &f.tree, &salt, &repo.path, &mut picked);
+	if let Some(entry) = picked.open {
 		state.open_file(
 			OpenFile {
-				repo: repo.path,
+				repo: repo.path.clone(),
 				rev,
 				path: entry.path,
 				size: Some(entry.size),
 			},
 			&ctx,
 		);
+	}
+	if let Some(a) = picked.action {
+		menu::perform(a, state, platform, &ctx);
 	}
 }
 
@@ -101,33 +114,27 @@ fn header(ui: &mut Ui, f: &FilesState, back_to_head: &mut bool) {
 	ui.add_space(4.0);
 }
 
-/// Subfolders first, then files, each in git's order. Returns the file clicked, if any.
+/// Subfolders first, then files, each in git's order. A click or a menu choice lands in `picked`.
 fn folder_body(
 	ui: &mut Ui,
 	folder: &Folder,
 	salt: &(std::path::PathBuf, String),
-) -> Option<TreeEntry> {
-	let mut clicked = None;
+	repo: &std::path::Path,
+	picked: &mut Picked,
+) {
 	for child in &folder.folders {
 		let header =
 			egui::CollapsingHeader::new(RichText::new(&child.name).size(TEXT_BASE).color(TEXT))
 				.id_salt((salt, &child.path))
 				.default_open(false);
-		let inner = header.show(ui, |ui| folder_body(ui, child, salt));
-		if let Some(Some(entry)) = inner.body_returned {
-			clicked = Some(entry);
-		}
+		header.show(ui, |ui| folder_body(ui, child, salt, repo, picked));
 	}
 	for file in &folder.files {
-		if file_row(ui, file) {
-			clicked = Some(file.clone());
-		}
+		file_row(ui, file, repo, picked);
 	}
-	clicked
 }
 
-fn file_row(ui: &mut Ui, file: &TreeEntry) -> bool {
-	let mut clicked = false;
+fn file_row(ui: &mut Ui, file: &TreeEntry, repo: &std::path::Path, picked: &mut Picked) {
 	ui.horizontal(|ui| {
 		ui.add_space(18.0);
 		if file.submodule {
@@ -141,8 +148,11 @@ fn file_row(ui: &mut Ui, file: &TreeEntry) -> bool {
 		}
 		let label = ui.selectable_label(false, RichText::new(file.file_name()).size(TEXT_BASE));
 		if label.clicked() {
-			clicked = true;
+			picked.open = Some(file.clone());
 		}
+		menu::row_menu(ui, &label, false, |ui| {
+			picked.action = menu::file_items(ui, repo, &file.path, None);
+		});
 		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
 			ui.add_space(8.0);
 			ui.label(
@@ -153,5 +163,4 @@ fn file_row(ui: &mut Ui, file: &TreeEntry) -> bool {
 			);
 		});
 	});
-	clicked
 }

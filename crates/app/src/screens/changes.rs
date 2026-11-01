@@ -6,6 +6,7 @@ use std::path::Path;
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::{ChangeKind, DiffSource, DiscardPlan, FileChange, RepoSummary};
 
+use super::menu;
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff, PendingDiscard, WriteKind};
 use crate::theme::*;
@@ -218,6 +219,14 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 			},
 			&ctx,
 		);
+	}
+	let mut action = None;
+	menu::row_menu(ui, &response, selected, |ui| {
+		action = menu::file_items(ui, &g.repo.path, &file.path, None);
+	});
+	if let Some(a) = action {
+		let ctx = ui.ctx().clone();
+		menu::perform(a, state, g.platform, &ctx);
 	}
 	if response.hovered() || selected {
 		hover_actions(ui, state, g, file, rect);

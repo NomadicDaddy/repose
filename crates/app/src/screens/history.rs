@@ -4,10 +4,12 @@
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::{BranchState, ChangeKind, Commit, DiffSource, RepoSummary, relative};
 
+use super::menu;
+use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff};
 use crate::theme::*;
 
-pub fn show(ui: &mut Ui, state: &mut AppState) {
+pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
 	};
@@ -54,6 +56,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 					expanded: expanded.as_deref(),
 					files: &files,
 					now,
+					platform,
 				},
 			);
 		}
@@ -70,6 +73,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 				expanded: expanded.as_deref(),
 				files: &files,
 				now,
+				platform,
 			},
 		);
 	}
@@ -107,6 +111,7 @@ struct Rows<'a> {
 	expanded: Option<&'a str>,
 	files: &'a std::collections::HashMap<String, Vec<repose_core::model::CommitFile>>,
 	now: i64,
+	platform: &'a dyn Platform,
 }
 
 fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit, rows: &Rows<'_>) {
@@ -162,18 +167,26 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	));
 	clipped.galley(pos2(subject_left, rect.center().y - 9.0), subject, TEXT);
 	let response = response.on_hover_text(iso_tooltip(c));
+	let ctx = ui.ctx().clone();
 	if response.clicked() {
-		let ctx = ui.ctx().clone();
 		state.toggle_commit(&repo.path, &c.hash, &ctx);
 	}
-	response.context_menu(|ui| {
-		if ui.button("Copy hash").clicked() {
-			ui.ctx().copy_text(c.hash.clone());
-			ui.close();
-		}
+	let mut action = None;
+	menu::row_menu(ui, &response, open, |ui| {
+		action = menu::commit_items(ui, &c.hash, &c.subject);
 	});
+	if let Some(a) = action {
+		menu::perform(a, state, rows.platform, &ctx);
+	}
 	if open {
-		expanded_block(ui, state, repo, c, files.get(&c.hash).map(Vec::as_slice));
+		expanded_block(
+			ui,
+			state,
+			repo,
+			c,
+			files.get(&c.hash).map(Vec::as_slice),
+			rows.platform,
+		);
 	}
 }
 
@@ -187,7 +200,9 @@ fn expanded_block(
 	repo: &RepoSummary,
 	c: &Commit,
 	files: Option<&[repose_core::model::CommitFile]>,
+	platform: &dyn Platform,
 ) {
+	let mut action = None;
 	egui::Frame::new()
 		.fill(BG_PANEL)
 		.inner_margin(10.0)
@@ -224,13 +239,14 @@ fn expanded_block(
 								Some(from) => format!("{}  ←  {from}", f.path),
 								None => f.path.clone(),
 							};
-							if ui
-								.selectable_label(
-									false,
-									RichText::new(text).size(TEXT_BASE).color(TEXT),
-								)
-								.clicked()
-							{
+							let row = ui.selectable_label(
+								false,
+								RichText::new(text).size(TEXT_BASE).color(TEXT),
+							);
+							menu::row_menu(ui, &row, false, |ui| {
+								action = menu::file_items(ui, &repo.path, &f.path, None);
+							});
+							if row.clicked() {
 								let mut paths = vec![f.path.clone()];
 								if let Some(from) = &f.from {
 									paths.push(from.clone());
@@ -251,6 +267,10 @@ fn expanded_block(
 				}
 			}
 		});
+	if let Some(a) = action {
+		let ctx = ui.ctx().clone();
+		menu::perform(a, state, platform, &ctx);
+	}
 }
 
 fn letter_color(kind: ChangeKind) -> egui::Color32 {

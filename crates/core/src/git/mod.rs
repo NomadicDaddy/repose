@@ -4,6 +4,7 @@ pub mod commands;
 pub mod diff;
 pub mod log;
 pub mod parse;
+pub mod remote;
 pub mod status;
 pub mod tree;
 pub mod write;

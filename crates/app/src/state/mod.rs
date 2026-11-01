@@ -6,7 +6,9 @@ mod diff;
 mod files;
 mod history;
 mod merge;
+mod remote;
 mod scan;
+mod select;
 mod writes;
 
 use std::collections::{HashMap, HashSet};
@@ -33,6 +35,8 @@ pub enum Msg {
 	History(HistoryMsg),
 	Diff(DiffMsg),
 	Files(FilesMsg),
+	/// The origin URL of a repository, None when it has none or could not be read.
+	Remote(PathBuf, Option<String>),
 }
 
 /// Which pane the right side shows for the selected repository.
@@ -88,6 +92,13 @@ pub struct AppState {
 	pub requested_diff: Option<(String, bool)>,
 	/// A file asked for on the command line, opened read-only at HEAD once the repository lands.
 	pub requested_file: Option<String>,
+	/// The last external action's failure, shown under the repository header until the next
+	/// action succeeds.
+	pub notice: Option<String>,
+	/// Origin URLs read so far; None for a repository without one. Cleared by Refresh.
+	pub remotes: HashMap<PathBuf, Option<String>>,
+	/// Repositories whose origin is being read right now.
+	pub(crate) remote_reads: HashSet<PathBuf>,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -122,6 +133,9 @@ impl AppState {
 			requested_selection: None,
 			requested_diff: None,
 			requested_file: None,
+			notice: None,
+			remotes: HashMap::new(),
+			remote_reads: HashSet::new(),
 			generation: 0,
 			tx,
 			rx,
@@ -132,6 +146,7 @@ impl AppState {
 	pub fn start_scan(&mut self, ctx: &egui::Context) {
 		self.generation += 1;
 		self.scanning = true;
+		self.remotes.clear();
 		self.missing_roots = repose_core::config::missing_roots(&self.config);
 		scan::start(
 			self.generation,
@@ -205,6 +220,7 @@ impl AppState {
 				Msg::History(h) => self.merge_history(h),
 				Msg::Diff(m) => self.merge_diff(m),
 				Msg::Files(m) => self.merge_files(m),
+				Msg::Remote(repo, url) => self.merge_remote(repo, url),
 				_ => {}
 			}
 		}
@@ -251,48 +267,5 @@ impl AppState {
 		self.writes.running.remove(&outcome.repo);
 		self.writes.last.insert(outcome.repo.clone(), outcome);
 		self.start_next_write(ctx);
-	}
-
-	/// Rows in display order after the filter: top-level repositories plus the worktrees of the
-	/// expanded ones. Used for both drawing and keyboard movement.
-	pub fn visible_paths(&self) -> Vec<PathBuf> {
-		let needle = self.filter.trim().to_lowercase();
-		let mut out = Vec::new();
-		for r in &self.repos {
-			let matches_self = needle.is_empty() || r.name.to_lowercase().contains(&needle);
-			let matching_wts: Vec<&RepoSummary> = r
-				.worktrees
-				.iter()
-				.filter(|w| needle.is_empty() || w.name.to_lowercase().contains(&needle))
-				.collect();
-			if !matches_self && matching_wts.is_empty() {
-				continue;
-			}
-			out.push(r.path.clone());
-			if self.expanded.contains(&r.path) || (!needle.is_empty() && !matching_wts.is_empty()) {
-				for w in matching_wts {
-					out.push(w.path.clone());
-				}
-			}
-		}
-		out
-	}
-
-	pub fn move_selection(&mut self, delta: i32) {
-		let paths = self.visible_paths();
-		if paths.is_empty() {
-			return;
-		}
-		let current = self
-			.selected
-			.as_ref()
-			.and_then(|s| paths.iter().position(|p| p == s));
-		let next = match current {
-			Some(i) => (i as i32 + delta).clamp(0, paths.len() as i32 - 1) as usize,
-			None => 0,
-		};
-		if let Some(p) = paths.get(next).cloned() {
-			self.select(p);
-		}
 	}
 }

@@ -58,7 +58,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	if open_editor {
 		let full = v.open.repo.join(v.open.path.replace('/', "\\"));
 		let line = v.current_line.unwrap_or(1);
-		v.notice = platform.open_in_editor(&editor, &full, line).err();
+		v.notice = platform.open_in_editor(&editor, &full, Some(line)).err();
 	}
 	if let Some(n) = &v.notice {
 		ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));

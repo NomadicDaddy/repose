@@ -35,36 +35,78 @@ impl Platform for Windows {
 			.map_err(|e| e.to_string())
 	}
 
-	/// `<command> --goto <file>:<line>`. VS Code's launcher on Windows is `code.cmd`; a bare
-	/// `code` names the Unix shell script beside it, which cannot be started, so a command with
-	/// no extension that is not found is retried as its `.cmd`, which std runs through cmd.exe
-	/// with its own quoting. Nothing from the file's content reaches the command line.
-	fn open_in_editor(&self, command: &str, file: &Path, line: usize) -> Result<(), String> {
-		use std::io::ErrorKind;
-		use std::process::Stdio;
-		let target = format!("{}:{line}", file.display());
-		let start = |program: &str| {
-			let mut cmd = Command::new(program);
-			repose_core::git::commands::hide_console(&mut cmd);
-			cmd.arg("--goto")
-				.arg(&target)
-				.stdin(Stdio::null())
-				.stdout(Stdio::null())
-				.stderr(Stdio::null())
-				.spawn()
-				.map(|_| ())
+	/// `<command> --goto <file>:<line>` for a file, `<command> <dir>` for a folder. VS Code's
+	/// launcher on Windows is `code.cmd`; a bare `code` names the Unix shell script beside it,
+	/// which cannot be started, so a command with no extension that is not found is retried as
+	/// its `.cmd`, which std runs through cmd.exe with its own quoting. Nothing from a file's
+	/// content reaches the command line.
+	fn open_in_editor(
+		&self,
+		command: &str,
+		target: &Path,
+		line: Option<usize>,
+	) -> Result<(), String> {
+		let args: Vec<String> = match line {
+			Some(n) => vec!["--goto".into(), format!("{}:{n}", target.display())],
+			None => vec![target.display().to_string()],
 		};
-		let not_found = || format!("{command} was not found on PATH");
-		match start(command) {
+		start_detached(command, &args, true)
+	}
+
+	/// Windows Terminal opens a pwsh tab in the folder; without it pwsh itself opens there. The
+	/// terminal gets a console window of its own, so it is not hidden.
+	fn open_terminal(&self, command: &str, dir: &Path) -> Result<(), String> {
+		let dir = dir.display().to_string();
+		let via_terminal = [
+			"-d".to_string(),
+			dir.clone(),
+			"pwsh".to_string(),
+			"-NoLogo".to_string(),
+		];
+		match start_detached(command, &via_terminal, false) {
 			Ok(()) => Ok(()),
-			Err(e) if e.kind() == ErrorKind::NotFound => {
-				if Path::new(command).extension().is_some() {
-					return Err(not_found());
-				}
-				start(&format!("{command}.cmd")).map_err(|_| not_found())
-			}
-			Err(e) => Err(e.to_string()),
+			Err(_) => start_detached(
+				"pwsh",
+				&[
+					"-NoLogo".into(),
+					"-NoExit".into(),
+					"-WorkingDirectory".into(),
+					dir,
+				],
+				false,
+			)
+			.map_err(|e| format!("{command} and pwsh: {e}")),
 		}
+	}
+}
+
+/// Starts a program with no pipes and, when asked, no console window, retrying a bare name as
+/// its `.cmd` when it is not on PATH. The error names the command.
+fn start_detached(command: &str, args: &[String], hide: bool) -> Result<(), String> {
+	use std::io::ErrorKind;
+	use std::process::Stdio;
+	let start = |program: &str| {
+		let mut cmd = Command::new(program);
+		if hide {
+			repose_core::git::commands::hide_console(&mut cmd);
+		}
+		cmd.args(args)
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.map(|_| ())
+	};
+	let not_found = || format!("{command} was not found on PATH");
+	match start(command) {
+		Ok(()) => Ok(()),
+		Err(e) if e.kind() == ErrorKind::NotFound => {
+			if Path::new(command).extension().is_some() {
+				return Err(not_found());
+			}
+			start(&format!("{command}.cmd")).map_err(|_| not_found())
+		}
+		Err(e) => Err(e.to_string()),
 	}
 }
 
