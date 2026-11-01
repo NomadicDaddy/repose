@@ -112,7 +112,7 @@ impl AppState {
 	/// least `OVERFLOW_QUIET` ago; otherwise it stays pending and is tried again at the next frame
 	/// and at the next pass completion. Returns whether a pass started.
 	pub(super) fn start_full_reread_if_due(&mut self, ctx: &egui::Context) -> bool {
-		if !self.watching.full_pending || self.scanning || self.backstop_running {
+		if !self.watching.full_pending {
 			return false;
 		}
 		let now = Instant::now();
@@ -120,7 +120,10 @@ impl AppState {
 			.watching
 			.last_overflow
 			.is_some_and(|t| now.duration_since(t) < OVERFLOW_QUIET);
-		if recent || self.repos.is_empty() {
+		if self.scanning || self.backstop_running || recent || self.repos.is_empty() {
+			// Still pending: an idle window would otherwise not look again until its next
+			// repaint, up to the backstop away (Morticia Info on 740b7fd).
+			ctx.request_repaint_after(OVERFLOW_QUIET);
 			return false;
 		}
 		self.watching.full_pending = false;

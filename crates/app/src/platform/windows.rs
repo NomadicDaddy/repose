@@ -239,21 +239,26 @@ mod tests {
 	#[test]
 	#[ignore]
 	fn shell_here_opens_a_pwsh_that_stays() {
-		let dir = std::env::temp_dir().display().to_string();
 		// The marker is in the shell's own command line, so only the shell this test started is
-		// found and closed; no other pwsh is touched.
-		let marker = format!("repose-shell-test-{}", std::process::id());
-		super::start_shell(&dir, &marker).unwrap_or_else(|e| panic!("start_shell: {e}"));
+		// found and closed; no other pwsh is touched. An apostrophe in both the folder and the
+		// title exercises the two levels of quoting (Roger #30994): a broken quote would stop
+		// Start-Process or the shell, and neither would be found.
+		let stem = format!("repose-shell-test-{}", std::process::id());
+		let dir = std::env::temp_dir().join(format!("{stem}'s"));
+		std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("dir: {e}"));
+		super::start_shell(&dir.display().to_string(), &format!("{stem}'s"))
+			.unwrap_or_else(|e| panic!("start_shell: {e}"));
 		std::thread::sleep(std::time::Duration::from_secs(3));
-		let found = pwsh_processes_whose_command_line_contains(&marker);
+		let found = pwsh_processes_whose_command_line_contains(&stem);
 		for pid in &found {
 			let _ = std::process::Command::new("taskkill")
 				.args(["/PID", &pid.to_string(), "/F"])
 				.output();
 		}
+		let _ = std::fs::remove_dir(&dir);
 		assert!(
 			!found.is_empty(),
-			"no pwsh titled {marker} was running three seconds after Start-Process"
+			"no pwsh titled {stem}'s was running three seconds after Start-Process"
 		);
 	}
 
