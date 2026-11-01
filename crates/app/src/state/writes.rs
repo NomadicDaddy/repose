@@ -1,8 +1,9 @@
-//! Stage, unstage, discard and commit requests. One writer thread runs them in order, so writes
-//! never overlap in a repository; a request behind a running one shows as Waiting.
+//! Stage, unstage, discard and commit requests. Each repository has at most one write running, so
+//! writes never overlap in a repository and a slow hook in one never holds up another; a request
+//! behind a running one in the same repository shows as Waiting.
 
-use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
@@ -49,23 +50,32 @@ pub struct WriteOutcome {
 	pub leftover_lock: Option<PathBuf>,
 }
 
-/// The queue the UI sees: the running request and the ones waiting behind it.
+/// The queue the UI sees: one running request per repository and the ones waiting behind them.
 #[derive(Default)]
 pub struct WriteQueue {
-	pub running: Option<WriteRequest>,
+	pub running: HashMap<PathBuf, WriteRequest>,
 	pub waiting: VecDeque<WriteRequest>,
 	pub last: Option<WriteOutcome>,
 }
 
 impl WriteQueue {
-	pub fn busy_for(&self, repo: &std::path::Path) -> Option<&'static str> {
-		if self.running.as_ref().is_some_and(|r| r.repo == repo) {
-			return self.running.as_ref().map(|r| r.kind.label());
+	pub fn busy_for(&self, repo: &Path) -> Option<&'static str> {
+		if let Some(r) = self.running.get(repo) {
+			return Some(r.kind.label());
 		}
 		if self.waiting.iter().any(|r| r.repo == repo) {
 			return Some("Waiting");
 		}
 		None
+	}
+
+	/// The first waiting request whose repository has nothing running, removed from the queue.
+	pub fn take_startable(&mut self) -> Option<WriteRequest> {
+		let i = self
+			.waiting
+			.iter()
+			.position(|r| !self.running.contains_key(&r.repo))?;
+		self.waiting.remove(i)
 	}
 }
 

@@ -6,7 +6,7 @@ mod commit;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-pub use changes::{ChangeKind, Changes, FileChange};
+pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange};
 pub use commit::{Commit, CommitFile, parse_iso, relative};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

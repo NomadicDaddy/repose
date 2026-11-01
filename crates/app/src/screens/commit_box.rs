@@ -19,21 +19,23 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	let busy = state.writes.busy_for(&repo.path);
 	ui.add_space(10.0);
 	let hint = format!("Message (Ctrl+Enter to commit on {branch})");
-	let edit = egui::TextEdit::multiline(&mut state.commit_message)
+	let draft = state.commit_messages.entry(repo.path.clone()).or_default();
+	let edit = egui::TextEdit::multiline(draft)
 		.hint_text(hint)
 		.desired_rows(3)
 		.desired_width(f32::INFINITY);
 	let response = ui.add(edit);
 	let submit =
 		response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(Key::Enter));
-	let can_commit = staged > 0 && busy.is_none() && !state.commit_message.trim().is_empty();
+	let message = draft.clone();
+	let can_commit = staged > 0 && busy.is_none() && !message.trim().is_empty();
 	ui.horizontal(|ui| {
 		let button = ui.add_enabled(can_commit, egui::Button::new("Commit"));
 		let reason = if let Some(label) = busy {
 			format!("{label}…")
 		} else if staged == 0 {
 			"Nothing staged".to_string()
-		} else if state.commit_message.trim().is_empty() {
+		} else if message.trim().is_empty() {
 			"Write a message".to_string()
 		} else {
 			String::new()
@@ -43,7 +45,6 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		}
 		if (button.clicked() || submit) && can_commit {
 			let ctx = ui.ctx().clone();
-			let message = state.commit_message.clone();
 			state.request_write(repo.path.clone(), WriteKind::Commit(message), &ctx);
 		}
 	});

@@ -21,6 +21,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		return;
 	};
 	let commits = h.commits.clone();
+	let outgoing_set = h.outgoing.clone();
 	let expanded = h.expanded.clone();
 	let files = h.files.clone();
 	let loading = h.loading;
@@ -29,15 +30,14 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	if let Some(e) = error {
 		ui.label(RichText::new(e).size(TEXT_SMALL).color(DANGER));
 	}
-	let ahead = match (&repo.branch, &repo.status) {
-		(BranchState::Branch(_), Some(s)) => s.ahead.unwrap_or(0) as usize,
-		_ => 0,
-	};
 	let now = std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
 		.map(|d| d.as_secs() as i64)
 		.unwrap_or(0);
-	let (outgoing, rest) = commits.split_at(ahead.min(commits.len()));
+	// Membership, not position: after a merge the unpushed commits are interleaved with the
+	// upstream's in date order, so the set from <upstream>..HEAD decides.
+	let (outgoing, rest): (Vec<&Commit>, Vec<&Commit>) =
+		commits.iter().partition(|c| outgoing_set.contains(&c.hash));
 	if !outgoing.is_empty() {
 		let branch = match &repo.branch {
 			BranchState::Branch(b) => b.clone(),
@@ -133,7 +133,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 		FontId::new(12.0, FontFamily::Monospace),
 		INFO,
 	);
-	let meta = format!("{} · {}", c.author, relative(c.time, now, ""));
+	let meta = format!("{} · {}", c.author, relative(c.time, now, &c.date));
 	let meta_galley = painter.layout_no_wrap(
 		meta,
 		FontId::new(TEXT_SMALL, FontFamily::Proportional),
@@ -178,7 +178,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 }
 
 fn iso_tooltip(c: &Commit) -> String {
-	format!("{}\n{}", c.hash, c.author)
+	format!("{}\n{}\n{}", c.date, c.author, c.hash)
 }
 
 fn expanded_block(ui: &mut Ui, c: &Commit, files: Option<&[repose_core::model::CommitFile]>) {
@@ -229,7 +229,7 @@ fn expanded_block(ui: &mut Ui, c: &Commit, files: Option<&[repose_core::model::C
 fn letter_color(kind: ChangeKind) -> egui::Color32 {
 	match kind {
 		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
-		ChangeKind::Added => ACCENT,
+		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,
 		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
 		ChangeKind::Renamed => INFO,
 		ChangeKind::Untracked => MUTED,

@@ -1,6 +1,7 @@
 //! The linear log: `git log -z` with NUL-separated fields, 100 at a time, and a commit's files
 //! from `--name-status` with first-parent merges.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use super::commands::{GitError, Verb, run};
@@ -40,11 +41,25 @@ pub fn parse_log(bytes: &[u8]) -> Vec<Commit> {
 			short: short.to_string(),
 			author: author.to_string(),
 			time: parse_iso(date).unwrap_or(0),
+			date: date.to_string(),
 			subject: subject.to_string(),
 			body: body.trim_end().to_string(),
 		});
 	}
 	out
+}
+
+/// The hashes on HEAD that are not on the upstream: `git log <upstream>..HEAD`. The status call
+/// gives the ahead count, not the commits, and after a merge the two differ (Morticia M-2 on
+/// 51bc93d). Read-only; no network.
+pub fn read_outgoing(repo: &Path, upstream: &str) -> Result<HashSet<String>, GitError> {
+	let range = format!("{upstream}..HEAD");
+	let bytes = run(repo, Verb::Log, &["-z", "--format=%H", &range, "--"])?;
+	Ok(String::from_utf8_lossy(&bytes)
+		.split(['\0', '\n'])
+		.filter(|h| !h.is_empty())
+		.map(str::to_string)
+		.collect())
 }
 
 /// The files one commit changed against its first parent.

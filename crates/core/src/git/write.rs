@@ -24,28 +24,42 @@ pub fn stage_all(repo: &Path) -> Result<(), GitError> {
 	run(repo, Verb::Add, &["--all"]).map(|_| ())
 }
 
-/// Whether HEAD exists. On a repository with no commit yet, `restore --staged` has no source,
-/// so unstaging has to drop the index entry instead.
-fn has_head(repo: &Path) -> bool {
-	run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"]).is_ok()
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Head {
+	Present,
+	/// No commit yet: `restore --staged` has no source, so unstaging drops the index entry.
+	Unborn,
+}
+
+/// Three answers, never two: `rev-parse --verify --quiet HEAD` exits 0 when HEAD resolves and 1
+/// with nothing on stderr when there is no commit yet. Anything else (a timeout, lost output, a
+/// repository git cannot read) is an error and no write may be chosen from it. Morticia M-1 on
+/// 51bc93d: a bool here sent `rm --cached -r .` at a committed repository after a timeout.
+fn head_state(repo: &Path) -> Result<Head, GitError> {
+	match run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"]) {
+		Ok(_) => Ok(Head::Present),
+		Err(GitError::Failed {
+			code: Some(1),
+			ref stderr_tail,
+		}) if stderr_tail.trim().is_empty() => Ok(Head::Unborn),
+		Err(e) => Err(e),
+	}
 }
 
 pub fn unstage(repo: &Path, paths: &[String]) -> Result<(), GitError> {
 	if paths.is_empty() {
 		return Ok(());
 	}
-	if has_head(repo) {
-		run(repo, Verb::Restore, &with_paths(&["--staged"], paths)).map(|_| ())
-	} else {
-		run(repo, Verb::RmCached, &with_paths(&[], paths)).map(|_| ())
+	match head_state(repo)? {
+		Head::Present => run(repo, Verb::Restore, &with_paths(&["--staged"], paths)).map(|_| ()),
+		Head::Unborn => run(repo, Verb::RmCached, &with_paths(&[], paths)).map(|_| ()),
 	}
 }
 
 pub fn unstage_all(repo: &Path) -> Result<(), GitError> {
-	if has_head(repo) {
-		run(repo, Verb::Restore, &["--staged", "--", "."]).map(|_| ())
-	} else {
-		run(repo, Verb::RmCached, &["-r", "--", "."]).map(|_| ())
+	match head_state(repo)? {
+		Head::Present => run(repo, Verb::Restore, &["--staged", "--", "."]).map(|_| ()),
+		Head::Unborn => run(repo, Verb::RmCached, &["-r", "--", "."]).map(|_| ()),
 	}
 }
 
@@ -57,6 +71,14 @@ pub fn discard(repo: &Path, tracked: &[String], untracked: &[String]) -> Result<
 	}
 	if !untracked.is_empty() {
 		run(repo, Verb::Clean, &with_paths(&["-f"], untracked))?;
+		let left: Vec<String> = untracked
+			.iter()
+			.filter(|p| repo.join(p).exists())
+			.cloned()
+			.collect();
+		if !left.is_empty() {
+			return Err(GitError::StillPresent(left));
+		}
 	}
 	Ok(())
 }

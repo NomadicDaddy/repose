@@ -16,10 +16,20 @@ impl Platform for Windows {
 			.map_err(|e| e.to_string())
 	}
 
+	/// Explorer wants `/select,"C:\path with spaces\file"`, quotes around the path only, so the
+	/// argument goes through raw and not through the usual quoting of the whole token. A deleted
+	/// file has nothing to select; its folder opens instead.
 	fn reveal_file(&self, file: &Path) -> Result<(), String> {
-		let select = format!("/select,{}", file.display());
+		use std::os::windows::process::CommandExt;
+		if !file.exists() {
+			return match file.parent() {
+				Some(dir) => self.open_folder(dir),
+				None => Err("no folder to open".to_string()),
+			};
+		}
+		let select = format!("/select,\"{}\"", file.display());
 		Command::new("explorer.exe")
-			.arg(select)
+			.raw_arg(select)
 			.spawn()
 			.map(|_| ())
 			.map_err(|e| e.to_string())

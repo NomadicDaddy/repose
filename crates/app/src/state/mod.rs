@@ -56,7 +56,8 @@ pub struct AppState {
 	pub missing_roots: Vec<PathBuf>,
 	/// Minutes east of UTC as of the last scan; None shows the clock in UTC.
 	pub utc_offset: Option<i32>,
-	pub commit_message: String,
+	/// One draft per repository, so a message follows its repository and not the selection.
+	pub commit_messages: HashMap<PathBuf, String>,
 	pub writes: WriteQueue,
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
@@ -84,7 +85,7 @@ impl AppState {
 			scanning: false,
 			checked_at: None,
 			utc_offset: None,
-			commit_message: String::new(),
+			commit_messages: HashMap::new(),
 			writes: WriteQueue::default(),
 			pending_discard: None,
 			view: View::Changes,
@@ -121,7 +122,12 @@ impl AppState {
 		while let Ok(msg) = self.rx.try_recv() {
 			match msg {
 				Msg::Discovered(g, repos) if g == self.generation => self.merge_discovered(repos),
-				Msg::Status(g, repo) if g == self.generation => self.merge_status(*repo),
+				Msg::Status(g, repo) if g == self.generation => {
+					let path = repo.path.clone();
+					if self.merge_status(*repo) {
+						self.refresh_history(&path, ctx);
+					}
+				}
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
 					self.checked_at = Some(SystemTime::now());
@@ -173,20 +179,28 @@ impl AppState {
 		}
 	}
 
-	fn merge_status(&mut self, fresh: RepoSummary) {
-		if let Some(row) = find_mut(&mut self.repos, &fresh.path) {
-			// A full Refresh can overlap a post-write re-read; the one that started reading later
-			// wins, so an older scan result never overwrites a newer status.
-			if row.checked_at > fresh.checked_at {
-				return;
-			}
-			row.branch = fresh.branch;
-			row.short_hash = fresh.short_hash.or(row.short_hash.take());
-			row.status = fresh.status;
-			row.changes = fresh.changes;
-			row.error = fresh.error;
-			row.checked_at = fresh.checked_at;
+	/// Merges a status read into its row. Returns true when HEAD or the ahead count changed, which
+	/// is when a loaded history is stale.
+	fn merge_status(&mut self, fresh: RepoSummary) -> bool {
+		let Some(row) = find_mut(&mut self.repos, &fresh.path) else {
+			return false;
+		};
+		// A full Refresh can overlap a post-write re-read; the one that started reading later
+		// wins, so an older scan result never overwrites a newer status.
+		if row.checked_at > fresh.checked_at {
+			return false;
 		}
+		let ahead =
+			|s: &Option<repose_core::model::StatusSummary>| s.as_ref().and_then(|s| s.ahead);
+		let head_changed = fresh.short_hash.is_some() && fresh.short_hash != row.short_hash
+			|| ahead(&fresh.status) != ahead(&row.status);
+		row.branch = fresh.branch;
+		row.short_hash = fresh.short_hash.or(row.short_hash.take());
+		row.status = fresh.status;
+		row.changes = fresh.changes;
+		row.error = fresh.error;
+		row.checked_at = fresh.checked_at;
+		head_changed
 	}
 
 	pub fn selected_repo(&self) -> Option<&RepoSummary> {
@@ -206,24 +220,21 @@ impl AppState {
 		self.start_next_write(ctx);
 	}
 
+	/// Starts every waiting request whose repository is idle; the rest keep waiting.
 	fn start_next_write(&mut self, ctx: &egui::Context) {
-		if self.writes.running.is_some() {
-			return;
-		}
-		if let Some(next) = self.writes.waiting.pop_front() {
-			self.writes.running = Some(next.clone());
+		while let Some(next) = self.writes.take_startable() {
+			self.writes.running.insert(next.repo.clone(), next.clone());
 			writes::spawn(next, self.tx.clone(), ctx.clone());
 		}
 	}
 
 	fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
 		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
-			self.commit_message.clear();
-			self.invalidate_history(&outcome.repo.clone());
+			self.commit_messages.remove(&outcome.repo);
 		}
 		self.refresh_repo(&outcome.repo.clone(), ctx);
+		self.writes.running.remove(&outcome.repo);
 		self.writes.last = Some(outcome);
-		self.writes.running = None;
 		self.start_next_write(ctx);
 	}
 

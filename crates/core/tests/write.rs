@@ -6,8 +6,10 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use repose_core::git::write::{commit, discard, index_lock_path, stage, unstage};
-use repose_core::git::{Verb, run};
+use repose_core::git::status::read_status;
+use repose_core::git::write::{commit, discard, index_lock_path, stage, unstage, unstage_all};
+use repose_core::git::{GitError, Verb, run};
+use repose_core::model::{ChangeKind, Changes, DiscardPlan};
 use support::TempRepo;
 
 fn status(repo: &TempRepo) -> String {
@@ -32,6 +34,52 @@ fn discard_touches_only_the_listed_file_even_with_glob_characters() {
 	discard(&repo.path, &[], &["[2].txt".to_string()]).expect("clean");
 	assert!(repo.path.join("2.txt").exists(), "2.txt stays");
 	assert!(!repo.path.join("[2].txt").exists(), "[2].txt removed");
+}
+
+/// Morticia M-1 on 4cc9651: `git add -N` leaves an empty index entry, so a restore from the index
+/// empties the working file. The plan the view follows must refuse it, and the content must stay.
+#[test]
+fn intent_to_add_is_refused_by_the_discard_plan() {
+	let repo = TempRepo::new("intent-to-add");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("base");
+	repo.write("new.txt", "precious\n");
+	repo.git(&["add", "-N", "new.txt"]);
+	let porcelain = read_status(&repo.path).expect("status");
+	let changes = Changes::from_entries(&porcelain.entries);
+	let entry = changes
+		.unstaged
+		.iter()
+		.find(|f| f.path == "new.txt")
+		.expect("listed in the Changes group");
+	assert_eq!(entry.kind, ChangeKind::IntentToAdd);
+	assert_eq!(entry.kind.letter(), "A");
+	assert!(
+		matches!(entry.discard_plan(), DiscardPlan::Refused(_)),
+		"{:?}",
+		entry.discard_plan()
+	);
+	let text = std::fs::read_to_string(repo.path.join("new.txt")).expect("read");
+	assert_eq!(text, "precious\n");
+}
+
+/// Morticia L-3: `git clean -f` exits 0 and leaves a nested repository; that is not a success.
+#[test]
+fn discard_reports_a_nested_repository_it_could_not_remove() {
+	let repo = TempRepo::new("nested");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("base");
+	repo.write("inner/file.txt", "inner\n");
+	support::git_in(&repo.path.join("inner"), &["init", "-q"]);
+	let err = discard(&repo.path, &[], &["inner/".to_string()]).expect_err("still present");
+	assert!(
+		matches!(err, GitError::StillPresent(ref p) if p == &["inner/".to_string()]),
+		"{err}"
+	);
+	assert!(
+		repo.path.join("inner/file.txt").exists(),
+		"nothing inside it was touched"
+	);
 }
 
 #[test]
@@ -66,6 +114,44 @@ fn unstage_works_before_the_first_commit() {
 	assert!(s.contains("?? a.txt"), "a.txt back to untracked: {s}");
 	assert!(s.contains("A  b.txt"), "b.txt still staged: {s}");
 	assert!(repo.path.join("a.txt").exists(), "the working file stays");
+}
+
+/// Morticia M-1 and Roger on 51bc93d: a HEAD check that fails for any other reason must not be
+/// read as "no commits yet", or Unstage all stages the deletion of a committed tree.
+#[test]
+fn unstage_all_refuses_to_guess_when_the_head_check_fails() {
+	let repo = TempRepo::new("head-check");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("base");
+	repo.write("a.txt", "a2\n");
+	repo.git(&["add", "a.txt"]);
+	let head_file = repo.path.join(".git/HEAD");
+	let saved = std::fs::read(&head_file).expect("HEAD");
+	// An unreadable HEAD makes git refuse the repository: exit 128, not the unborn exit 1.
+	std::fs::write(&head_file, b"not a ref\n").expect("corrupt HEAD");
+	let err = unstage_all(&repo.path).expect_err("the check failed, so nothing is chosen");
+	std::fs::write(&head_file, saved).expect("restore HEAD");
+	assert!(
+		!matches!(err, GitError::Failed { code: Some(1), .. }),
+		"a real failure, not the unborn answer: {err}"
+	);
+	let s = status(&repo);
+	assert!(s.starts_with("M  a.txt"), "index untouched: {s}");
+	assert!(!s.contains("D  a.txt"), "nothing staged for deletion: {s}");
+}
+
+/// Morticia L-1 on 51bc93d: a staged file edited again (AM) blocked `rm --cached` without --force.
+#[test]
+fn unstage_before_the_first_commit_handles_an_edited_staged_file() {
+	let repo = TempRepo::new("unborn-am");
+	repo.write("b.txt", "b\n");
+	stage(&repo.path, &["b.txt".to_string()]).expect("stage");
+	repo.write("b.txt", "b edited\n");
+	assert!(status(&repo).contains("AM b.txt"), "{}", status(&repo));
+	unstage_all(&repo.path).expect("unstage all with an AM file");
+	assert!(status(&repo).contains("?? b.txt"), "{}", status(&repo));
+	let text = std::fs::read_to_string(repo.path.join("b.txt")).expect("read");
+	assert_eq!(text, "b edited\n", "the working file keeps the edit");
 }
 
 #[test]

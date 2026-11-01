@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
-use repose_core::model::{ChangeKind, FileChange, RepoSummary};
+use repose_core::model::{ChangeKind, DiscardPlan, FileChange, RepoSummary};
 
 use crate::platform::Platform;
 use crate::state::{AppState, PendingDiscard, WriteKind};
@@ -137,7 +137,7 @@ fn count_pill(ui: &mut Ui, n: usize) {
 fn badge_color(kind: ChangeKind) -> egui::Color32 {
 	match kind {
 		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
-		ChangeKind::Added => ACCENT,
+		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,
 		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
 		ChangeKind::Renamed => INFO,
 		ChangeKind::Untracked => MUTED,
@@ -233,21 +233,28 @@ fn hover_actions(
 	{
 		state.request_write(g.repo.path.clone(), kind, &ctx);
 	}
-	if g.which == Group::Working
-		&& child
-			.add_enabled(g.enabled, egui::Button::new("Discard").small())
-			.clicked()
-	{
-		let (tracked, untracked) = if file.kind == ChangeKind::Untracked {
-			(Vec::new(), vec![file.path.clone()])
-		} else {
-			(vec![file.path.clone()], Vec::new())
+	if g.which == Group::Working {
+		let plan = file.discard_plan();
+		let allowed = !matches!(plan, DiscardPlan::Refused(_));
+		let button = child.add_enabled(g.enabled && allowed, egui::Button::new("Discard").small());
+		let button = match plan {
+			DiscardPlan::Refused(reason) => button.on_disabled_hover_text(reason),
+			_ => button,
 		};
-		state.pending_discard = Some(PendingDiscard {
-			repo: g.repo.path.clone(),
-			tracked,
-			untracked,
-		});
+		if button.clicked() {
+			let (tracked, untracked) = match plan {
+				DiscardPlan::Remove => (Vec::new(), vec![file.path.clone()]),
+				DiscardPlan::Restore => (vec![file.path.clone()], Vec::new()),
+				DiscardPlan::Refused(_) => (Vec::new(), Vec::new()),
+			};
+			if !tracked.is_empty() || !untracked.is_empty() {
+				state.pending_discard = Some(PendingDiscard {
+					repo: g.repo.path.clone(),
+					tracked,
+					untracked,
+				});
+			}
+		}
 	}
 	if child.add(egui::Button::new("Open").small()).clicked() {
 		let full: &Path = &g.repo.path.join(file.path.replace('/', "\\"));

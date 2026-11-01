@@ -4,9 +4,43 @@
 
 mod support;
 
-use repose_core::git::log::{read_commit_files, read_log};
+use std::collections::HashSet;
+
+use repose_core::git::log::{read_commit_files, read_log, read_outgoing};
 use repose_core::model::ChangeKind;
 use support::TempRepo;
+
+/// Morticia M-2 on 51bc93d: after a merge, the top `ahead` rows of the date-ordered log are not
+/// the unpushed commits. The set from `<upstream>..HEAD` is.
+#[test]
+fn outgoing_is_the_set_not_the_top_of_the_log() {
+	let repo = TempRepo::new("outgoing");
+	repo.write("base.txt", "base\n");
+	repo.commit_all("base");
+	repo.git(&["branch", "up"]);
+	repo.write("mine.txt", "mine\n");
+	repo.commit_all("MINE local work");
+	repo.git(&["checkout", "-q", "up"]);
+	repo.write("theirs.txt", "theirs\n");
+	repo.commit_all("THEIRS already on upstream");
+	repo.git(&["checkout", "-q", "main"]);
+	repo.git(&["merge", "-q", "--no-ff", "-m", "MERGE local merge", "up"]);
+	repo.git(&["branch", "-u", "up"]);
+	let log = read_log(&repo.path, 0).expect("log");
+	let subject = |needle: &str| {
+		log.iter()
+			.find(|c| c.subject.starts_with(needle))
+			.map(|c| c.hash.clone())
+			.expect(needle)
+	};
+	let outgoing = read_outgoing(&repo.path, "up").expect("outgoing");
+	let expected: HashSet<String> = [subject("MINE"), subject("MERGE")].into_iter().collect();
+	assert_eq!(
+		outgoing, expected,
+		"THEIRS is on the upstream and stays out"
+	);
+	assert_eq!(log[0].subject, "MERGE local merge", "newest first");
+}
 
 #[test]
 fn pages_bodies_quotes_and_order() {

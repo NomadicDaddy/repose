@@ -11,6 +11,9 @@ pub enum ChangeKind {
 	Untracked,
 	Conflicted,
 	TypeChanged,
+	/// `git add -N`: the index holds an empty entry, the working file holds the content, and
+	/// nothing is committed. Restoring it from the index would empty the file.
+	IntentToAdd,
 }
 
 impl ChangeKind {
@@ -18,7 +21,7 @@ impl ChangeKind {
 	pub fn letter(self) -> &'static str {
 		match self {
 			Self::Modified => "M",
-			Self::Added => "A",
+			Self::Added | Self::IntentToAdd => "A",
 			Self::Deleted => "D",
 			Self::Renamed => "R",
 			Self::Untracked => "U",
@@ -47,7 +50,28 @@ pub struct FileChange {
 	pub from: Option<String>,
 }
 
+/// What Discard would do to one file in the Changes group.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscardPlan {
+	/// `git restore` from the index.
+	Restore,
+	/// `git clean -f` on an untracked path.
+	Remove,
+	/// Nothing safe to do; the reason is shown in place of the control.
+	Refused(&'static str),
+}
+
 impl FileChange {
+	pub fn discard_plan(&self) -> DiscardPlan {
+		match self.kind {
+			ChangeKind::Untracked => DiscardPlan::Remove,
+			ChangeKind::IntentToAdd => DiscardPlan::Refused(
+				"Added with intent (git add -N): nothing is committed to restore. Unstage it first, then discard the untracked file.",
+			),
+			_ => DiscardPlan::Restore,
+		}
+	}
+
 	pub fn file_name(&self) -> &str {
 		self.path.rsplit('/').next().unwrap_or(&self.path)
 	}
@@ -83,7 +107,12 @@ impl Changes {
 							from: None,
 						});
 					}
-					if let Some(kind) = ChangeKind::from_code(xy[1]) {
+					let worktree = if xy[1] == b'A' {
+						Some(ChangeKind::IntentToAdd)
+					} else {
+						ChangeKind::from_code(xy[1])
+					};
+					if let Some(kind) = worktree {
 						c.unstaged.push(FileChange {
 							path: e.path.clone(),
 							kind,

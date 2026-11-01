@@ -1,19 +1,22 @@
-//! The History pane's state: pages of commits per repository, the expanded commit and its files,
-//! loaded on demand on background threads.
+//! The History pane's state: pages of commits per repository, the outgoing set, the expanded
+//! commit and its files, loaded on demand on background threads and re-read when the
+//! repository's status changes.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::log::{PAGE, read_commit_files, read_log};
+use repose_core::git::log::{PAGE, read_commit_files, read_log, read_outgoing};
 use repose_core::model::{Commit, CommitFile};
 
-use super::{AppState, Msg};
+use super::{AppState, Msg, find};
 
 #[derive(Default)]
 pub struct HistoryState {
 	pub commits: Vec<Commit>,
+	/// Hashes on HEAD and not on the upstream; empty without an upstream.
+	pub outgoing: HashSet<String>,
 	pub loading: bool,
 	pub exhausted: bool,
 	pub error: Option<String>,
@@ -21,11 +24,17 @@ pub struct HistoryState {
 	pub files: HashMap<String, Vec<CommitFile>>,
 }
 
+pub struct PageResult {
+	pub commits: Vec<Commit>,
+	/// Read with the first page only.
+	pub outgoing: Option<HashSet<String>>,
+}
+
 pub enum HistoryMsg {
 	Page {
 		repo: PathBuf,
 		skip: usize,
-		result: Result<Vec<Commit>, String>,
+		result: Result<PageResult, String>,
 	},
 	Files {
 		repo: PathBuf,
@@ -54,9 +63,21 @@ impl AppState {
 		self.load_history_page(repo, skip, ctx);
 	}
 
-	/// Drops a repository's history so the next view reloads it, after a commit.
-	pub fn invalidate_history(&mut self, repo: &Path) {
-		self.history.remove(repo);
+	/// Re-reads the first page and the outgoing set in place when a loaded repository's HEAD or
+	/// ahead count changed, whether from this app's commit, a Refresh, or a terminal.
+	pub(super) fn refresh_history(&mut self, repo: &Path, ctx: &egui::Context) {
+		let Some(h) = self.history.get_mut(repo) else {
+			return;
+		};
+		h.exhausted = false;
+		h.loading = false;
+		self.load_history_page(repo, 0, ctx);
+	}
+
+	fn upstream_of(&self, repo: &Path) -> Option<String> {
+		find(&self.repos, repo)
+			.and_then(|r| r.status.as_ref())
+			.and_then(|s| s.upstream.clone())
 	}
 
 	fn load_history_page(&mut self, repo: &Path, skip: usize, ctx: &egui::Context) {
@@ -66,7 +87,18 @@ impl AppState {
 			}
 			h.loading = true;
 		}
-		spawn_page(repo.to_path_buf(), skip, self.tx.clone(), ctx.clone());
+		let upstream = if skip == 0 {
+			self.upstream_of(repo)
+		} else {
+			None
+		};
+		spawn_page(
+			repo.to_path_buf(),
+			skip,
+			upstream,
+			self.tx.clone(),
+			ctx.clone(),
+		);
 	}
 
 	/// Expands one commit (collapsing any other) and fetches its files once.
@@ -97,14 +129,16 @@ impl AppState {
 				};
 				h.loading = false;
 				match result {
-					Ok(commits) => {
-						if commits.len() < PAGE {
+					Ok(page) => {
+						h.error = None;
+						if page.commits.len() < PAGE {
 							h.exhausted = true;
 						}
 						if skip == 0 {
-							h.commits = commits;
+							h.commits = page.commits;
+							h.outgoing = page.outgoing.unwrap_or_default();
 						} else {
-							h.commits.extend(commits);
+							h.commits.extend(page.commits);
 						}
 					}
 					Err(e) => h.error = Some(e),
@@ -114,6 +148,7 @@ impl AppState {
 				if let Some(h) = self.history.get_mut(&repo) {
 					match result {
 						Ok(files) => {
+							h.error = None;
 							h.files.insert(hash, files);
 						}
 						Err(e) => h.error = Some(e),
@@ -124,9 +159,23 @@ impl AppState {
 	}
 }
 
-fn spawn_page(repo: PathBuf, skip: usize, tx: Sender<Msg>, ctx: egui::Context) {
+fn spawn_page(
+	repo: PathBuf,
+	skip: usize,
+	upstream: Option<String>,
+	tx: Sender<Msg>,
+	ctx: egui::Context,
+) {
 	std::thread::spawn(move || {
-		let result = read_log(&repo, skip).map_err(|e| e.to_string());
+		let result = read_log(&repo, skip)
+			.and_then(|commits| {
+				let outgoing = match (skip, &upstream) {
+					(0, Some(u)) => Some(read_outgoing(&repo, u)?),
+					_ => None,
+				};
+				Ok(PageResult { commits, outgoing })
+			})
+			.map_err(|e| e.to_string());
 		let _ = tx.send(Msg::History(HistoryMsg::Page { repo, skip, result }));
 		ctx.request_repaint();
 	});

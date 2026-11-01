@@ -9,6 +9,8 @@ pub struct Commit {
 	pub author: String,
 	/// Author time as seconds since the Unix epoch, from git's ISO date.
 	pub time: i64,
+	/// The author date as git printed it (`%aI`), for the tooltip and the past-a-month fallback.
+	pub date: String,
 	pub subject: String,
 	pub body: String,
 }

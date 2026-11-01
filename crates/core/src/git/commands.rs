@@ -55,7 +55,9 @@ impl Verb {
 			Verb::Restore => &["restore"],
 			Verb::Clean => &["clean"],
 			Verb::Commit => &["commit"],
-			Verb::RmCached => &["rm", "--cached", "--quiet"],
+			// --force with --cached removes only the index entry; the working file is never
+			// touched, and without it an edited staged file blocks the whole group.
+			Verb::RmCached => &["rm", "--cached", "--force", "--quiet"],
 			Verb::RemoteGetUrl => &["remote", "get-url"],
 		}
 	}
@@ -84,11 +86,24 @@ pub enum GitError {
 	/// git exited but its output never arrived in time, usually because a process it started is
 	/// still holding the pipe. A read must not be mistaken for an empty result.
 	OutputLost,
+	/// git reported success but the paths it was asked to remove are still there, as `git clean`
+	/// does for a nested repository. Success must not be claimed for them.
+	StillPresent(Vec<String>),
 }
 
 impl std::fmt::Display for GitError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Self::StillPresent(paths) => write!(
+				f,
+				"git clean left {} in place (a nested repository is not removed): {}",
+				if paths.len() == 1 {
+					"this path"
+				} else {
+					"these paths"
+				},
+				paths.join(", ")
+			),
 			Self::NotFound => write!(f, "git was not found on PATH"),
 			Self::Spawn(e) => write!(f, "git could not start: {e}"),
 			Self::TimedOut { after, stderr_tail } => {
@@ -173,9 +188,12 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped());
 	if !verb.is_write() {
+		// No signature text in parsed log output on a machine that sets log.showSignature.
 		cmd.env("GIT_OPTIONAL_LOCKS", "0")
 			.arg("-c")
-			.arg("core.fsmonitor=false");
+			.arg("core.fsmonitor=false")
+			.arg("-c")
+			.arg("log.showSignature=false");
 	}
 	cmd.args(verb.args()).args(extra);
 	cmd
