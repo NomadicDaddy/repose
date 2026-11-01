@@ -1,0 +1,176 @@
+//! The left pane: Repositories title, Refresh, Find a repository, the rows, and the status line.
+
+use std::path::PathBuf;
+
+use eframe::egui::{self, Key, RichText, Ui};
+
+use super::row;
+use crate::platform::Platform;
+use crate::state::AppState;
+use crate::theme::*;
+
+pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
+	let ctx = root.ctx().clone();
+	keyboard(&ctx, state, platform);
+	egui::Panel::left("repositories")
+		.exact_size(SIDEBAR_WIDTH)
+		.resizable(false)
+		.frame(egui::Frame::new().fill(BG_PANEL).inner_margin(10.0))
+		.show(root, |ui| {
+			header(ui, state);
+			ui.add_space(4.0);
+			let count = state.repos.len();
+			ui.label(
+				RichText::new(status_line(state, count))
+					.size(TEXT_SMALL)
+					.color(MUTED),
+			);
+			ui.add_space(6.0);
+			list(ui, state);
+		});
+}
+
+fn header(ui: &mut Ui, state: &mut AppState) {
+	ui.horizontal(|ui| {
+		ui.label(
+			RichText::new("Repositories")
+				.size(TEXT_TITLE)
+				.color(TEXT_BRIGHT)
+				.strong(),
+		);
+		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+			let refresh = ui.add_enabled(!state.scanning, egui::Button::new("Refresh"));
+			if refresh.clicked() {
+				let ctx = ui.ctx().clone();
+				state.start_scan(&ctx);
+			}
+		});
+	});
+	let edit = egui::TextEdit::singleline(&mut state.filter)
+		.hint_text("Find a repository")
+		.desired_width(f32::INFINITY);
+	let response = ui.add(edit);
+	if state.focus_filter {
+		response.request_focus();
+		state.focus_filter = false;
+	}
+	if response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape)) {
+		state.filter.clear();
+	}
+}
+
+fn status_line(state: &AppState, count: usize) -> String {
+	if state.scanning && state.checked_at.is_none() {
+		return "Scanning…".to_string();
+	}
+	let time = state.checked_at.map(clock).unwrap_or_default();
+	let noun = if count == 1 {
+		"repository"
+	} else {
+		"repositories"
+	};
+	if state.scanning {
+		format!("{count} {noun} · Checking… · Saved refs; no fetch")
+	} else {
+		format!("{count} {noun} · Checked {time} · Saved refs; no fetch")
+	}
+}
+
+/// Local wall-clock HH:MM: UTC seconds plus the machine's offset, read once by the platform module.
+fn clock(t: std::time::SystemTime) -> String {
+	let secs = t
+		.duration_since(std::time::UNIX_EPOCH)
+		.map(|d| d.as_secs())
+		.unwrap_or(0);
+	let offset = crate::platform::utc_offset_minutes();
+	let local = secs as i64 + i64::from(offset) * 60;
+	let minutes = local.rem_euclid(86_400) / 60;
+	format!("{:02}:{:02}", minutes / 60, minutes % 60)
+}
+
+fn list(ui: &mut Ui, state: &mut AppState) {
+	let paths = state.visible_paths();
+	if paths.is_empty() && !state.filter.trim().is_empty() {
+		ui.label(
+			RichText::new(format!("No repositories match {}", state.filter.trim()))
+				.color(MUTED)
+				.size(TEXT_BASE),
+		);
+		return;
+	}
+	let selected = state.selected.clone();
+	let mut clicked: Option<PathBuf> = None;
+	let mut toggled: Option<PathBuf> = None;
+	egui::ScrollArea::vertical()
+		.auto_shrink([false, false])
+		.show(ui, |ui| {
+			for repo in &state.repos {
+				if !paths.contains(&repo.path) {
+					continue;
+				}
+				let expanded = state.expanded.contains(&repo.path);
+				let out = row::draw(
+					ui,
+					repo,
+					selected.as_deref() == Some(repo.path.as_path()),
+					0.0,
+					expanded,
+				);
+				if out.chevron_clicked {
+					toggled = Some(repo.path.clone());
+				} else if out.response.clicked() {
+					clicked = Some(repo.path.clone());
+				}
+				for wt in &repo.worktrees {
+					if !paths.contains(&wt.path) {
+						continue;
+					}
+					let out = row::draw(
+						ui,
+						wt,
+						selected.as_deref() == Some(wt.path.as_path()),
+						16.0,
+						false,
+					);
+					if out.response.clicked() {
+						clicked = Some(wt.path.clone());
+					}
+				}
+			}
+		});
+	if let Some(p) = toggled
+		&& !state.expanded.remove(&p)
+	{
+		state.expanded.insert(p);
+	}
+	if let Some(p) = clicked {
+		state.selected = Some(p);
+	}
+}
+
+fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) {
+	let typing = ctx.memory(|m| m.focused().is_some());
+	let (down, up, enter, find) = ctx.input(|i| {
+		(
+			i.key_pressed(Key::ArrowDown),
+			i.key_pressed(Key::ArrowUp),
+			i.key_pressed(Key::Enter),
+			i.modifiers.command && i.key_pressed(Key::F),
+		)
+	});
+	if find {
+		state.focus_filter = true;
+	}
+	if down {
+		state.move_selection(1);
+	}
+	if up {
+		state.move_selection(-1);
+	}
+	if enter
+		&& !typing
+		&& let Some(repo) = state.selected_repo()
+	{
+		let _ = platform.open_folder(&repo.path);
+	}
+}

@@ -1,0 +1,35 @@
+# The repose gate: format, clippy, tests, release build, the 300-line file limit, then the
+# measurements (reported, never failed: Phillip, 2026-11-01). Prints QC_EXIT=<code> last.
+param(
+    [switch] $SkipMeasure
+)
+$ErrorActionPreference = 'Continue'
+$root = Split-Path -Parent $PSScriptRoot
+Set-Location $root
+$exit = 0
+function Step($name, [scriptblock] $body) {
+    Write-Host "== $name"
+    & $body
+    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: $name"; $script:exit = 1 }
+}
+Step 'cargo fmt --check' { cargo fmt --all -- --check }
+Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
+Step 'cargo test' { cargo test --workspace }
+Step 'cargo build --release' { cargo build --workspace --release }
+Write-Host '== file length (300 lines)'
+$long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
+    Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
+foreach ($f in $long) {
+    Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, (Get-Content $f.FullName | Measure-Object -Line).Lines)
+    $exit = 1
+}
+$exe = Join-Path $root 'target\release\repose.exe'
+if (Test-Path $exe) {
+    $size = [math]::Round((Get-Item $exe).Length / 1MB, 2)
+    Write-Host "MEASURE exe-size-mb $size (target about 25)"
+    if (-not $SkipMeasure) {
+        & (Join-Path $PSScriptRoot 'measure-startup.ps1') -Exe $exe
+    }
+}
+Write-Host "QC_EXIT=$exit"
+exit $exit
