@@ -73,6 +73,9 @@ pub fn colour_lines(path: &str, lines: &[&str]) -> Vec<Vec<Span>> {
 		.iter()
 		.map(|line| {
 			if line.len() > MAX_COLOUR_BYTES {
+				// The parser never sees this line, so whatever it opened or closed is unknown;
+				// start the lines after it from a clean state rather than the one before it.
+				h = HighlightLines::new(syntax, &e.theme);
 				return Vec::new();
 			}
 			let with_newline = format!("{line}\n");
@@ -168,5 +171,12 @@ mod tests {
 		}
 		let long = "x".repeat(MAX_COLOUR_BYTES + 1);
 		assert!(colour_lines("a.py", &[&long])[0].is_empty());
+		// Roger on bed5ab8: a skipped line that opens a string must not leave the parser inside
+		// it; the line after a skipped line is coloured as if it started the file.
+		let opener = format!("s = \"\"\"{}", "y".repeat(MAX_COLOUR_BYTES));
+		let after = colour_lines("a.py", &[&opener, "def f(): pass"]);
+		let alone = colour_lines("a.py", &["def f(): pass"]);
+		assert!(after[0].is_empty());
+		assert_eq!(after[1], alone[0]);
 	}
 }
