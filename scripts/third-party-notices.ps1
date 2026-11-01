@@ -174,16 +174,19 @@ foreach ($hash in $texts.Keys) {
     $lines.Add('```')
 }
 
+# Reproduced texts keep their trailing spaces: the licence is copied as its authors wrote it.
 $text = ($lines -join "`n") + "`n"
+$bytes = (New-Object System.Text.UTF8Encoding $false).GetBytes($text)
 $out = Join-Path $root 'THIRD-PARTY-NOTICES.md'
 if ($Check) {
-    $current = if (Test-Path $out) { [System.IO.File]::ReadAllText($out) } else { '' }
-    if ($current -cne $text) {
+    # Bytes, not decoded text, so a BOM or an encoding difference counts too (Roger 5Q-2 on 1a4888a).
+    $current = if (Test-Path $out) { [System.IO.File]::ReadAllBytes($out) } else { [byte[]]@() }
+    if ($current.Length -ne $bytes.Length -or -not [System.Linq.Enumerable]::SequenceEqual([byte[]]$current, [byte[]]$bytes)) {
         Write-Host 'FAILED: THIRD-PARTY-NOTICES.md is out of date; run scripts/third-party-notices.ps1'
         exit 1
     }
     Write-Host "THIRD-PARTY-NOTICES.md is current ($($crates.Count) crates, $($texts.Count) licence texts)"
     exit 0
 }
-[System.IO.File]::WriteAllText($out, $text, (New-Object System.Text.UTF8Encoding $false))
+[System.IO.File]::WriteAllBytes($out, $bytes)
 Write-Host "wrote $out ($($crates.Count) crates, $($texts.Count) licence texts)"

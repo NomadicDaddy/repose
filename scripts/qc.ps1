@@ -16,16 +16,9 @@ Step 'cargo fmt --check' { cargo fmt --all -- --check }
 Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
 Step 'cargo test' { cargo test --workspace }
 Step 'cargo build --release' { cargo build --workspace --release }
-# The notices travel beside the executable (quality-gate clause 9), and the release folder is
-# listed so the log shows what a release would carry (clause 5): one executable, no runtimes.
-$release = Join-Path $root 'target\release'
-if (Test-Path (Join-Path $release 'repose.exe')) {
-    Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $release -Force
-    Write-Host '== release folder'
-    foreach ($f in (Get-ChildItem -Path $release -File | Sort-Object Name)) {
-        Write-Host ("RELEASE {0} {1}" -f $f.Name, $f.Length)
-    }
-}
+# The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
+# the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
+Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
 Write-Host '== file length (300 lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
     Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
