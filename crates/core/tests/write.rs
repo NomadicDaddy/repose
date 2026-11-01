@@ -140,6 +140,27 @@ fn unstage_all_refuses_to_guess_when_the_head_check_fails() {
 	assert!(!s.contains("D  a.txt"), "nothing staged for deletion: {s}");
 }
 
+/// Morticia L-5 on cba0c7a: a corrupt branch ref gives the same exit 1 as an unborn branch, and
+/// must not be treated as one.
+#[test]
+fn unstage_all_refuses_a_corrupt_branch_ref() {
+	let repo = TempRepo::new("corrupt-ref");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("base");
+	repo.write("a.txt", "a2\n");
+	repo.git(&["add", "a.txt"]);
+	let ref_file = repo.path.join(".git/refs/heads/main");
+	let saved = std::fs::read(&ref_file).expect("ref file (loose, not packed, in a fresh repo)");
+	std::fs::write(&ref_file, b"garbage\n").expect("corrupt ref");
+	let err = unstage_all(&repo.path).expect_err("a broken ref is not an unborn branch");
+	std::fs::write(&ref_file, saved).expect("restore ref");
+	// git itself answers differently by version: symbolic-ref may refuse HEAD outright, or name
+	// the branch whose file is then found to exist. Either way it is UnreadableRef, never Unborn.
+	assert!(matches!(err, GitError::UnreadableRef(_)), "{err}");
+	let s = status(&repo);
+	assert!(s.starts_with("M  a.txt"), "index untouched: {s}");
+}
+
 /// Morticia L-1 on 51bc93d: a staged file edited again (AM) blocked `rm --cached` without --force.
 #[test]
 fn unstage_before_the_first_commit_handles_an_edited_staged_file() {

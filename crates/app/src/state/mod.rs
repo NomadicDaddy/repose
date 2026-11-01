@@ -179,8 +179,8 @@ impl AppState {
 		}
 	}
 
-	/// Merges a status read into its row. Returns true when HEAD or the ahead count changed, which
-	/// is when a loaded history is stale.
+	/// Merges a status read into its row. Returns true when HEAD, the upstream or the ahead count
+	/// changed, which is when a loaded history is stale.
 	fn merge_status(&mut self, fresh: RepoSummary) -> bool {
 		let Some(row) = find_mut(&mut self.repos, &fresh.path) else {
 			return false;
@@ -190,10 +190,11 @@ impl AppState {
 		if row.checked_at > fresh.checked_at {
 			return false;
 		}
-		let ahead =
-			|s: &Option<repose_core::model::StatusSummary>| s.as_ref().and_then(|s| s.ahead);
+		let tracking = |s: &Option<repose_core::model::StatusSummary>| {
+			s.as_ref().map(|s| (s.upstream.clone(), s.ahead))
+		};
 		let head_changed = fresh.short_hash.is_some() && fresh.short_hash != row.short_hash
-			|| ahead(&fresh.status) != ahead(&row.status);
+			|| tracking(&fresh.status) != tracking(&row.status);
 		row.branch = fresh.branch;
 		row.short_hash = fresh.short_hash.or(row.short_hash.take());
 		row.status = fresh.status;
@@ -234,7 +235,7 @@ impl AppState {
 		}
 		self.refresh_repo(&outcome.repo.clone(), ctx);
 		self.writes.running.remove(&outcome.repo);
-		self.writes.last = Some(outcome);
+		self.writes.last.insert(outcome.repo.clone(), outcome);
 		self.start_next_write(ctx);
 	}
 

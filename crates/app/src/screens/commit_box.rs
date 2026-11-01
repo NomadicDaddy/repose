@@ -48,9 +48,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 			state.request_write(repo.path.clone(), WriteKind::Commit(message), &ctx);
 		}
 	});
-	if let Some(last) = &state.writes.last
-		&& last.repo == repo.path
-	{
+	if let Some(last) = state.writes.last.get(&repo.path) {
 		match &last.error {
 			Some(error) => {
 				let what = match &last.kind {

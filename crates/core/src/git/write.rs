@@ -32,18 +32,46 @@ enum Head {
 }
 
 /// Three answers, never two: `rev-parse --verify --quiet HEAD` exits 0 when HEAD resolves and 1
-/// with nothing on stderr when there is no commit yet. Anything else (a timeout, lost output, a
-/// repository git cannot read) is an error and no write may be chosen from it. Morticia M-1 on
-/// 51bc93d: a bool here sent `rm --cached -r .` at a committed repository after a timeout.
+/// with nothing on stderr when it does not. Anything else (a timeout, lost output, a repository
+/// git cannot read) is an error and no write may be chosen from it. Morticia M-1 on 51bc93d: a
+/// bool here sent `rm --cached -r .` at a committed repository after a timeout. Exit 1 alone is
+/// still two cases (Morticia L-5 on cba0c7a): a branch with no commits, or a branch whose ref
+/// file is corrupt. Unborn is claimed only when the ref file HEAD names does not exist.
 fn head_state(repo: &Path) -> Result<Head, GitError> {
 	match run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"]) {
 		Ok(_) => Ok(Head::Present),
 		Err(GitError::Failed {
 			code: Some(1),
 			ref stderr_tail,
-		}) if stderr_tail.trim().is_empty() => Ok(Head::Unborn),
+		}) if stderr_tail.trim().is_empty() => confirm_unborn(repo),
 		Err(e) => Err(e),
 	}
+}
+
+fn confirm_unborn(repo: &Path) -> Result<Head, GitError> {
+	// On a corrupt branch ref git refuses HEAD here ("No such ref: HEAD", exit 128); that refusal
+	// is the answer, said in the user's terms.
+	let out = match run(repo, Verb::SymbolicRef, &["HEAD"]) {
+		Ok(out) => out,
+		Err(GitError::Failed { .. }) => return Err(GitError::UnreadableRef("HEAD".to_string())),
+		Err(e) => return Err(e),
+	};
+	let branch_ref = String::from_utf8_lossy(&out).trim().to_string();
+	if branch_ref.is_empty() {
+		return Err(GitError::UnreadableRef("HEAD".to_string()));
+	}
+	let out = run(repo, Verb::RevParse, &["--git-path", &branch_ref])?;
+	let rel = String::from_utf8_lossy(&out).trim().to_string();
+	let file = PathBuf::from(&rel);
+	let file = if file.is_absolute() {
+		file
+	} else {
+		repo.join(file)
+	};
+	if file.exists() {
+		return Err(GitError::UnreadableRef(branch_ref));
+	}
+	Ok(Head::Unborn)
 }
 
 pub fn unstage(repo: &Path, paths: &[String]) -> Result<(), GitError> {

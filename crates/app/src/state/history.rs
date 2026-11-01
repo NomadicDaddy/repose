@@ -14,6 +14,9 @@ use super::{AppState, Msg, find};
 
 #[derive(Default)]
 pub struct HistoryState {
+	/// Bumped by every re-read from page 0; a page carrying an older value is dropped, so a late
+	/// result from before a refresh can neither replace the fresh page nor append to it.
+	pub generation: u64,
 	pub commits: Vec<Commit>,
 	/// Hashes on HEAD and not on the upstream; empty without an upstream.
 	pub outgoing: HashSet<String>,
@@ -33,6 +36,7 @@ pub struct PageResult {
 pub enum HistoryMsg {
 	Page {
 		repo: PathBuf,
+		generation: u64,
 		skip: usize,
 		result: Result<PageResult, String>,
 	},
@@ -69,33 +73,42 @@ impl AppState {
 		let Some(h) = self.history.get_mut(repo) else {
 			return;
 		};
+		h.generation += 1;
 		h.exhausted = false;
 		h.loading = false;
 		self.load_history_page(repo, 0, ctx);
 	}
 
+	/// The upstream to diff against, only when status could count against it: an upstream whose
+	/// ref is gone has a name but no ahead/behind, and `<upstream>..HEAD` would fail the page.
 	fn upstream_of(&self, repo: &Path) -> Option<String> {
 		find(&self.repos, repo)
 			.and_then(|r| r.status.as_ref())
+			.filter(|s| s.ahead.is_some())
 			.and_then(|s| s.upstream.clone())
 	}
 
 	fn load_history_page(&mut self, repo: &Path, skip: usize, ctx: &egui::Context) {
-		if let Some(h) = self.history.get_mut(repo) {
-			if h.loading || h.exhausted {
-				return;
-			}
-			h.loading = true;
+		let Some(h) = self.history.get_mut(repo) else {
+			return;
+		};
+		if h.loading || h.exhausted {
+			return;
 		}
+		h.loading = true;
+		let generation = h.generation;
 		let upstream = if skip == 0 {
 			self.upstream_of(repo)
 		} else {
 			None
 		};
 		spawn_page(
-			repo.to_path_buf(),
-			skip,
-			upstream,
+			PageRequest {
+				repo: repo.to_path_buf(),
+				generation,
+				skip,
+				upstream,
+			},
 			self.tx.clone(),
 			ctx.clone(),
 		);
@@ -123,10 +136,18 @@ impl AppState {
 
 	pub(super) fn merge_history(&mut self, msg: HistoryMsg) {
 		match msg {
-			HistoryMsg::Page { repo, skip, result } => {
+			HistoryMsg::Page {
+				repo,
+				generation,
+				skip,
+				result,
+			} => {
 				let Some(h) = self.history.get_mut(&repo) else {
 					return;
 				};
+				if generation != h.generation {
+					return;
+				}
 				h.loading = false;
 				match result {
 					Ok(page) => {
@@ -159,24 +180,37 @@ impl AppState {
 	}
 }
 
-fn spawn_page(
+struct PageRequest {
 	repo: PathBuf,
+	generation: u64,
 	skip: usize,
 	upstream: Option<String>,
-	tx: Sender<Msg>,
-	ctx: egui::Context,
-) {
+}
+
+fn spawn_page(req: PageRequest, tx: Sender<Msg>, ctx: egui::Context) {
 	std::thread::spawn(move || {
+		let PageRequest {
+			repo,
+			generation,
+			skip,
+			upstream,
+		} = req;
 		let result = read_log(&repo, skip)
-			.and_then(|commits| {
+			.map(|commits| {
+				// The outgoing set is extra; a failure to read it leaves the page standing.
 				let outgoing = match (skip, &upstream) {
-					(0, Some(u)) => Some(read_outgoing(&repo, u)?),
+					(0, Some(u)) => read_outgoing(&repo, u).ok(),
 					_ => None,
 				};
-				Ok(PageResult { commits, outgoing })
+				PageResult { commits, outgoing }
 			})
 			.map_err(|e| e.to_string());
-		let _ = tx.send(Msg::History(HistoryMsg::Page { repo, skip, result }));
+		let _ = tx.send(Msg::History(HistoryMsg::Page {
+			repo,
+			generation,
+			skip,
+			result,
+		}));
 		ctx.request_repaint();
 	});
 }

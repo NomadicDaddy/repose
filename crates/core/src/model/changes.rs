@@ -66,7 +66,7 @@ impl FileChange {
 		match self.kind {
 			ChangeKind::Untracked => DiscardPlan::Remove,
 			ChangeKind::IntentToAdd => DiscardPlan::Refused(
-				"Added with intent (git add -N): nothing is committed to restore. Unstage it first, then discard the untracked file.",
+				"Added with intent (git add -N): nothing is committed to restore. Stage it, unstage it, then discard the untracked file.",
 			),
 			_ => DiscardPlan::Restore,
 		}

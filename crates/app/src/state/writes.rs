@@ -55,7 +55,9 @@ pub struct WriteOutcome {
 pub struct WriteQueue {
 	pub running: HashMap<PathBuf, WriteRequest>,
 	pub waiting: VecDeque<WriteRequest>,
-	pub last: Option<WriteOutcome>,
+	/// The last outcome per repository, so one repository's failure is not hidden by another's
+	/// success now that writes run in parallel across repositories.
+	pub last: HashMap<PathBuf, WriteOutcome>,
 }
 
 impl WriteQueue {

@@ -22,11 +22,13 @@ pub enum Verb {
 	Commit,
 	/// `git rm --cached`: the only way to unstage on a repository with no commit yet.
 	RmCached,
+	/// `git symbolic-ref`: which branch HEAD names, to tell an unborn branch from a broken one.
+	SymbolicRef,
 	RemoteGetUrl,
 }
 
 impl Verb {
-	pub const ALL: [Verb; 13] = [
+	pub const ALL: [Verb; 14] = [
 		Verb::Status,
 		Verb::RevParse,
 		Verb::Log,
@@ -39,6 +41,7 @@ impl Verb {
 		Verb::Clean,
 		Verb::Commit,
 		Verb::RmCached,
+		Verb::SymbolicRef,
 		Verb::RemoteGetUrl,
 	];
 
@@ -58,6 +61,7 @@ impl Verb {
 			// --force with --cached removes only the index entry; the working file is never
 			// touched, and without it an edited staged file blocks the whole group.
 			Verb::RmCached => &["rm", "--cached", "--force", "--quiet"],
+			Verb::SymbolicRef => &["symbolic-ref", "--quiet"],
 			Verb::RemoteGetUrl => &["remote", "get-url"],
 		}
 	}
@@ -89,11 +93,18 @@ pub enum GitError {
 	/// git reported success but the paths it was asked to remove are still there, as `git clean`
 	/// does for a nested repository. Success must not be claimed for them.
 	StillPresent(Vec<String>),
+	/// HEAD names a branch whose ref file exists but does not resolve: a truncated or corrupt
+	/// ref, not a branch with no commits yet. No write may treat it as unborn.
+	UnreadableRef(String),
 }
 
 impl std::fmt::Display for GitError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Self::UnreadableRef(r) => write!(
+				f,
+				"HEAD points at {r}, which exists but does not resolve to a commit; the ref file may be truncated. Nothing was changed."
+			),
 			Self::StillPresent(paths) => write!(
 				f,
 				"git clean left {} in place (a nested repository is not removed): {}",
