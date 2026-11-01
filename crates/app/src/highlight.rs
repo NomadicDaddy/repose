@@ -1,8 +1,9 @@
-//! Syntax colour for diff lines: syntect with the fancy-regex engine and two-face's extra
-//! syntaxes (TypeScript, TOML and more; two-face 0.4.5 has no PowerShell, so .ps1 draws plain
-//! until a syntax is vendored), a dark base16 theme, chosen by file extension. An unknown
-//! extension gets no spans and draws as plain text. Computed on the reader thread alongside the
-//! rows, never while drawing; lines over MAX_COLOUR_BYTES are left plain.
+//! Syntax colour for diff and file lines: syntect with the fancy-regex engine, two-face's extra
+//! syntaxes (TypeScript, TOML and more) plus the vendored PowerShell grammar under
+//! `crates/app/syntaxes/PowerShell` (two-face 0.4.5 has none; see SOURCE.md there), a dark base16
+//! theme, chosen by file extension. An unknown extension gets no spans and draws as plain text.
+//! Computed on the reader thread alongside the rows, never while drawing; lines over
+//! MAX_COLOUR_BYTES are left plain.
 
 use std::ops::Range;
 use std::sync::OnceLock;
@@ -10,7 +11,7 @@ use std::sync::OnceLock;
 use eframe::egui::Color32;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Theme;
-use syntect::parsing::{SyntaxReference, SyntaxSet};
+use syntect::parsing::{SyntaxDefinition, SyntaxReference, SyntaxSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Span {
@@ -23,14 +24,32 @@ struct Engine {
 	theme: Theme,
 }
 
+/// The MIT grammar from SublimeText/PowerShell; provenance and the one local edit in SOURCE.md.
+const POWERSHELL_SYNTAX: &str = include_str!("../syntaxes/PowerShell/PowerShell.sublime-syntax");
+
 fn engine() -> &'static Engine {
 	static ENGINE: OnceLock<Engine> = OnceLock::new();
 	ENGINE.get_or_init(|| Engine {
-		syntaxes: two_face::syntax::extra_newlines(),
+		syntaxes: syntaxes(),
 		theme: two_face::theme::extra()
 			.get(two_face::theme::EmbeddedThemeName::Base16OceanDark)
 			.clone(),
 	})
+}
+
+/// two-face's set with PowerShell added and the references linked again. The grammar is a file
+/// in this repository, so a failure to parse it is a build-time mistake, not a user's; the test
+/// below asserts it loads, and at run time the colouring falls back to two-face's set alone.
+fn syntaxes() -> SyntaxSet {
+	let base = two_face::syntax::extra_newlines();
+	match SyntaxDefinition::load_from_str(POWERSHELL_SYNTAX, true, None) {
+		Ok(powershell) => {
+			let mut builder = base.into_builder();
+			builder.add(powershell);
+			builder.build()
+		}
+		Err(_) => base,
+	}
 }
 
 /// The syntax for a path, by its extension, with the names syntect uses for the few that do not
@@ -127,10 +146,6 @@ mod tests {
 				"{path} gets spans"
 			);
 		}
-		// two-face 0.4.5 ships no PowerShell syntax; a .ps1 draws as plain text until one is
-		// added (diff-viewer record, clause 5). This assertion is the reminder.
-		assert!(syntax_for("scripts/qc.ps1").is_none());
-		assert!(colour_lines("scripts/qc.ps1", &["param([string] $Exe)"])[0].is_empty());
 		let toml = colour_lines("Cargo.toml", &["[package]", "name = \"repose\""]);
 		assert!(
 			!toml[0].is_empty() || !toml[1].is_empty(),
@@ -144,6 +159,52 @@ mod tests {
 		);
 		let bare = colour_lines("LICENSE", &["text"]);
 		assert!(bare[0].is_empty());
+	}
+
+	/// Diff-viewer clause 5, Phillip #30926: the vendored grammar loads, the three PowerShell
+	/// extensions colour, a here-string that embeds C# (the one edited reference) still colours
+	/// the lines after it, and building the set stays well under a second.
+	#[test]
+	fn powershell_is_coloured_from_the_vendored_grammar() {
+		let started = std::time::Instant::now();
+		let set = syntaxes();
+		let built = started.elapsed();
+		assert!(
+			set.find_syntax_by_name("PowerShell").is_some(),
+			"the vendored grammar did not load"
+		);
+		assert!(
+			built < std::time::Duration::from_secs(3),
+			"set built in {built:?}"
+		);
+		for path in ["scripts/qc.ps1", "Module.psm1", "Manifest.psd1"] {
+			assert_eq!(
+				syntax_for(path).map(|s| s.name.as_str()),
+				Some("PowerShell"),
+				"{path}"
+			);
+			let out = colour_lines(
+				path,
+				&["param([string] $Exe)", "# note", "Write-Host \"hi $Exe\""],
+			);
+			assert!(out.iter().all(|l| !l.is_empty()), "{path}: {out:?}");
+		}
+		let embedded = colour_lines(
+			"a.ps1",
+			&[
+				"$src = @\"",
+				"using System;",
+				"public static class W { public static int F() { return 1; } }",
+				"\"@",
+				"Add-Type -TypeDefinition $src",
+				"$x = 1",
+			],
+		);
+		assert_eq!(embedded.len(), 6);
+		assert!(
+			!embedded[5].is_empty(),
+			"colouring resumes after the here-string"
+		);
 	}
 
 	/// Morticia M-1 on e8e10ad: without the newline the `#` comment never closed and the next
