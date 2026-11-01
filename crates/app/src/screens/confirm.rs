@@ -11,52 +11,60 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 	};
 	let total = pending.tracked.len() + pending.untracked.len();
 	let mut decision: Option<bool> = None;
-	egui::Window::new("Discard changes?")
-		.collapsible(false)
-		.resizable(false)
-		.anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-		.show(ctx, |ui| {
-			ui.label(
-				RichText::new(format!(
-					"This cannot be undone. {} {} in {}:",
-					total,
-					if total == 1 { "path" } else { "paths" },
-					pending.repo.display()
-				))
-				.color(TEXT),
-			);
-			ui.add_space(6.0);
-			egui::ScrollArea::vertical()
-				.max_height(260.0)
-				.show(ui, |ui| {
-					for p in &pending.tracked {
-						ui.label(
-							RichText::new(format!("restore  {p}"))
-								.family(egui::FontFamily::Monospace)
-								.size(TEXT_SMALL),
-						);
-					}
-					for p in &pending.untracked {
-						ui.label(
-							RichText::new(format!("remove   {p}"))
-								.family(egui::FontFamily::Monospace)
-								.size(TEXT_SMALL)
-								.color(DANGER),
-						);
-					}
-				});
-			ui.add_space(10.0);
-			ui.horizontal(|ui| {
-				if ui.button("Cancel").clicked() {
-					decision = Some(false);
+	// A modal, so nothing behind it takes a click or a key while the question stands; Escape or
+	// a click on the backdrop is Cancel (stage-and-commit: the confirm window was not modal).
+	let modal = egui::Modal::new(egui::Id::unique("discard-confirm")).show(ctx, |ui| {
+		ui.set_max_width(640.0);
+		ui.label(
+			RichText::new("Discard changes?")
+				.size(TEXT_TITLE)
+				.color(TEXT_BRIGHT)
+				.strong(),
+		);
+		ui.add_space(6.0);
+		ui.label(
+			RichText::new(format!(
+				"This cannot be undone. {} {} in {}:",
+				total,
+				if total == 1 { "path" } else { "paths" },
+				pending.repo.display()
+			))
+			.color(TEXT),
+		);
+		ui.add_space(6.0);
+		egui::ScrollArea::vertical()
+			.max_height(260.0)
+			.show(ui, |ui| {
+				for p in &pending.tracked {
+					ui.label(
+						RichText::new(format!("restore  {p}"))
+							.family(egui::FontFamily::Monospace)
+							.size(TEXT_SMALL),
+					);
 				}
-				let discard =
-					egui::Button::new(RichText::new("Discard").color(BG_APP)).fill(DANGER);
-				if ui.add(discard).clicked() {
-					decision = Some(true);
+				for p in &pending.untracked {
+					ui.label(
+						RichText::new(format!("remove   {p}"))
+							.family(egui::FontFamily::Monospace)
+							.size(TEXT_SMALL)
+							.color(DANGER),
+					);
 				}
 			});
+		ui.add_space(10.0);
+		ui.horizontal(|ui| {
+			if ui.button("Cancel").clicked() {
+				decision = Some(false);
+			}
+			let discard = egui::Button::new(RichText::new("Discard").color(BG_APP)).fill(DANGER);
+			if ui.add(discard).clicked() {
+				decision = Some(true);
+			}
 		});
+	});
+	if decision.is_none() && modal.should_close() {
+		decision = Some(false);
+	}
 	match decision {
 		Some(true) => {
 			state.pending_discard = None;
