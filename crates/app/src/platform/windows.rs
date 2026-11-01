@@ -23,7 +23,9 @@ pub fn utc_offset_minutes() -> i32 {
 	use std::sync::OnceLock;
 	static OFFSET: OnceLock<i32> = OnceLock::new();
 	*OFFSET.get_or_init(|| {
-		let out = Command::new("w32tm").arg("/tz").output().ok();
+		let mut cmd = Command::new("w32tm");
+		repose_core::git::commands::hide_console(&mut cmd);
+		let out = cmd.arg("/tz").output().ok();
 		let text = out
 			.map(|o| String::from_utf8_lossy(&o.stdout).to_string())
 			.unwrap_or_default();

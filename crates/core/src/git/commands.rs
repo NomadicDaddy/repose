@@ -134,10 +134,24 @@ impl Drop for Permit {
 	}
 }
 
+/// A windowed app has no console, so without this flag every child `git.exe` opens its own
+/// terminal window. CREATE_NO_WINDOW keeps the children invisible; pipes still work.
+#[cfg(windows)]
+pub fn hide_console(cmd: &mut Command) {
+	use std::os::windows::process::CommandExt;
+	const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+	cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+pub fn hide_console(_cmd: &mut Command) {}
+
 /// Builds the command every spawn shares: literal pathspecs always; no optional locks and no
-/// fsmonitor program on reads; stdin closed; the repository as working directory.
+/// fsmonitor program on reads; stdin closed; no console window; the repository as working
+/// directory.
 pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 	let mut cmd = Command::new("git");
+	hide_console(&mut cmd);
 	cmd.current_dir(repo)
 		.env("GIT_TERMINAL_PROMPT", "0")
 		.env("GIT_LITERAL_PATHSPECS", "1")
