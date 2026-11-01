@@ -156,6 +156,10 @@ fn refresh_preserves_selection() {
 		"the longer diff is shown"
 	);
 	assert_eq!(d.raw_hash, Some(2));
+	assert!(
+		d.rows.first().is_some_and(|r| r.len() >= 240),
+		"its rows were replaced by the longer layout"
+	);
 	assert_eq!(
 		offset(&ctx, repo_list::scroll_key()),
 		list_before,

@@ -159,13 +159,25 @@ fn main() -> eframe::Result {
 		.position(|a| a == "--open")
 		.and_then(|i| args.get(i + 1))
 		.cloned();
-	// A zoom factor like Windows scaling: 1.25 and 1.5 are what the theme record measures at.
-	let scale = args
-		.iter()
-		.position(|a| a == "--scale")
-		.and_then(|i| args.get(i + 1))
-		.and_then(|s| s.parse::<f32>().ok())
-		.filter(|s| (0.5..=4.0).contains(s));
+	// A zoom factor multiplied into the desktop's own scaling. A value that is not a number
+	// between 0.5 and 4 is refused out loud rather than run at normal zoom without a word
+	// (Morticia Info on 4b39403).
+	let scale = args.iter().position(|a| a == "--scale").map(|i| {
+		args.get(i + 1)
+			.and_then(|s| s.parse::<f32>().ok())
+			.filter(|s| (0.5..=4.0).contains(s))
+			.ok_or_else(|| args.get(i + 1).cloned().unwrap_or_default())
+	});
+	let scale = match scale {
+		None => None,
+		Some(Ok(s)) => Some(s),
+		Some(Err(given)) => {
+			let message = format!("--scale needs a number between 0.5 and 4, not {given:?}");
+			eprintln!("repose: {message}");
+			let _ = error_window(message);
+			std::process::exit(2);
+		}
+	};
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
