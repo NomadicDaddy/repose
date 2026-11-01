@@ -64,15 +64,23 @@ impl AppState {
 		let mut landed = true;
 		if let Some(wanted) = self.requested_selection.take() {
 			let key = |p: &Path| p.to_string_lossy().to_lowercase().replace('\\', "/");
-			let hit = self
-				.repos
-				.iter()
-				.flat_map(|r| std::iter::once(r).chain(r.worktrees.iter()))
-				.find(|r| key(&r.path) == key(&wanted))
-				.map(|r| r.path.clone());
+			let hit = self.repos.iter().find_map(|r| {
+				if key(&r.path) == key(&wanted) {
+					return Some((r.path.clone(), None));
+				}
+				r.worktrees
+					.iter()
+					.find(|w| key(&w.path) == key(&wanted))
+					.map(|w| (w.path.clone(), Some(r.path.clone())))
+			});
 			landed = hit.is_some();
-			if landed {
-				self.selected = hit;
+			if let Some((path, parent)) = hit {
+				// A linked worktree's row is drawn only under an expanded parent, so a start
+				// from inside one opens the parent too (Morticia Low on dd01d61).
+				if let Some(parent) = parent {
+					self.expanded.insert(parent);
+				}
+				self.selected = Some(path);
 				self.reveal_selected = true;
 			}
 		}
@@ -163,6 +171,30 @@ mod tests {
 
 	fn repo(name: &str) -> RepoSummary {
 		RepoSummary::new(PathBuf::from(format!("D:/t/{name}")), RepoKind::Repository)
+	}
+
+	/// Morticia Low on dd01d61: a start from inside a linked worktree selects a row that is drawn
+	/// only under an expanded parent, so landing there opens the parent and asks to be shown.
+	#[test]
+	fn a_requested_worktree_expands_its_parent_when_it_lands() {
+		let mut state = AppState::new(Config::default());
+		let mut main = repo("a");
+		main.worktrees.push(RepoSummary::new(
+			PathBuf::from("D:/t/a-wt"),
+			RepoKind::Worktree,
+		));
+		state.requested_selection = Some(PathBuf::from("d:\\t\\A-WT"));
+		assert!(state.merge_discovered(vec![main, repo("b")]));
+		assert_eq!(state.selected, Some(PathBuf::from("D:/t/a-wt")));
+		assert!(
+			state.expanded.contains(&PathBuf::from("D:/t/a")),
+			"the parent is open"
+		);
+		assert!(state.reveal_selected);
+		assert!(
+			state.visible_paths().contains(&PathBuf::from("D:/t/a-wt")),
+			"the worktree row is drawn"
+		);
 	}
 
 	/// Roger on e176de4: with A selected and its file open, a discovery that no longer lists A
