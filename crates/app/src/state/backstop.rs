@@ -39,7 +39,9 @@ impl AppState {
 		self.backstop_at = Some(Instant::now());
 		self.checked_at = Some(std::time::SystemTime::now());
 		self.utc_offset = offset;
-		self.watching.caught_up = self.watching.overflow_pass;
+		// Not claimed while a later lost-events report is still waiting for its pass (Roger 5Q-2
+		// on 740b7fd); that pass claims it when it completes.
+		self.watching.caught_up = self.watching.overflow_pass && !self.watching.full_pending;
 		self.watching.overflow_pass = false;
 		self.start_full_reread_if_due(ctx);
 	}

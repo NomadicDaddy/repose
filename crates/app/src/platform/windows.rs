@@ -241,8 +241,11 @@ mod tests {
 	fn shell_here_opens_a_pwsh_that_stays() {
 		// The marker is in the shell's own command line, so only the shell this test started is
 		// found and closed; no other pwsh is touched. An apostrophe in both the folder and the
-		// title exercises the two levels of quoting (Roger #30994): a broken quote would stop
-		// Start-Process or the shell, and neither would be found.
+		// title runs the two levels of quoting through Start-Process (Roger #30994). What a pass
+		// shows: Start-Process accepted both arguments, a shell with the marker stayed open, and
+		// the folder could be removed after it was closed. What it does not show: the title text
+		// in the window (a -NoExit shell survives a failed -Command; Morticia's separate run read
+		// five titles back intact through the same doubling) or the window in the foreground.
 		let stem = format!("repose-shell-test-{}", std::process::id());
 		let dir = std::env::temp_dir().join(format!("{stem}'s"));
 		std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("dir: {e}"));
@@ -255,7 +258,16 @@ mod tests {
 				.args(["/PID", &pid.to_string(), "/F"])
 				.output();
 		}
-		let _ = std::fs::remove_dir(&dir);
+		// The shell held the folder as its working directory; once it is gone the folder goes.
+		let mut removed = false;
+		for _ in 0..20 {
+			if std::fs::remove_dir(&dir).is_ok() || !dir.exists() {
+				removed = true;
+				break;
+			}
+			std::thread::sleep(std::time::Duration::from_millis(250));
+		}
+		assert!(removed, "the test folder {} was not removed", dir.display());
 		assert!(
 			!found.is_empty(),
 			"no pwsh titled {stem}'s was running three seconds after Start-Process"

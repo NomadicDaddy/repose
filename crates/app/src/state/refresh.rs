@@ -182,9 +182,10 @@ mod tests {
 			.unwrap_or_else(|e| panic!("{e}"));
 		state.pump_watch(&ctx);
 		assert!(state.watching.full_pending);
-		// That pass completes: Watcher caught up shows, and the second report waits for quiet.
+		// That pass completes: the second report still waits for quiet, so Watcher caught up is
+		// not claimed yet (Roger 5Q-2 on 740b7fd); the pass that answers it will claim it.
 		state.pass_done(None, &ctx);
-		assert!(state.watching.caught_up);
+		assert!(!state.watching.caught_up);
 		assert!(!state.watching.overflow_pass);
 		assert!(
 			state.watching.full_pending,

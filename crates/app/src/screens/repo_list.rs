@@ -85,7 +85,7 @@ fn status_line(state: &AppState, count: usize) -> String {
 		.as_deref()
 		.map(|n| format!(" · {n}"))
 		.unwrap_or_default();
-	if state.watching.caught_up {
+	if state.watching.caught_up && !state.watching.full_pending {
 		note.push_str(" · Watcher caught up");
 	}
 	if state.scanning {

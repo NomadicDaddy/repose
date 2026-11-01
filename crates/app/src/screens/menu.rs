@@ -205,7 +205,15 @@ pub(super) fn perform(
 			std::thread::spawn(move || {
 				let platform = crate::platform::current();
 				if let Err(e) = platform.open_terminal(&command, &dir) {
-					let _ = tx.send(crate::state::Msg::Notice(e));
+					// The notice lands later, under whichever repository is selected by then, so
+					// it names the folder it was for (Roger 5Q-3 on 740b7fd).
+					let name = dir
+						.file_name()
+						.map(|n| n.to_string_lossy().to_string())
+						.unwrap_or_else(|| dir.display().to_string());
+					let _ = tx.send(crate::state::Msg::Notice(format!(
+						"Terminal in {name}: {e}"
+					)));
 					wake.request_repaint();
 				}
 			});
