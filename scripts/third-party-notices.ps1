@@ -1,25 +1,36 @@
-# Writes THIRD-PARTY-NOTICES.md at the repository root: every Rust crate compiled into the
-# release executable for this host (normal dependencies reached from the repose binary, build-only
-# and dev-only crates left out), with its licence expression and repository, and every vendored
-# file with its licence text. Run after a dependency change; the gate's release listing shows the
-# file beside the executable. Usage: pwsh scripts/third-party-notices.ps1 [-Check]
+# Writes THIRD-PARTY-NOTICES.md at the repository root: every Rust crate linked into the release
+# executable for this host (normal dependencies reached from the repose binary without passing
+# through a proc-macro crate; build-only, dev-only and proc-macro crates are compile-time inputs,
+# not shipped code), with its licence expression, repository and the licence texts from its own
+# package, each distinct text printed once; and every vendored file with its licence text. A crate
+# whose package carries no licence file fails the run. qc.ps1 runs -Check and copies the file
+# beside the executable. Usage: pwsh scripts/third-party-notices.ps1 [-Check]
 param(
-    # Exit 1 instead of writing when the file on disk differs from what would be written.
+    # Exit 1 instead of writing when the file on disk differs, byte for byte, from what would be written.
     [switch] $Check
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$host_triple = ((rustc -vV | Select-String '^host: (.+)$').Matches[0].Groups[1].Value).Trim()
-$meta = cargo metadata --format-version 1 --filter-platform $host_triple | ConvertFrom-Json
+$hostLine = rustc -vV | Select-String '^host: (.+)$'
+if ($LASTEXITCODE -ne 0 -or -not $hostLine) { Write-Host 'FAILED: rustc -vV'; exit 1 }
+$hostTriple = $hostLine.Matches[0].Groups[1].Value.Trim()
+$metaJson = cargo metadata --format-version 1 --locked --filter-platform $hostTriple
+if ($LASTEXITCODE -ne 0) { Write-Host 'FAILED: cargo metadata --locked'; exit 1 }
+$meta = $metaJson | ConvertFrom-Json
 $byId = @{}
 foreach ($p in $meta.packages) { $byId[$p.id] = $p }
 $nodes = @{}
 foreach ($n in $meta.resolve.nodes) { $nodes[$n.id] = $n }
 $rootId = ($meta.packages | Where-Object { $_.name -eq 'repose' }).id
 
-# Walk normal dependencies only: a build or dev dependency is not in the executable.
+function Is-ProcMacro($pkg) {
+    foreach ($t in $pkg.targets) { if ($t.kind -contains 'proc-macro') { return $true } }
+    return $false
+}
+
+# Walk normal dependencies from the binary, never through a proc-macro crate.
 $seen = @{}
 $queue = New-Object System.Collections.Generic.Queue[string]
 $queue.Enqueue($rootId)
@@ -27,6 +38,7 @@ while ($queue.Count -gt 0) {
     $id = $queue.Dequeue()
     if ($seen.ContainsKey($id)) { continue }
     $seen[$id] = $true
+    if (Is-ProcMacro $byId[$id]) { continue }
     foreach ($d in $nodes[$id].deps) {
         $normal = $false
         foreach ($k in $d.dep_kinds) { if ($null -eq $k.kind) { $normal = $true } }
@@ -35,27 +47,79 @@ while ($queue.Count -gt 0) {
 }
 $workspace = @($meta.workspace_members)
 $crates = $seen.Keys |
-    Where-Object { $workspace -notcontains $_ } |
+    Where-Object { $workspace -notcontains $_ -and -not (Is-ProcMacro $byId[$_]) } |
     ForEach-Object { $byId[$_] } |
     Sort-Object name, version
+
+# Crates whose packages carry no licence file: the texts come from licenses/<folder>, fetched
+# from their repositories (licenses/SOURCE.md says where and when).
+$fetched = @{
+    'ecolor' = 'egui'; 'eframe' = 'egui'; 'egui' = 'egui'; 'egui_glow' = 'egui'
+    'egui_system_font_provider' = 'egui'; 'egui-wgpu' = 'egui'; 'egui-winit' = 'egui'
+    'emath' = 'egui'; 'epaint' = 'egui'; 'epaint_default_fonts' = 'egui'
+    'accesskit' = 'accesskit'; 'accesskit_consumer' = 'accesskit'
+    'accesskit_windows' = 'accesskit'; 'accesskit_winit' = 'accesskit'
+    'clipboard-win' = 'clipboard-win'; 'profiling' = 'profiling'; 'spirv' = 'rspirv'
+}
+$licencePattern = '^(LICEN[CS]E|COPYING|NOTICE|UNLICENSE|OFL|UFL)'
+
+# Licence texts, each distinct text once, remembering which crate files carry it. A package is
+# searched two folders deep, since font licences sit beside the fonts.
+$texts = [ordered]@{}
+$missing = New-Object System.Collections.Generic.List[string]
+$filesOf = @{}
+foreach ($c in $crates) {
+    $dir = Split-Path -Parent $c.manifest_path
+    $files = @(Get-ChildItem -Path $dir -File -Recurse -Depth 2 |
+        Where-Object { $_.Name -match $licencePattern } |
+        Sort-Object FullName)
+    $origin = 'package'
+    if ($fetched.ContainsKey($c.name)) {
+        $extra = @(Get-ChildItem -Path (Join-Path $root "licenses/$($fetched[$c.name])") -File | Sort-Object Name)
+        $files = @($files) + $extra
+        $origin = "package and licenses/$($fetched[$c.name])"
+    }
+    if ($files.Count -eq 0) { $missing.Add("$($c.name) $($c.version)"); continue }
+    $names = New-Object System.Collections.Generic.List[string]
+    foreach ($f in $files) {
+        $bytes = [System.IO.File]::ReadAllBytes($f.FullName)
+        $hash = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::HashData($bytes)).Replace('-', '').Substring(0, 16)
+        if (-not $texts.Contains($hash)) {
+            $texts[$hash] = @{ text = [System.Text.Encoding]::UTF8.GetString($bytes); users = New-Object System.Collections.Generic.List[string] }
+        }
+        $shown = if ($f.FullName.StartsWith($dir)) { $f.FullName.Substring($dir.Length + 1).Replace('\', '/') } else { "licenses/$($fetched[$c.name])/$($f.Name)" }
+        $texts[$hash].users.Add("$($c.name) $($c.version): $shown")
+        $names.Add("$shown ($hash)")
+    }
+    $filesOf[$c.id] = $names -join ', '
+}
+if ($missing.Count -gt 0) {
+    Write-Host "FAILED: no licence file in the package or under licenses/ for: $($missing -join ', ')"
+    exit 1
+}
 
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add('# Third-party notices')
 $lines.Add('')
-$lines.Add('repose is MIT. It ships one executable that compiles in the Rust crates below and the')
-$lines.Add('vendored files after them. Each crate is under the licence its authors chose, named here as')
-$lines.Add('its SPDX expression from the crate metadata; the licence texts are in the crates'' own')
-$lines.Add('source packages on crates.io. Generated by scripts/third-party-notices.ps1 from')
-$lines.Add("``cargo metadata`` for $host_triple; run it after a dependency change.")
+$lines.Add('repose is MIT. It ships one executable that links the Rust crates below and compiles in the')
+$lines.Add('vendored files after them. Each crate is under the licence its authors chose, given as its')
+$lines.Add('SPDX expression from the crate metadata, and every licence, copying and notice file found in')
+$lines.Add('its package (or, for a crate that publishes none in its package, fetched from its repository')
+$lines.Add('into licenses/, see licenses/SOURCE.md) is reproduced in the Licence texts section, each')
+$lines.Add('distinct text once. The list is')
+$lines.Add('the closure of normal dependencies from the repose binary, not entered through proc-macro')
+$lines.Add("crates; build-only, dev-only and proc-macro crates are compile-time inputs and are not listed.")
+$lines.Add("Generated by scripts/third-party-notices.ps1 from ``cargo metadata --locked`` for $hostTriple;")
+$lines.Add('run it after a dependency change (the gate fails when this file is stale).')
 $lines.Add('')
 $lines.Add("## Rust crates ($($crates.Count))")
 $lines.Add('')
-$lines.Add('| Crate | Version | Licence | Source |')
-$lines.Add('|---|---|---|---|')
+$lines.Add('| Crate | Version | Licence | Source | Licence files (text id) |')
+$lines.Add('|---|---|---|---|---|')
 foreach ($c in $crates) {
-    $licence = if ($c.license) { $c.license } elseif ($c.license_file) { "see $($c.license_file)" } else { 'not declared' }
+    $licence = if ($c.license) { $c.license } else { 'not declared' }
     $source = if ($c.repository) { $c.repository } else { '' }
-    $lines.Add("| $($c.name) | $($c.version) | $licence | $source |")
+    $lines.Add("| $($c.name) | $($c.version) | $licence | $source | $($filesOf[$c.id]) |")
 }
 $lines.Add('')
 $lines.Add('### Licences in use')
@@ -83,17 +147,32 @@ $lines.Add('editor and terminal it opens (VS Code, Windows Terminal, pwsh) are l
 $lines.Add('Segoe UI and Cascadia are read from the Windows font folder at run time, never copied; the')
 $lines.Add('fallback fonts are those the egui crates above bundle, under the licences listed for them.')
 $lines.Add('')
+$lines.Add("## Licence texts ($($texts.Count) distinct)")
+$lines.Add('')
+$lines.Add('Each text once, headed by the crate files that carry it (text id in the table above).')
+foreach ($hash in $texts.Keys) {
+    $lines.Add('')
+    $lines.Add("### $hash")
+    $lines.Add('')
+    foreach ($u in $texts[$hash].users) { $lines.Add("- $u") }
+    $lines.Add('')
+    $lines.Add('```')
+    foreach ($l in ($texts[$hash].text -split "`r?`n")) { $lines.Add($l) }
+    # A text that ended in a newline split into a trailing empty line; drop it.
+    while ($lines[$lines.Count - 1] -eq '') { $lines.RemoveAt($lines.Count - 1) }
+    $lines.Add('```')
+}
 
 $text = ($lines -join "`n") + "`n"
 $out = Join-Path $root 'THIRD-PARTY-NOTICES.md'
 if ($Check) {
     $current = if (Test-Path $out) { [System.IO.File]::ReadAllText($out) } else { '' }
-    if ($current -ne $text) {
+    if ($current -cne $text) {
         Write-Host 'FAILED: THIRD-PARTY-NOTICES.md is out of date; run scripts/third-party-notices.ps1'
         exit 1
     }
-    Write-Host "THIRD-PARTY-NOTICES.md is current ($($crates.Count) crates)"
+    Write-Host "THIRD-PARTY-NOTICES.md is current ($($crates.Count) crates, $($texts.Count) licence texts)"
     exit 0
 }
 [System.IO.File]::WriteAllText($out, $text, (New-Object System.Text.UTF8Encoding $false))
-Write-Host "wrote $out ($($crates.Count) crates)"
+Write-Host "wrote $out ($($crates.Count) crates, $($texts.Count) licence texts)"

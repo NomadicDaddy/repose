@@ -16,6 +16,16 @@ Step 'cargo fmt --check' { cargo fmt --all -- --check }
 Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
 Step 'cargo test' { cargo test --workspace }
 Step 'cargo build --release' { cargo build --workspace --release }
+# The notices travel beside the executable (quality-gate clause 9), and the release folder is
+# listed so the log shows what a release would carry (clause 5): one executable, no runtimes.
+$release = Join-Path $root 'target\release'
+if (Test-Path (Join-Path $release 'repose.exe')) {
+    Copy-Item (Join-Path $root 'THIRD-PARTY-NOTICES.md') $release -Force
+    Write-Host '== release folder'
+    foreach ($f in (Get-ChildItem -Path $release -File | Sort-Object Name)) {
+        Write-Host ("RELEASE {0} {1}" -f $f.Name, $f.Length)
+    }
+}
 Write-Host '== file length (300 lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
     Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
