@@ -1,6 +1,6 @@
 //! One repository row: name, branch line, badges, and the worktree chevron.
 
-use eframe::egui::{self, Align2, FontFamily, FontId, Rect, Sense, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{self, FontFamily, FontId, Rect, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::RepoSummary;
 
 use crate::theme::*;
@@ -37,24 +37,14 @@ pub fn draw(
 	} else {
 		TEXT_BRIGHT
 	};
-	painter.text(
-		pos2(x, rect.top() + 7.0),
-		Align2::LEFT_TOP,
-		&repo.name,
-		FontId::new(14.0, FontFamily::Monospace),
-		name_color,
-	);
-	painter.text(
-		pos2(x, rect.top() + 26.0),
-		Align2::LEFT_TOP,
-		repo.branch_line(),
-		FontId::new(11.5, FontFamily::Monospace),
-		MUTED,
-	);
+	// Pills and the chevron first, from the right; the name and branch line then take what is
+	// left and are cut with an ellipsis rather than run under the pills or off the panel (seen
+	// on worktree rows with long branch names, 2026-11-01).
 	let mut right = rect.right() - 8.0;
 	for (text, color) in badges(repo) {
 		right = pill(&painter, right, rect.center().y, &text, color) - 6.0;
 	}
+	let mut text_right = right;
 	let mut chevron_clicked = false;
 	if !repo.worktrees.is_empty() {
 		let label = format!(
@@ -72,6 +62,7 @@ pub fn draw(
 		let galley = painter.layout_no_wrap(text, size, INFO);
 		let w = galley.size().x;
 		let pos = pos2(right - w, rect.center().y - galley.size().y / 2.0);
+		text_right = pos.x;
 		let hit = Rect::from_min_size(pos, galley.size()).expand(4.0);
 		painter.galley(pos, galley, INFO);
 		let r = ui.interact(
@@ -81,6 +72,23 @@ pub fn draw(
 		);
 		chevron_clicked = r.clicked();
 	}
+	let width = (text_right - 8.0 - x).max(0.0);
+	let name = fit(
+		&painter,
+		&repo.name,
+		FontId::new(14.0, FontFamily::Monospace),
+		name_color,
+		width,
+	);
+	painter.galley(pos2(x, rect.top() + 7.0), name, name_color);
+	let branch = fit(
+		&painter,
+		&repo.branch_line(),
+		FontId::new(11.5, FontFamily::Monospace),
+		MUTED,
+		width,
+	);
+	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED);
 	let tooltip = tooltip_text(repo);
 	let response = response.on_hover_text(tooltip);
 	RowOut {
@@ -112,6 +120,31 @@ fn badges(repo: &RepoSummary) -> Vec<(String, egui::Color32)> {
 		out.push((changed.to_string(), WARN));
 	}
 	out
+}
+
+/// One line of text laid out to fit `width`: whole when it fits, otherwise cut at a character
+/// boundary with an ellipsis so it never runs under the pills or off the panel.
+fn fit(
+	painter: &egui::Painter,
+	text: &str,
+	font: FontId,
+	color: egui::Color32,
+	width: f32,
+) -> std::sync::Arc<egui::Galley> {
+	let whole = painter.layout_no_wrap(text.to_string(), font.clone(), color);
+	if whole.size().x <= width {
+		return whole;
+	}
+	let mut chars: Vec<char> = text.chars().collect();
+	while !chars.is_empty() {
+		chars.pop();
+		let cut: String = chars.iter().collect::<String>() + "…";
+		let galley = painter.layout_no_wrap(cut, font.clone(), color);
+		if galley.size().x <= width {
+			return galley;
+		}
+	}
+	painter.layout_no_wrap(String::new(), font, color)
 }
 
 /// Draws a small pill ending at `right`; returns its left edge.
