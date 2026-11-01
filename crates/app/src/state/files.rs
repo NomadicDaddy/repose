@@ -66,6 +66,9 @@ pub enum FileContent {
 	Text {
 		lines: Vec<String>,
 		colours: Vec<Vec<Span>>,
+		/// The widest line in columns, a tab counted as four, for the viewer's row width;
+		/// computed once here rather than per frame (Morticia L-5 and Info on f6e3cdc).
+		columns: usize,
 	},
 	Error(String),
 }
@@ -238,7 +241,12 @@ fn spawn_file(open: OpenFile, generation: u64, tx: Sender<Msg>, ctx: egui::Conte
 					let lines: Vec<String> = text.lines().map(str::to_string).collect();
 					let refs: Vec<&str> = lines.iter().map(String::as_str).collect();
 					let colours = colour_lines(&open.path, &refs);
-					FileContent::Text { lines, colours }
+					let columns = lines.iter().map(|l| columns_of(l)).max().unwrap_or(0);
+					FileContent::Text {
+						lines,
+						colours,
+						columns,
+					}
 				}
 			},
 		};
@@ -258,5 +266,22 @@ fn measured_size(open: &OpenFile) -> Result<u64, String> {
 		Ok(Some(n)) => Ok(n),
 		Ok(None) => Err(format!("{} is not in {}.", open.path, open.rev.label())),
 		Err(e) => Err(e.to_string()),
+	}
+}
+
+/// Columns a line takes when drawn: a tab is four, as epaint draws it, anything else one.
+fn columns_of(line: &str) -> usize {
+	line.chars().map(|c| if c == '\t' { 4 } else { 1 }).sum()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::columns_of;
+
+	#[test]
+	fn tabs_count_as_four_columns() {
+		assert_eq!(columns_of("abc"), 3);
+		assert_eq!(columns_of("\t\tfn x() {}"), 8 + 9);
+		assert_eq!(columns_of(""), 0);
 	}
 }

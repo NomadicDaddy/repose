@@ -30,6 +30,17 @@ pub fn read_diff(
 	source: &DiffSource,
 	paths: &[String],
 ) -> Result<Vec<FileDiff>, GitError> {
+	Ok(parse_unified(&read_diff_bytes(repo, source, paths)?))
+}
+
+/// The same diff as git prints it, before parsing, so a caller that re-reads on every status
+/// can tell an unchanged diff from a changed one by its bytes (Morticia M-1 on 9007389: a
+/// second edit to an already-modified file changes the diff and nothing in the status).
+pub fn read_diff_bytes(
+	repo: &Path,
+	source: &DiffSource,
+	paths: &[String],
+) -> Result<Vec<u8>, GitError> {
 	let mut args: Vec<&str> = Vec::new();
 	let verb = match source {
 		DiffSource::Working => Verb::Diff,
@@ -49,8 +60,7 @@ pub fn read_diff(
 	}
 	args.push("--");
 	args.extend(paths.iter().map(String::as_str));
-	let bytes = run(repo, verb, &args)?;
-	Ok(parse_unified(&bytes))
+	run(repo, verb, &args)
 }
 
 /// The size of a blob as the index or a commit holds it, for the too-large check before a diff of

@@ -10,6 +10,10 @@ use crate::platform::Platform;
 use crate::state::{AppState, FileContent, FileRev, FileViewState};
 use crate::theme::*;
 
+/// About 27,000 columns; wider lines clip at the right rather than stretching the scroll
+/// range to where f32 can no longer place a pixel.
+const MAX_ROW_WIDTH: f32 = 200_000.0;
+
 pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	if ui.input(|i| i.key_pressed(Key::Escape)) {
 		state.close_file();
@@ -115,7 +119,11 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 					.family(FontFamily::Monospace),
 			);
 		}
-		FileContent::Text { lines, colours } => {
+		FileContent::Text {
+			lines,
+			colours,
+			columns,
+		} => {
 			if lines.is_empty() {
 				ui.label(RichText::new("Empty file").color(MUTED));
 				return;
@@ -126,12 +134,12 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 					.color(MUTED),
 			);
 			ui.add_space(4.0);
-			// Rows are as wide as the longest line, so a line wider than the pane scrolls
-			// sideways instead of being cut off (Morticia L-2 on e176de4). Width is estimated
-			// from the character count at the monospace size; a line of wide glyphs may still
-			// clip at its very end.
-			let longest = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
-			let needed = GUTTER + 16.0 + longest as f32 * MONO_ADVANCE;
+			// Rows are as wide as the widest line, so a line wider than the pane scrolls
+			// sideways instead of being cut off (Morticia L-2 on e176de4). The width comes from
+			// the column count measured on the reader thread (tabs as four) at the monospace
+			// advance, so a line of wide glyphs may still clip at its very end, and it is capped
+			// so a one-line minified file does not ask for a scroll range beyond f32 precision.
+			let needed = (GUTTER + 16.0 + *columns as f32 * MONO_ADVANCE).min(MAX_ROW_WIDTH);
 			egui::ScrollArea::both()
 				.auto_shrink([false, false])
 				.show_rows(ui, ROW_H, lines.len(), |ui, range| {

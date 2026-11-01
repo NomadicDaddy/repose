@@ -9,8 +9,10 @@ use super::AppState;
 
 /// What a status merge did.
 pub(super) struct Merged {
-	/// The read was accepted and something on the row differs from before: branch, hash,
-	/// counts, file list or error.
+	/// The read was accepted (not older than the row's).
+	pub applied: bool,
+	/// Something on the row differs from before: branch, hash, counts, file list or error. A
+	/// second edit to an already-modified file changes none of these.
 	pub changed: bool,
 	pub head_changed: bool,
 }
@@ -87,6 +89,7 @@ impl AppState {
 	/// upstream or the ahead count changed, which is when a loaded history is stale.
 	pub(super) fn merge_status(&mut self, fresh: RepoSummary) -> Merged {
 		let none = Merged {
+			applied: false,
 			changed: false,
 			head_changed: false,
 		};
@@ -114,6 +117,7 @@ impl AppState {
 		row.error = fresh.error;
 		row.checked_at = fresh.checked_at;
 		Merged {
+			applied: true,
 			changed,
 			head_changed,
 		}
@@ -191,6 +195,7 @@ mod tests {
 			rows: Vec::new(),
 			rows_inline: false,
 			colours: Vec::new(),
+			raw_hash: None,
 		});
 		state.merge_discovered(vec![repo("b")]);
 		assert_eq!(state.selected, Some(repo("b").path));

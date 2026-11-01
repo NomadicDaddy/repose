@@ -1,13 +1,16 @@
 //! The open diff: which file from which source, read on a background thread after the size check,
 //! and re-read when a write in that repository lands.
 
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::diff::{MAX_DIFF_BYTES, blob_size, read_diff};
+use repose_core::git::diff::{MAX_DIFF_BYTES, read_diff_bytes};
+use repose_core::git::parse::parse_unified;
 use repose_core::model::{DiffSource, FileDiff, LineKind};
 
+use super::diff_size::largest_side;
 use super::{AppState, Msg};
 use crate::diff_rows::{Row, build_rows};
 use crate::highlight::{Span, colour_lines};
@@ -40,6 +43,9 @@ pub struct DiffState {
 	pub rows_inline: bool,
 	/// Syntax colour spans per file, hunk and line, built with the rows.
 	pub colours: Vec<FileColours>,
+	/// A hash of git's bytes behind `content`, so a re-read that produced the same diff sends
+	/// nothing back and the rows and colours stand.
+	pub raw_hash: Option<u64>,
 }
 
 /// Colour spans indexed like the file's hunks and their lines.
@@ -52,6 +58,7 @@ pub struct DiffMsg {
 	pub rows: Vec<Vec<Row>>,
 	pub rows_inline: bool,
 	pub colours: Vec<FileColours>,
+	pub raw_hash: Option<u64>,
 }
 
 /// Colours every line of a file hunk by hunk, with one parser per side: the old side is context
@@ -114,8 +121,9 @@ impl AppState {
 			rows: Vec::new(),
 			rows_inline: inline,
 			colours: Vec::new(),
+			raw_hash: None,
 		});
-		spawn_read(open, generation, inline, self.tx.clone(), ctx.clone());
+		spawn_read(open, generation, inline, None, self.tx.clone(), ctx.clone());
 	}
 
 	pub fn close_diff(&mut self) {
@@ -150,6 +158,36 @@ impl AppState {
 			d.open.clone(),
 			d.generation,
 			d.inline,
+			None,
+			self.tx.clone(),
+			ctx.clone(),
+		);
+	}
+
+	/// After a status read in the diff's repository: a working-tree or staged diff is re-read
+	/// every time, because a second edit to an already-modified file changes the diff and
+	/// nothing in the status (Morticia M-1 on 9007389); the reader sends nothing back when git's
+	/// bytes are the same, so an unchanged pass costs one git read and no re-layout (her L-2 on
+	/// 39951dc). A commit's diff only follows a status that changed something.
+	pub(super) fn reload_diff_after_status(
+		&mut self,
+		repo: &Path,
+		changed: bool,
+		ctx: &egui::Context,
+	) {
+		let Some(d) = self.diff.as_mut() else {
+			return;
+		};
+		if d.open.repo != repo || !wants_reload(&d.open.source, changed) {
+			return;
+		}
+		self.diff_serial += 1;
+		d.generation = self.diff_serial;
+		spawn_read(
+			d.open.clone(),
+			d.generation,
+			d.inline,
+			d.raw_hash,
 			self.tx.clone(),
 			ctx.clone(),
 		);
@@ -163,86 +201,50 @@ impl AppState {
 			d.rows = msg.rows;
 			d.rows_inline = msg.rows_inline;
 			d.colours = msg.colours;
+			d.raw_hash = msg.raw_hash;
 		}
 	}
 }
 
-/// One side of a diff as the size check sees it.
-enum Side {
-	Size(u64),
-	/// The side does not exist: an added or deleted file. Git or the file system said so.
-	Absent,
-	/// Could not be measured for any other reason (timeout, lost output, unreadable repository).
-	Unknown(String),
-}
-
-fn fs_side(path: &Path) -> Side {
-	match std::fs::metadata(path) {
-		Ok(m) => Side::Size(m.len()),
-		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Side::Absent,
-		Err(e) => Side::Unknown(e.to_string()),
+/// Whether a status read in the diff's repository should re-read it: always for the working
+/// tree and the index, whose diffs can change without the status changing; for a commit only
+/// when the status changed, since its diff is fixed and only the row's context moved.
+fn wants_reload(source: &DiffSource, changed: bool) -> bool {
+	match source {
+		DiffSource::Working | DiffSource::Staged => true,
+		DiffSource::Commit(_) => changed,
 	}
 }
 
-/// Absence comes from core's exit-code check (unborn HEAD, a root commit's parent, a conflicted
-/// path's stage 0 and a missing path all read as None); any error is Unknown and stops the read.
-fn blob_side(repo: &Path, rev: &str, path: &str) -> Side {
-	match blob_size(repo, rev, path) {
-		Ok(Some(n)) => Side::Size(n),
-		Ok(None) => Side::Absent,
-		Err(e) => Side::Unknown(e.to_string()),
-	}
+fn hash_bytes(bytes: &[u8]) -> u64 {
+	let mut h = DefaultHasher::new();
+	bytes.hash(&mut h);
+	h.finish()
 }
 
-/// The largest side of the diff: the new side and the old side are both measured, since either
-/// can be the big one. A side that does not exist (an added or deleted file) is skipped; a side
-/// that cannot be measured stops the read, because an unknown side may be the big one. Nothing
-/// is sent to git unless every existing side has a known size.
-fn largest_side(open: &OpenDiff) -> Result<u64, String> {
-	let new_path = open.display.as_str();
-	let old_path = open
-		.paths
-		.iter()
-		.find(|p| p.as_str() != new_path)
-		.map_or(new_path, String::as_str);
-	let sides = match &open.source {
-		DiffSource::Working => [
-			fs_side(&open.repo.join(new_path.replace('/', "\\"))),
-			blob_side(&open.repo, ":0", old_path),
-		],
-		DiffSource::Staged => [
-			blob_side(&open.repo, ":0", new_path),
-			blob_side(&open.repo, "HEAD", old_path),
-		],
-		DiffSource::Commit(hash) => [
-			blob_side(&open.repo, hash, new_path),
-			blob_side(&open.repo, &format!("{hash}^"), old_path),
-		],
-	};
-	let mut max: Option<u64> = None;
-	for side in &sides {
-		match side {
-			Side::Size(n) => max = Some(max.map_or(*n, |m| m.max(*n))),
-			Side::Absent => {}
-			Side::Unknown(why) => {
-				return Err(format!(
-					"A side's size could not be read, so the diff was not run: {why}"
-				));
-			}
-		}
-	}
-	match max {
-		Some(n) => Ok(n),
-		None => Err("Neither side exists any more; nothing to diff.".to_string()),
-	}
-}
-
-fn spawn_read(open: OpenDiff, generation: u64, inline: bool, tx: Sender<Msg>, ctx: egui::Context) {
+/// `known` is the hash of the bytes behind the diff already shown; a re-read that gets the same
+/// bytes sends nothing, so the rows and colours on screen stand.
+fn spawn_read(
+	open: OpenDiff,
+	generation: u64,
+	inline: bool,
+	known: Option<u64>,
+	tx: Sender<Msg>,
+	ctx: egui::Context,
+) {
 	std::thread::spawn(move || {
+		let mut raw_hash = None;
 		let content = match largest_side(&open) {
 			Ok(size) if size > MAX_DIFF_BYTES => DiffContent::TooLarge(size),
-			Ok(_) => match read_diff(&open.repo, &open.source, &open.paths) {
-				Ok(files) => DiffContent::Files(files),
+			Ok(_) => match read_diff_bytes(&open.repo, &open.source, &open.paths) {
+				Ok(bytes) => {
+					let hash = hash_bytes(&bytes);
+					if known == Some(hash) {
+						return;
+					}
+					raw_hash = Some(hash);
+					DiffContent::Files(parse_unified(&bytes))
+				}
 				Err(e) => DiffContent::Error(e.to_string()),
 			},
 			Err(e) => DiffContent::Error(e),
@@ -261,7 +263,32 @@ fn spawn_read(open: OpenDiff, generation: u64, inline: bool, tx: Sender<Msg>, ct
 			rows,
 			rows_inline: inline,
 			colours,
+			raw_hash,
 		}));
 		ctx.request_repaint();
 	});
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// Morticia M-1 on 9007389: the status cannot see a second edit to a modified file, so a
+	/// working or staged diff must not wait for `changed`; the byte hash is what stops the
+	/// needless re-layout.
+	#[test]
+	fn working_and_staged_diffs_reload_on_every_status_and_bytes_decide_the_rest() {
+		assert!(wants_reload(&DiffSource::Working, false));
+		assert!(wants_reload(&DiffSource::Staged, false));
+		assert!(!wants_reload(&DiffSource::Commit("abc".into()), false));
+		assert!(wants_reload(&DiffSource::Commit("abc".into()), true));
+		let first = b"diff --git a/x b/x\n@@ -1 +1 @@\n-a\n+b\n";
+		let second = b"diff --git a/x b/x\n@@ -1 +1 @@\n-a\n+c\n";
+		assert_eq!(hash_bytes(first), hash_bytes(first));
+		assert_ne!(
+			hash_bytes(first),
+			hash_bytes(second),
+			"a second edit changes the hash"
+		);
+	}
 }

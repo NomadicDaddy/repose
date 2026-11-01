@@ -4,6 +4,7 @@
 
 mod backstop;
 mod diff;
+mod diff_size;
 mod files;
 mod history;
 mod merge;
@@ -221,10 +222,8 @@ impl AppState {
 						self.refresh_history(&path, ctx);
 						self.refresh_files_for(&path, ctx);
 					}
-					// Only a status that differs re-reads an open diff; the backstop's unchanged
-					// passes leave it alone (Morticia L-2 on 39951dc).
-					if merged.changed {
-						self.reload_diff_for(&path, ctx);
+					if merged.applied {
+						self.reload_diff_after_status(&path, merged.changed, ctx);
 					}
 				}
 				Msg::Done(g, offset) if g == self.generation => {
