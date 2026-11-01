@@ -4,7 +4,8 @@
 //! `--select <repository path>` opens on that repository and `--view changes|history|files` on
 //! that pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
 //! file's working-tree diff there, `--inline` in inline mode; `--open <path>` opens the file
-//! read-only as HEAD holds it.
+//! read-only as HEAD holds it. `--scale <factor>` multiplies the window's zoom (1.25 renders as
+//! Windows 125% scaling would), for eyesight and for the scaling captures in the records.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
@@ -145,6 +146,13 @@ fn main() -> eframe::Result {
 		.position(|a| a == "--open")
 		.and_then(|i| args.get(i + 1))
 		.cloned();
+	// A zoom factor like Windows scaling: 1.25 and 1.5 are what the theme record measures at.
+	let scale = args
+		.iter()
+		.position(|a| a == "--scale")
+		.and_then(|i| args.get(i + 1))
+		.and_then(|s| s.parse::<f32>().ok())
+		.filter(|s| (0.5..=4.0).contains(s));
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -166,6 +174,9 @@ fn main() -> eframe::Result {
 		"repose",
 		options,
 		Box::new(move |cc| {
+			if let Some(scale) = scale {
+				cc.egui_ctx.set_zoom_factor(scale);
+			}
 			let mut app = App::new(cc, started, measure, cfg);
 			app.state.view = view;
 			app.state.requested_selection = select;
