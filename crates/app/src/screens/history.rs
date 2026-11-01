@@ -242,7 +242,6 @@ fn expanded_block(
 										source: DiffSource::Commit(c.hash.clone()),
 										paths,
 										display: f.path.clone(),
-										untracked: false,
 									},
 									&ctx,
 								);

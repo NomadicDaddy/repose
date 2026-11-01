@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
+use repose_core::git::GitError;
 use repose_core::git::diff::{MAX_DIFF_BYTES, blob_size, read_diff};
 use repose_core::model::{DiffSource, FileDiff};
 
@@ -19,8 +20,6 @@ pub struct OpenDiff {
 	pub paths: Vec<String>,
 	/// The path shown in the breadcrumb (the new one).
 	pub display: String,
-	/// An untracked file has no diff; the pane says so instead of "No differences".
-	pub untracked: bool,
 }
 
 pub enum DiffContent {
@@ -52,11 +51,19 @@ pub struct DiffMsg {
 impl AppState {
 	/// Opens a diff in the right pane, keeping the Inline choice across files.
 	pub fn open_diff(&mut self, open: OpenDiff, ctx: &egui::Context) {
-		let inline = match &self.diff {
-			Some(d) if d.open == open => return,
-			Some(d) => d.inline,
-			None => false,
-		};
+		let inline = self.diff.as_ref().is_some_and(|d| d.inline);
+		self.open_diff_in(open, inline, ctx);
+	}
+
+	/// Opens a diff in the given mode, so the first read already lays out the mode asked for.
+	pub fn open_diff_in(&mut self, open: OpenDiff, inline: bool, ctx: &egui::Context) {
+		if self
+			.diff
+			.as_ref()
+			.is_some_and(|d| d.open == open && d.inline == inline)
+		{
+			return;
+		}
 		self.diff_serial += 1;
 		let generation = self.diff_serial;
 		self.diff = Some(DiffState {
@@ -72,6 +79,36 @@ impl AppState {
 
 	pub fn close_diff(&mut self) {
 		self.diff = None;
+	}
+
+	/// Switches between side by side and inline. The rows are rebuilt on a thread from the files
+	/// already read, under the same serial as a read, so the UI thread never lays out a diff
+	/// (Morticia on 54be14f: 500 capped lines could still cost seconds here).
+	pub fn toggle_inline(&mut self, ctx: &egui::Context) {
+		self.diff_serial += 1;
+		let generation = self.diff_serial;
+		let Some(d) = self.diff.as_mut() else {
+			return;
+		};
+		d.inline = !d.inline;
+		let inline = d.inline;
+		let DiffContent::Files(files) = &d.content else {
+			d.rows_inline = inline;
+			return;
+		};
+		d.generation = generation;
+		let files = files.clone();
+		let (tx, ctx) = (self.tx.clone(), ctx.clone());
+		std::thread::spawn(move || {
+			let rows = files.iter().map(|f| build_rows(f, inline)).collect();
+			let _ = tx.send(Msg::Diff(DiffMsg {
+				generation,
+				content: DiffContent::Files(files),
+				rows,
+				rows_inline: inline,
+			}));
+			ctx.request_repaint();
+		});
 	}
 
 	/// Re-reads the open diff after a write in its repository (a stage moves lines between the
@@ -105,9 +142,47 @@ impl AppState {
 	}
 }
 
+/// One side of a diff as the size check sees it.
+enum Side {
+	Size(u64),
+	/// The side does not exist: an added or deleted file. Git or the file system said so.
+	Absent,
+	/// Could not be measured for any other reason (timeout, lost output, unreadable repository).
+	Unknown(String),
+}
+
+fn fs_side(path: &Path) -> Side {
+	match std::fs::metadata(path) {
+		Ok(m) => Side::Size(m.len()),
+		Err(e) if e.kind() == std::io::ErrorKind::NotFound => Side::Absent,
+		Err(e) => Side::Unknown(e.to_string()),
+	}
+}
+
+fn blob_side(repo: &Path, rev: &str, path: &str) -> Side {
+	match blob_size(repo, rev, path) {
+		Ok(n) => Side::Size(n),
+		Err(GitError::Failed {
+			code: Some(128),
+			ref stderr_tail,
+		}) if [
+			"does not exist",
+			"Not a valid object name",
+			"exists on disk, but not in",
+		]
+		.iter()
+		.any(|m| stderr_tail.contains(m)) =>
+		{
+			Side::Absent
+		}
+		Err(e) => Side::Unknown(e.to_string()),
+	}
+}
+
 /// The largest side of the diff: the new side and the old side are both measured, since either
-/// can be the big one. A side that does not exist (an added or deleted file) is skipped, but when
-/// neither side can be measured nothing is sent to git: the size check fails closed.
+/// can be the big one. A side that does not exist (an added or deleted file) is skipped; a side
+/// that cannot be measured stops the read, because an unknown side may be the big one. Nothing
+/// is sent to git unless every existing side has a known size.
 fn largest_side(open: &OpenDiff) -> Result<u64, String> {
 	let new_path = open.display.as_str();
 	let old_path = open
@@ -115,36 +190,35 @@ fn largest_side(open: &OpenDiff) -> Result<u64, String> {
 		.iter()
 		.find(|p| p.as_str() != new_path)
 		.map_or(new_path, String::as_str);
-	let sides: Vec<Result<u64, String>> = match &open.source {
-		DiffSource::Working => vec![
-			std::fs::metadata(open.repo.join(new_path.replace('/', "\\")))
-				.map(|m| m.len())
-				.map_err(|e| e.to_string()),
-			blob_size(&open.repo, ":0", old_path).map_err(|e| e.to_string()),
+	let sides = match &open.source {
+		DiffSource::Working => [
+			fs_side(&open.repo.join(new_path.replace('/', "\\"))),
+			blob_side(&open.repo, ":0", old_path),
 		],
-		DiffSource::Staged => vec![
-			blob_size(&open.repo, ":0", new_path).map_err(|e| e.to_string()),
-			blob_size(&open.repo, "HEAD", old_path).map_err(|e| e.to_string()),
+		DiffSource::Staged => [
+			blob_side(&open.repo, ":0", new_path),
+			blob_side(&open.repo, "HEAD", old_path),
 		],
-		DiffSource::Commit(hash) => vec![
-			blob_size(&open.repo, hash, new_path).map_err(|e| e.to_string()),
-			blob_size(&open.repo, &format!("{hash}^"), old_path).map_err(|e| e.to_string()),
+		DiffSource::Commit(hash) => [
+			blob_side(&open.repo, hash, new_path),
+			blob_side(&open.repo, &format!("{hash}^"), old_path),
 		],
 	};
-	let known: Vec<u64> = sides
-		.iter()
-		.filter_map(|s| s.as_ref().ok().copied())
-		.collect();
-	match known.iter().max() {
-		Some(max) => Ok(*max),
-		None => Err(format!(
-			"Size unknown on both sides, so the diff was not run: {}",
-			sides
-				.iter()
-				.filter_map(|s| s.as_ref().err().cloned())
-				.collect::<Vec<_>>()
-				.join(" / ")
-		)),
+	let mut max: Option<u64> = None;
+	for side in &sides {
+		match side {
+			Side::Size(n) => max = Some(max.map_or(*n, |m| m.max(*n))),
+			Side::Absent => {}
+			Side::Unknown(why) => {
+				return Err(format!(
+					"A side's size could not be read, so the diff was not run: {why}"
+				));
+			}
+		}
+	}
+	match max {
+		Some(n) => Ok(n),
+		None => Err("Neither side exists any more; nothing to diff.".to_string()),
 	}
 }
 

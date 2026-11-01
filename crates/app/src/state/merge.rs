@@ -14,7 +14,22 @@ pub(super) struct Merged {
 }
 
 impl AppState {
-	pub(super) fn merge_discovered(&mut self, mut fresh: Vec<RepoSummary>) {
+	/// Replaces the rows with a fresh discovery. Returns false when a command-line selection was
+	/// asked for and not found. Any open diff follows the same rule as `select`: it closes when
+	/// the selection moves to another repository or its own repository is gone.
+	pub(super) fn merge_discovered(&mut self, fresh: Vec<RepoSummary>) -> bool {
+		let before = self.selected.clone();
+		let landed = self.replace_rows(fresh);
+		if let Some(d) = &self.diff
+			&& (self.selected != before && self.selected.as_ref() != Some(&d.open.repo)
+				|| find(&self.repos, &d.open.repo).is_none())
+		{
+			self.close_diff();
+		}
+		landed
+	}
+
+	fn replace_rows(&mut self, mut fresh: Vec<RepoSummary>) -> bool {
 		// Keep statuses already known for paths that are still present.
 		for row in &mut fresh {
 			if let Some(old) = find(&self.repos, &row.path) {
@@ -32,6 +47,7 @@ impl AppState {
 			}
 		}
 		self.repos = fresh;
+		let mut landed = true;
 		if let Some(wanted) = self.requested_selection.take() {
 			let key = |p: &Path| p.to_string_lossy().to_lowercase().replace('\\', "/");
 			let hit = self
@@ -40,7 +56,8 @@ impl AppState {
 				.flat_map(|r| std::iter::once(r).chain(r.worktrees.iter()))
 				.find(|r| key(&r.path) == key(&wanted))
 				.map(|r| r.path.clone());
-			if hit.is_some() {
+			landed = hit.is_some();
+			if landed {
 				self.selected = hit;
 			}
 		}
@@ -51,6 +68,7 @@ impl AppState {
 		{
 			self.selected = self.repos.first().map(|r| r.path.clone());
 		}
+		landed
 	}
 
 	/// Merges a status read into its row and says whether it applied and whether HEAD, the

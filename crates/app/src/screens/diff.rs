@@ -6,7 +6,7 @@ use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 use repose_core::model::{DiffSource, FileDiff};
 
 use super::diff_draw::{ROW_H, draw_row};
-use crate::diff_rows::{Row, build_rows};
+use crate::diff_rows::Row;
 use crate::platform::Platform;
 use crate::state::{AppState, DiffContent, DiffState};
 use crate::theme::*;
@@ -19,8 +19,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(d) = state.diff.as_mut() else {
 		return;
 	};
-	let (mut go_repo, mut close) = (false, false);
-	breadcrumb(ui, d, &mut go_repo, &mut close);
+	let (mut go_repo, mut close, mut toggle) = (false, false, false);
+	breadcrumb(ui, d, &mut go_repo, &mut close, &mut toggle);
 	if go_repo || close {
 		let repo = d.open.repo.clone();
 		state.close_diff();
@@ -29,6 +29,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		}
 		return;
 	}
+	if toggle {
+		let ctx = ui.ctx().clone();
+		state.toggle_inline(&ctx);
+	}
+	let Some(d) = state.diff.as_mut() else {
+		return;
+	};
 	let DiffState {
 		open,
 		content,
@@ -63,17 +70,19 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		}
 		DiffContent::Files(files) => {
 			if files.is_empty() {
-				let text = if open.untracked {
-					"Untracked file: nothing to diff yet. The file view arrives with the file browser."
-				} else {
-					"No differences."
+				let text = match open.source {
+					DiffSource::Working => {
+						"No differences against the index. An untracked file has no diff until it is staged; the file view arrives with the file browser."
+					}
+					_ => "No differences.",
 				};
 				ui.label(RichText::new(text).color(MUTED));
 				return;
 			}
+			// Rows are built on the reader thread (open, reload and the Inline toggle alike), so
+			// the UI thread never runs the word diff; until they arrive the old layout stands.
 			if rows.len() != files.len() || *rows_inline != *inline {
-				*rows = files.iter().map(|f| build_rows(f, *inline)).collect();
-				*rows_inline = *inline;
+				ui.label(RichText::new("Laying out…").size(TEXT_SMALL).color(MUTED));
 			}
 			for (file, file_rows) in files.iter().zip(rows.iter()) {
 				file_block(ui, file, file_rows);
@@ -82,7 +91,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	}
 }
 
-fn breadcrumb(ui: &mut Ui, d: &mut DiffState, go_repo: &mut bool, close: &mut bool) {
+fn breadcrumb(
+	ui: &mut Ui,
+	d: &mut DiffState,
+	go_repo: &mut bool,
+	close: &mut bool,
+	toggle: &mut bool,
+) {
 	let repo_name = d
 		.open
 		.repo
@@ -123,7 +138,7 @@ fn breadcrumb(ui: &mut Ui, d: &mut DiffState, go_repo: &mut bool, close: &mut bo
 				*close = true;
 			}
 			if ui.selectable_label(d.inline, "Inline").clicked() {
-				d.inline = !d.inline;
+				*toggle = true;
 			}
 		});
 	});

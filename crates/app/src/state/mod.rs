@@ -138,23 +138,23 @@ impl AppState {
 		while let Ok(msg) = self.rx.try_recv() {
 			match msg {
 				Msg::Discovered(g, repos) if g == self.generation => {
-					self.merge_discovered(repos);
+					let landed = self.merge_discovered(repos);
+					// A --file diff opens only on the repository that was asked for; a --select
+					// that matched nothing falls back to the first row, and that row's working
+					// tree is not the one the caller meant.
 					if let Some((path, inline)) = self.requested_diff.take()
-						&& let Some(repo) = self.selected.clone()
+						&& landed && let Some(repo) = self.selected.clone()
 					{
-						self.open_diff(
+						self.open_diff_in(
 							OpenDiff {
 								repo,
 								source: repose_core::model::DiffSource::Working,
 								paths: vec![path.clone()],
 								display: path,
-								untracked: false,
 							},
+							inline,
 							ctx,
 						);
-						if let Some(d) = self.diff.as_mut() {
-							d.inline = inline;
-						}
 					}
 				}
 				Msg::Status(g, repo) if g == self.generation => {

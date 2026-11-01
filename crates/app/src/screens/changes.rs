@@ -215,7 +215,6 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 				source,
 				paths,
 				display: file.path.clone(),
-				untracked: file.kind == ChangeKind::Untracked,
 			},
 			&ctx,
 		);
