@@ -220,7 +220,7 @@ fn wants_reload(source: &DiffSource, changed: bool) -> bool {
 	}
 }
 
-fn hash_bytes(bytes: &[u8]) -> u64 {
+pub(super) fn hash_bytes(bytes: &[u8]) -> u64 {
 	let mut h = DefaultHasher::new();
 	bytes.hash(&mut h);
 	h.finish()

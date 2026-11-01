@@ -2,7 +2,8 @@
 //! real screens, wheel events, scroll offsets read back through the published ids, and
 //! repository and diff fixtures.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::SystemTime;
 
 use eframe::egui::{self, Event, MouseWheelUnit, Pos2, Rect, Vec2, vec2};
@@ -84,10 +85,52 @@ pub(super) fn offset(ctx: &egui::Context, key: egui::Id) -> Vec2 {
 
 /// A repository row on main with one modified file, under a path that holds no repository.
 pub(super) fn repo(name: &str, checked_at: SystemTime) -> RepoSummary {
-	let mut r = RepoSummary::new(
+	repo_at(
 		std::env::temp_dir().join("repose-ui").join(name),
-		RepoKind::Repository,
-	);
+		checked_at,
+	)
+}
+
+/// A real, empty-diff repository on disk for a row whose diff the app will really re-read:
+/// `git init`, one committed `x.txt`, nothing changed since, so `git diff -- x.txt` is empty and
+/// a reader given the hash of empty bytes as the known hash sends nothing back.
+pub(super) fn real_repo(name: &str) -> PathBuf {
+	let dir = std::env::temp_dir().join("repose-ui-real").join(name);
+	let _ = std::fs::remove_dir_all(&dir);
+	std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
+	std::fs::write(dir.join("x.txt"), "one\n").unwrap_or_else(|e| panic!("{e}"));
+	for args in [
+		vec!["init", "-q"],
+		vec!["add", "--", "x.txt"],
+		vec![
+			"-c",
+			"user.name=repose test",
+			"-c",
+			"user.email=repose@example.invalid",
+			"commit",
+			"-q",
+			"-m",
+			"init",
+		],
+	] {
+		let out = Command::new("git")
+			.args(&args)
+			.current_dir(&dir)
+			.output()
+			.unwrap_or_else(|e| panic!("git {}: {e}", args.join(" ")));
+		assert!(
+			out.status.success(),
+			"git {} failed: {}",
+			args.join(" "),
+			String::from_utf8_lossy(&out.stderr)
+		);
+	}
+	dir
+}
+
+/// A repository row on main with one modified file, at the given path.
+pub(super) fn repo_at(path: PathBuf, checked_at: SystemTime) -> RepoSummary {
+	let mut r = RepoSummary::new(path, RepoKind::Repository);
 	r.branch = BranchState::Branch("main".into());
 	r.short_hash = Some("0123abc".into());
 	r.status = Some(StatusSummary {

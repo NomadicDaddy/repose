@@ -8,7 +8,8 @@ use eframe::egui::{self, pos2};
 use repose_core::config::Config;
 use repose_core::model::{ChangeKind, DiffSource, FileChange, StatusSummary};
 
-use super::ui_harness::{diff_of, frame, landed, offset, repo, settle, wheel};
+use super::diff::hash_bytes;
+use super::ui_harness::{diff_of, frame, landed, offset, real_repo, repo, repo_at, settle, wheel};
 use super::{AppState, DiffContent, DiffState, Msg, OpenDiff};
 use crate::diff_rows::build_rows;
 use crate::screens::{diff, repo_list};
@@ -71,6 +72,11 @@ fn refresh_preserves_selection() {
 	let mut state = AppState::new(Config::default());
 	let t0 = SystemTime::now();
 	state.repos = (0..40).map(|i| repo(&format!("r{i:02}"), t0)).collect();
+	// The selected row is a real repository with x.txt committed and unchanged, so the re-read a
+	// status starts really runs git, gets empty bytes, finds their hash already known and sends
+	// nothing back: no result can race the synthetic ones below (Roger 5Q-1 on f7a7f8c).
+	let real = real_repo("r07");
+	state.repos[7] = repo_at(real.clone(), t0);
 	let chosen = state.repos[7].path.clone();
 	state.selected = Some(chosen.clone());
 	state.selected_file = Some("x.txt".into());
@@ -91,7 +97,7 @@ fn refresh_preserves_selection() {
 		rows,
 		rows_inline: false,
 		colours: Vec::new(),
-		raw_hash: Some(1),
+		raw_hash: Some(hash_bytes(b"")),
 	});
 	// The serial behind diff generations, as open_diff_in would have left it for generation 1.
 	state.diff_serial = 1;
@@ -108,7 +114,7 @@ fn refresh_preserves_selection() {
 	assert!(diff_before.y > 0.0, "the diff scrolled: {diff_before:?}");
 
 	// A refresh of the selected repository: a newer status with a different file list.
-	let mut fresh = repo("r07", t0 + Duration::from_secs(1));
+	let mut fresh = repo_at(real.clone(), t0 + Duration::from_secs(1));
 	fresh.status = Some(StatusSummary {
 		unstaged: 2,
 		..StatusSummary::default()
@@ -125,26 +131,13 @@ fn refresh_preserves_selection() {
 		.send(Msg::Status(state.generation, Box::new(fresh)))
 		.unwrap_or_else(|e| panic!("{e}"));
 	state.pump(&ctx);
-	// That status started a real re-read of the fixture's diff on a reader thread; the fixture
-	// path holds no repository, so it ends in an error. Take that one result off the queue
-	// before anything synthetic is sent under the same generation, so the two can never race
-	// (Roger 5Q-1 on 72e355d). It is dropped, not merged: the test's subject is the view, not
-	// what git says about a folder that does not exist.
-	let mut reader_done = false;
-	while !reader_done {
-		match state.rx.recv_timeout(Duration::from_secs(20)) {
-			Ok(Msg::Diff(m)) => {
-				assert!(
-					matches!(m.content, DiffContent::Error(_)),
-					"the reader's result for a missing repository is an error"
-				);
-				reader_done = true;
-			}
-			Ok(_) => {}
-			Err(e) => panic!("the re-read never reported: {e}"),
-		}
-	}
+	// That status started a real re-read of the open diff; see the fixture above for why it
+	// sends nothing. The settle frames give it time to run and prove the queue stays empty.
 	settle(&ctx, &mut state);
+	assert!(
+		state.rx.try_recv().is_err(),
+		"the real re-read of an unchanged diff sent nothing"
+	);
 
 	assert_eq!(
 		state.selected,
