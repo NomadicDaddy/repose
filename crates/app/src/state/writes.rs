@@ -107,10 +107,13 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 			match write::commit_cancellable(repo, message, Some(&request.cancel)) {
 				Ok(done) => {
 					if done.hook_stopped {
-						notice = Some(
+						notice = Some(if done.tree_killed {
 							"The commit landed before Cancel; a hook that ran after it was stopped."
-								.to_string(),
-						);
+								.to_string()
+						} else {
+							"The commit landed before Cancel; git was stopped, but stopping the later hook's processes failed, so they may still be running."
+								.to_string()
+						});
 					}
 					Ok(())
 				}

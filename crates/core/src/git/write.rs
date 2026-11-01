@@ -123,12 +123,17 @@ pub struct Committed {
 	/// The commit landed, then Cancel stopped a later hook (post-commit); the user must not be
 	/// told nothing happened (Roger #31030 on a31e63b).
 	pub hook_stopped: bool,
+	/// With `hook_stopped`: whether the hook's process tree was stopped, or taskkill failed and
+	/// its processes may still be running (Roger 5Q-1 on 08c6f17). True when nothing was stopped.
+	pub tree_killed: bool,
 }
 
 /// `commit` with the user's Cancel: while a hook runs, Cancel kills git and the hook's whole
 /// process tree. If HEAD had not moved, the commit did not happen and the index is left as git
 /// left it, lock and all, which the caller reports (stage-and-commit clause 9); if HEAD had
-/// moved, the commit landed and a later hook was stopped, which is Ok with `hook_stopped`.
+/// moved, the commit landed and a later hook was stopped, which is Ok with `hook_stopped`. That
+/// claim needs two trustworthy HEAD reads; a read that failed before or after keeps the answer
+/// at Cancelled rather than guess (Roger 5Q-2 on 08c6f17).
 pub fn commit_cancellable(
 	repo: &Path,
 	message: &str,
@@ -150,20 +155,30 @@ pub fn commit_cancellable(
 	match result {
 		Ok(_) => Ok(Committed {
 			hook_stopped: false,
+			tree_killed: true,
 		}),
-		Err(GitError::Cancelled { .. }) if head_hash(repo) != before => {
-			Ok(Committed { hook_stopped: true })
+		Err(GitError::Cancelled { tree_killed, .. }) if matches!((&before, head_hash(repo)), (Ok(b), Ok(a)) if *b != a) => {
+			Ok(Committed {
+				hook_stopped: true,
+				tree_killed,
+			})
 		}
 		Err(e) => Err(e),
 	}
 }
 
-/// HEAD's hash, or None when it does not resolve (unborn, corrupt or unreadable); only compared
-/// with itself before and after a commit, so the three None cases need not be told apart here.
-fn head_hash(repo: &Path) -> Option<String> {
-	run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"])
-		.ok()
-		.map(|out| String::from_utf8_lossy(&out).trim().to_string())
+/// HEAD's hash: Ok(None) only for an unborn branch (exit 1 with nothing on stderr, as
+/// head_state reads it); a timeout, lost output or an unreadable ref is an error, so a
+/// comparison of two reads never rests on a failed one.
+fn head_hash(repo: &Path) -> Result<Option<String>, GitError> {
+	match run(repo, Verb::RevParse, &["--verify", "--quiet", "HEAD"]) {
+		Ok(out) => Ok(Some(String::from_utf8_lossy(&out).trim().to_string())),
+		Err(GitError::Failed {
+			code: Some(1),
+			ref stderr_tail,
+		}) if stderr_tail.trim().is_empty() => Ok(None),
+		Err(e) => Err(e),
+	}
 }
 
 /// Where this repository's index lock lives, which for a worktree is under the main repository's

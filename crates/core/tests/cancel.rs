@@ -147,7 +147,13 @@ fn cancel_kills_the_hook_tree_in_a_repository_and_in_a_worktree() {
 			.output();
 	}
 	assert!(
-		matches!(result, Ok(Committed { hook_stopped: true })),
+		matches!(
+			result,
+			Ok(Committed {
+				hook_stopped: true,
+				tree_killed: true
+			})
+		),
 		"{result:?}"
 	);
 	assert!(
