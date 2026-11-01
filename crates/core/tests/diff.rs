@@ -75,16 +75,68 @@ fn working_tree_binary_and_sizes() {
 	assert!(binary[0].binary, "{:?}", binary[0]);
 	assert!(binary[0].hunks.is_empty());
 
-	assert_eq!(blob_size(&repo.path, ":0", "a.txt").expect("index size"), 6);
+	assert_eq!(
+		blob_size(&repo.path, ":0", "a.txt").expect("index size"),
+		Some(6)
+	);
 	let head = repo.git(&["rev-parse", "HEAD"]).trim().to_string();
 	assert_eq!(
 		blob_size(&repo.path, &head, "p.bin").expect("commit size"),
-		6
+		Some(6)
+	);
+	assert_eq!(
+		blob_size(&repo.path, &head, "nowhere.txt").expect("a missing path is not an error"),
+		None
 	);
 	assert!(
 		read_diff(&repo.path, &DiffSource::Staged, &["a.txt".to_string()])
 			.expect("nothing staged")
 			.is_empty()
+	);
+}
+
+/// Morticia M-2 on 15ce293: the sides that do not exist in ordinary diffs must read as absent,
+/// by exit code, not by git's message text: HEAD before the first commit, the parent of a root
+/// commit, and stage 0 of a conflicted path.
+#[test]
+fn absent_sides_are_none_not_errors() {
+	let repo = TempRepo::new("absent-sides");
+	repo.write("a.txt", "a\n");
+	repo.git(&["add", "a.txt"]);
+	assert_eq!(
+		blob_size(&repo.path, "HEAD", "a.txt").expect("unborn HEAD"),
+		None
+	);
+	assert_eq!(
+		blob_size(&repo.path, ":0", "a.txt").expect("index"),
+		Some(2)
+	);
+	repo.git(&["commit", "-q", "-m", "root"]);
+	let root = repo.git(&["rev-parse", "HEAD"]).trim().to_string();
+	assert_eq!(
+		blob_size(&repo.path, &format!("{root}^"), "a.txt").expect("root parent"),
+		None
+	);
+	assert_eq!(
+		blob_size(&repo.path, &root, "a.txt").expect("root"),
+		Some(2)
+	);
+
+	repo.git(&["checkout", "-q", "-b", "side"]);
+	repo.write("a.txt", "side\n");
+	repo.commit_all("side");
+	repo.git(&["checkout", "-q", "main"]);
+	repo.write("a.txt", "main\n");
+	repo.commit_all("main");
+	repo.git(&["merge", "side"]);
+	assert!(repo.git(&["status", "--porcelain"]).contains("UU a.txt"));
+	assert_eq!(
+		blob_size(&repo.path, ":0", "a.txt").expect("conflicted stage 0"),
+		None
+	);
+	assert_eq!(
+		blob_size(&repo.path, "HEAD", "a.txt").expect("HEAD side of the conflict"),
+		Some(5)
 	);
 }
 

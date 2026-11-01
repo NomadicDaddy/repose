@@ -54,12 +54,25 @@ pub fn read_diff(
 }
 
 /// The size of a blob as the index or a commit holds it, for the too-large check before a diff of
-/// the staged or committed side. `rev` is `:0` for the index or a commit hash.
-pub fn blob_size(repo: &Path, rev: &str, path: &str) -> Result<u64, GitError> {
+/// the staged or committed side. `rev` is `:0` for the index, `HEAD`, a commit hash or `<hash>^`.
+/// `Ok(None)` means the object does not exist there: the path is absent, HEAD is unborn, the
+/// commit has no parent, or a conflicted path has no stage-0 entry. That answer comes from
+/// `rev-parse --verify --quiet`'s exit code and never from git's message text, which differs
+/// between versions (Morticia M-2 on 15ce293).
+pub fn blob_size(repo: &Path, rev: &str, path: &str) -> Result<Option<u64>, GitError> {
 	let spec = format!("{rev}:{path}");
-	let out = run(repo, Verb::CatFile, &["-s", &spec])?;
+	let oid = match run(repo, Verb::RevParse, &["--verify", "--quiet", &spec]) {
+		Ok(out) => String::from_utf8_lossy(&out).trim().to_string(),
+		Err(GitError::Failed {
+			code: Some(1),
+			ref stderr_tail,
+		}) if stderr_tail.trim().is_empty() => return Ok(None),
+		Err(e) => return Err(e),
+	};
+	let out = run(repo, Verb::CatFile, &["-s", &oid])?;
 	String::from_utf8_lossy(&out)
 		.trim()
 		.parse::<u64>()
+		.map(Some)
 		.map_err(|e| GitError::Spawn(format!("cat-file -s gave no size: {e}")))
 }

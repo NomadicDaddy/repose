@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::GitError;
 use repose_core::git::diff::{MAX_DIFF_BYTES, blob_size, read_diff};
 use repose_core::model::{DiffSource, FileDiff};
 
@@ -142,22 +141,12 @@ fn fs_side(path: &Path) -> Side {
 	}
 }
 
+/// Absence comes from core's exit-code check (unborn HEAD, a root commit's parent, a conflicted
+/// path's stage 0 and a missing path all read as None); any error is Unknown and stops the read.
 fn blob_side(repo: &Path, rev: &str, path: &str) -> Side {
 	match blob_size(repo, rev, path) {
-		Ok(n) => Side::Size(n),
-		Err(GitError::Failed {
-			code: Some(128),
-			ref stderr_tail,
-		}) if [
-			"does not exist",
-			"Not a valid object name",
-			"exists on disk, but not in",
-		]
-		.iter()
-		.any(|m| stderr_tail.contains(m)) =>
-		{
-			Side::Absent
-		}
+		Ok(Some(n)) => Side::Size(n),
+		Ok(None) => Side::Absent,
 		Err(e) => Side::Unknown(e.to_string()),
 	}
 }
