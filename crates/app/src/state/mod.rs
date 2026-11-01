@@ -71,6 +71,9 @@ pub struct AppState {
 	pub diff: Option<DiffState>,
 	/// A repository asked for on the command line, applied when discovery first lists it.
 	pub requested_selection: Option<PathBuf>,
+	/// A working-tree diff asked for on the command line (path, inline), opened on the selected
+	/// repository once discovery has run.
+	pub requested_diff: Option<(String, bool)>,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -99,6 +102,7 @@ impl AppState {
 			history: HashMap::new(),
 			diff: None,
 			requested_selection: None,
+			requested_diff: None,
 			generation: 0,
 			tx,
 			rx,
@@ -129,7 +133,26 @@ impl AppState {
 	pub fn pump(&mut self, ctx: &egui::Context) {
 		while let Ok(msg) = self.rx.try_recv() {
 			match msg {
-				Msg::Discovered(g, repos) if g == self.generation => self.merge_discovered(repos),
+				Msg::Discovered(g, repos) if g == self.generation => {
+					self.merge_discovered(repos);
+					if let Some((path, inline)) = self.requested_diff.take()
+						&& let Some(repo) = self.selected.clone()
+					{
+						self.open_diff(
+							OpenDiff {
+								repo,
+								source: repose_core::model::DiffSource::Working,
+								paths: vec![path.clone()],
+								display: path,
+								untracked: false,
+							},
+							ctx,
+						);
+						if let Some(d) = self.diff.as_mut() {
+							d.inline = inline;
+						}
+					}
+				}
 				Msg::Status(g, repo) if g == self.generation => {
 					let path = repo.path.clone();
 					let merged = self.merge_status(*repo);

@@ -2,7 +2,8 @@
 //! `--measure-startup [file]` writes the milliseconds from process start to the first frame that
 //! shows repository rows into the file (default `repose-startup-ms.txt`), prints it, then exits.
 //! `--select <repository path>` opens on that repository and `--view changes|history` on that
-//! pane, so a shortcut or a script can land where the user wants.
+//! pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
+//! file's working-tree diff there, `--inline` in inline mode.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
@@ -128,6 +129,12 @@ fn main() -> eframe::Result {
 		Some("history") => state::View::History,
 		_ => state::View::Changes,
 	};
+	let file = args
+		.iter()
+		.position(|a| a == "--file")
+		.and_then(|i| args.get(i + 1))
+		.cloned();
+	let inline = args.iter().any(|a| a == "--inline");
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -152,6 +159,7 @@ fn main() -> eframe::Result {
 			let mut app = App::new(cc, started, measure, cfg);
 			app.state.view = view;
 			app.state.requested_selection = select;
+			app.state.requested_diff = file.map(|f| (f, inline));
 			Ok(Box::new(app))
 		}),
 	)
