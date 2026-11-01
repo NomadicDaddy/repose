@@ -13,6 +13,10 @@ use repose_core::git::write::{Committed, commit_cancellable, index_lock_path};
 use repose_core::git::{Cancel, GitError};
 use support::TempRepo;
 
+/// Trailing spaces and a run of blank lines, which git tidies away when it stores the message;
+/// the landed check must still match it (Morticia L-4 on 4f22cd3).
+const MESSAGE: &str = "never lands  \n\n\n\nwith a body\n";
+
 /// Processes whose command line carries `marker`, by id; the pwsh asking is excluded.
 fn processes_with(marker: &str) -> Vec<u32> {
 	let list = format!(
@@ -46,7 +50,7 @@ fn cancelled_commit(repo_dir: &Path, marker: &str) -> (Result<Committed, GitErro
 	let dir = repo_dir.to_path_buf();
 	let worker = {
 		let cancel = cancel.clone();
-		std::thread::spawn(move || commit_cancellable(&dir, "never lands", Some(&cancel)))
+		std::thread::spawn(move || commit_cancellable(&dir, MESSAGE, Some(&cancel)))
 	};
 	let started = Instant::now();
 	while processes_with(marker).is_empty() {

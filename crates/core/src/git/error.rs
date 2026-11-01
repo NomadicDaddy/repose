@@ -29,9 +29,10 @@ pub enum GitError {
 		stderr_tail: String,
 		tree_killed: bool,
 	},
-	/// The user cancelled a commit and git would not say afterwards whether it had landed (a
-	/// HEAD read failed); neither "committed" nor "cancelled" may be claimed (Roger 5Q-1 on
-	/// 28883f9).
+	/// The user cancelled a commit and whether it landed could not be settled afterwards: a HEAD,
+	/// parent or message read failed, or HEAD moved onto the old one with a message that does
+	/// not read as the one given; neither "committed" nor "cancelled" may be claimed (Roger 5Q-1
+	/// on 28883f9, Morticia L-4 on 4f22cd3).
 	OutcomeUnknown {
 		tree_killed: bool,
 	},
@@ -73,7 +74,7 @@ impl std::fmt::Display for GitError {
 			Self::OutputLost => write!(f, "git exited but its output was not collected"),
 			Self::OutcomeUnknown { tree_killed } => write!(
 				f,
-				"cancelled while a hook ran, and git would not say afterwards whether the commit had landed; check History before committing again{}",
+				"cancelled while a hook ran, and whether the commit landed could not be settled afterwards; check History before committing again{}",
 				if *tree_killed {
 					""
 				} else {

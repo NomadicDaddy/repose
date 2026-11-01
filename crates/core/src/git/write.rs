@@ -179,9 +179,10 @@ pub fn commit_cancellable(
 enum Landed {
 	/// HEAD is the commit this call made.
 	Ours,
-	/// HEAD is where it was, or somewhere this call did not put it.
+	/// HEAD is where it was: nothing landed.
 	No,
-	/// A read failed, so neither answer can be given (Roger 5Q-1 on 28883f9).
+	/// A read failed, or HEAD moved in a way that neither proves nor rules out this commit, so
+	/// neither answer can be given (Roger 5Q-1 on 28883f9, #31066 on ca04ed1).
 	Unknown,
 }
 
@@ -205,14 +206,38 @@ fn landed_ours(repo: &Path, before: &Result<Option<String>, GitError>, message: 
 		Err(GitError::Failed { code: Some(1), .. }) => None,
 		Err(_) => return Landed::Unknown,
 	};
+	// HEAD moved, but not straight from the old HEAD: our commit may sit under a later one made
+	// by someone else during a long post-commit hook, so its absence is not established and the
+	// answer is Unknown, not No (Roger #31066 on ca04ed1).
 	if parent != *old {
-		return Landed::No;
+		return Landed::Unknown;
 	}
+	// git tidies a message (trailing spaces go, runs of blank lines become one) and a
+	// commit-msg hook may edit it, so the comparison is on the tidied form, and a commit that
+	// sits on the old HEAD but reads differently is Unknown, not No (Morticia L-4 on 4f22cd3).
 	match run(repo, Verb::Log, &["-1", "--format=%B", "HEAD"]) {
-		Ok(body) if String::from_utf8_lossy(&body).trim() == message.trim() => Landed::Ours,
-		Ok(_) => Landed::No,
+		Ok(body) if tidy(&String::from_utf8_lossy(&body)) == tidy(message) => Landed::Ours,
+		Ok(_) => Landed::Unknown,
 		Err(_) => Landed::Unknown,
 	}
+}
+
+/// A message as git stores it: no trailing spaces on a line, no run of blank lines, trimmed.
+fn tidy(message: &str) -> String {
+	let mut out = Vec::new();
+	let mut blank = false;
+	for line in message.lines().map(str::trim_end) {
+		if line.is_empty() {
+			if !blank && !out.is_empty() {
+				out.push("");
+			}
+			blank = true;
+		} else {
+			out.push(line);
+			blank = false;
+		}
+	}
+	out.join("\n").trim().to_string()
 }
 
 /// HEAD's hash: Ok(None) only for an unborn branch (exit 1 with nothing on stderr, as
