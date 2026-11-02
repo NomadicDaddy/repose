@@ -1,12 +1,13 @@
 //! Fixtures and frame helpers for the UI tests: a headless platform, one frame drawn through the
-//! real screens, wheel events, scroll offsets read back through the published ids, and
-//! repository and diff fixtures.
+//! real screens that hands back what it painted, wheel and Tab events, scroll offsets read back
+//! through the published ids, the row rectangles a frame drew, and repository and diff fixtures.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
 
-use eframe::egui::{self, Event, MouseWheelUnit, Pos2, Rect, Vec2, vec2};
+use eframe::egui::epaint::{ClippedShape, Shape};
+use eframe::egui::{self, Color32, Event, MouseWheelUnit, Pos2, Rect, Stroke, Vec2, vec2};
 use repose_core::git::parse::parse_unified;
 use repose_core::model::{
 	BranchState, ChangeKind, Changes, FileChange, FileDiff, RepoKind, RepoSummary, StatusSummary,
@@ -16,6 +17,7 @@ use super::{AppState, DiffContent, DiffMsg, Msg};
 use crate::diff_rows::build_rows;
 use crate::platform::Platform;
 use crate::screens::{detail, repo_list};
+use crate::theme::{ROW_HEIGHT, SIDEBAR_WIDTH};
 
 /// A platform that opens nothing; the frames here never click an action.
 pub(super) struct Headless;
@@ -37,8 +39,13 @@ impl Platform for Headless {
 
 pub(super) const SCREEN: Vec2 = vec2(1200.0, 400.0);
 
-/// One frame of the app as main.rs draws it: the left list, then the right pane.
-pub(super) fn frame(ctx: &egui::Context, state: &mut AppState, events: Vec<Event>) {
+/// One frame of the app as main.rs draws it: the left list, then the right pane. Returns what
+/// the frame painted, for a test that checks what a state looks like rather than what it is.
+pub(super) fn frame(
+	ctx: &egui::Context,
+	state: &mut AppState,
+	events: Vec<Event>,
+) -> Vec<ClippedShape> {
 	let input = egui::RawInput {
 		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
 		events,
@@ -50,6 +57,43 @@ pub(super) fn frame(ctx: &egui::Context, state: &mut AppState, events: Vec<Event
 	});
 	// No renderer takes the font texture here; epaint insists the deltas are cleared, not dropped.
 	out.textures_delta.clear();
+	out.shapes
+}
+
+/// One press and release of Tab, which moves keyboard focus to the next control.
+pub(super) fn tab() -> Vec<Event> {
+	[true, false]
+		.into_iter()
+		.map(|pressed| Event::Key {
+			key: egui::Key::Tab,
+			physical_key: None,
+			pressed,
+			repeat: false,
+			modifiers: egui::Modifiers::default(),
+		})
+		.collect()
+}
+
+/// Every rectangle the frame drew at a repository row's height inside the sidebar, with its fill
+/// and stroke: the row backgrounds and outlines, whatever state each row was in.
+pub(super) fn row_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
+	fn walk(shape: &Shape, out: &mut Vec<(Rect, Color32, Stroke)>) {
+		match shape {
+			Shape::Vec(inner) => inner.iter().for_each(|s| walk(s, out)),
+			Shape::Rect(r)
+				if (r.rect.height() - ROW_HEIGHT).abs() < 0.5
+					&& r.rect.right() <= SIDEBAR_WIDTH =>
+			{
+				out.push((r.rect, r.fill, r.stroke));
+			}
+			_ => {}
+		}
+	}
+	let mut out = Vec::new();
+	for clipped in shapes {
+		walk(&clipped.shape, &mut out);
+	}
+	out
 }
 
 /// Enough quiet frames (1/60 s each) for a scroll animation to finish.

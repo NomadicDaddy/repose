@@ -20,16 +20,32 @@ pub fn draw(
 	let (rect, response) =
 		ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
 	let painter = ui.painter_at(rect);
-	if selected {
+	// Three states a reader must tell apart (visual-theme clause 5): the selected row has the
+	// accent fill with its soft line, a hovered row the grey fill alone, and the row holding
+	// keyboard focus (Tab reaches every row) a one-pixel bright accent outline, drawn over
+	// whichever fill applies so a selected row with focus still reads as both.
+	let fill = if selected {
+		Some(ACCENT_BG)
+	} else if response.hovered() {
+		Some(BG_HOVER)
+	} else {
+		None
+	};
+	let outline = if response.has_focus() {
+		Some(ACCENT)
+	} else if selected {
+		Some(ACCENT_LINE)
+	} else {
+		None
+	};
+	if fill.is_some() || outline.is_some() {
 		painter.rect(
 			rect,
 			RADIUS,
-			ACCENT_BG,
-			egui::Stroke::new(1.0, ACCENT_LINE),
+			fill.unwrap_or(egui::Color32::TRANSPARENT),
+			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c)),
 			StrokeKind::Inside,
 		);
-	} else if response.hovered() {
-		painter.rect_filled(rect, RADIUS, BG_HOVER);
 	}
 	let x = rect.left() + 10.0 + indent;
 	let name_color = if repo.error.is_some() {
@@ -70,6 +86,10 @@ pub fn draw(
 			ui.scope_id().with((repo.path.as_os_str(), "chevron")),
 			Sense::click(),
 		);
+		// The chevron is in the Tab order too, so it shows the same focus outline as a row.
+		if r.has_focus() {
+			painter.rect_stroke(hit, 3.0, egui::Stroke::new(1.0, ACCENT), StrokeKind::Inside);
+		}
 		chevron_clicked = r.clicked();
 	}
 	let width = (text_right - 8.0 - x).max(0.0);
