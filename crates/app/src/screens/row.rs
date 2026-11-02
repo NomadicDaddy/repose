@@ -179,8 +179,15 @@ fn fit(
 	}
 }
 
-/// Draws a small pill ending at `right`; returns its left edge.
-fn pill(painter: &egui::Painter, right: f32, cy: f32, text: &str, color: egui::Color32) -> f32 {
+/// Draws a small pill ending at `right`; returns its left edge. The Branches tab draws the same
+/// pills for its rows.
+pub(super) fn pill(
+	painter: &egui::Painter,
+	right: f32,
+	cy: f32,
+	text: &str,
+	color: egui::Color32,
+) -> f32 {
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
 	let galley = painter.layout_no_wrap(text.to_string(), font, color);
 	let size = galley.size() + vec2(12.0, 4.0);

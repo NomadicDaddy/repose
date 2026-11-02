@@ -3,7 +3,7 @@
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
-use super::{changes, commit_box, confirm, diff, file_view, files, history};
+use super::{branches, changes, commit_box, confirm, diff, file_view, files, history};
 use crate::platform::Platform;
 use crate::state::{AppState, View};
 use crate::theme::*;
@@ -72,6 +72,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					(View::Changes, "Changes"),
 					(View::History, "History"),
 					(View::Files, "Files"),
+					(View::Branches, "Branches"),
 				] {
 					let selected = state.view == view;
 					if ui.selectable_label(selected, label).clicked() {
@@ -88,6 +89,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					}
 					View::History => history::show(ui, state, platform),
 					View::Files => files::show(ui, state, platform),
+					View::Branches => branches::show(ui, state),
 				});
 		});
 	confirm::show(&ctx, state);

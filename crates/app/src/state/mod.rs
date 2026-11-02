@@ -3,6 +3,7 @@
 //! resets the selection or scroll. Writes go through one serial queue.
 
 mod backstop;
+mod branches;
 mod diff;
 mod diff_size;
 mod files;
@@ -29,6 +30,7 @@ use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::RepoSummary;
 
+pub use branches::{BranchesMsg, BranchesState};
 pub use diff::{DiffContent, DiffMsg, DiffState, FileColours, OpenDiff};
 pub use files::{FileContent, FileRev, FileViewState, FilesMsg, FilesState, OpenFile};
 pub use history::{HistoryMsg, HistoryState};
@@ -48,6 +50,7 @@ pub enum Msg {
 	PassDone(u64, Option<i32>),
 	WriteDone(Box<WriteOutcome>),
 	History(HistoryMsg),
+	Branches(BranchesMsg),
 	Diff(DiffMsg),
 	Files(FilesMsg),
 	/// The origin of a repository, read under a scan generation: a URL, none, or the failure.
@@ -62,6 +65,7 @@ pub enum View {
 	Changes,
 	History,
 	Files,
+	Branches,
 }
 
 /// A pending discard, shown in the confirmation dialog until the user decides.
@@ -113,6 +117,8 @@ pub struct AppState {
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
 	pub history: HashMap<PathBuf, HistoryState>,
+	/// The Branches tab per repository, read when the tab first shows it.
+	pub branches: HashMap<PathBuf, BranchesState>,
 	/// The diff open in the right pane, if any.
 	pub diff: Option<DiffState>,
 	/// Counts every diff read ever started, so a result from a diff closed and replaced by
@@ -171,6 +177,7 @@ impl AppState {
 			pending_discard: None,
 			view: View::Changes,
 			history: HashMap::new(),
+			branches: HashMap::new(),
 			diff: None,
 			diff_serial: 0,
 			files: HashMap::new(),
@@ -256,6 +263,11 @@ impl AppState {
 						self.refresh_history(&path, ctx);
 						self.refresh_files_for(&path, ctx);
 					}
+					// A checkout moves HEAD; a fetch from a terminal moves the saved counts and
+					// nothing else on the row; either re-reads a loaded branch list.
+					if merged.applied && (merged.head_changed || merged.changed) {
+						self.refresh_branches(&path, ctx);
+					}
 					if merged.applied {
 						self.reload_diff_after_status(&path, merged.changed, ctx);
 					}
@@ -268,6 +280,7 @@ impl AppState {
 				Msg::Notice(text) => self.notice = Some(text),
 				Msg::WriteDone(outcome) => self.finish_write(*outcome, ctx),
 				Msg::History(h) => self.merge_history(h),
+				Msg::Branches(m) => self.merge_branches(m),
 				Msg::Diff(m) => self.merge_diff(m),
 				Msg::Files(m) => self.merge_files(m),
 				Msg::Remote(g, repo, remote) => self.merge_remote(g, repo, remote),
