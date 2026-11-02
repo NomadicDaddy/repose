@@ -61,30 +61,36 @@ pub fn display_url(url: &str) -> String {
 	let Some((scheme, rest)) = url.split_once("://") else {
 		return url.to_string();
 	};
+	// The userinfo goes first, on the untrimmed text, so a raw ? or # inside a malformed
+	// password cannot end the string before its at-sign (Morticia Low on b5cc402). The authority
+	// runs to the first slash; everything up to its last at-sign is userinfo.
+	let authority = rest.split_once('/').map_or(rest, |(a, _)| a);
+	let after_userinfo = match authority.rfind('@') {
+		Some(at) => &rest[at + 1..],
+		None => {
+			// A password with a raw slash in it (malformed, but git prints it as given) puts the
+			// first slash inside the userinfo. When what precedes that slash has a colon that is
+			// not a port and an at-sign still follows before any query or fragment, the userinfo
+			// ends at that at-sign (Morticia Low on 79ec98d). A path's own at-sign with no
+			// userinfo in front stays, and a bracketed IPv6 host, colons and all, is never
+			// userinfo (Morticia Info on b5cc402).
+			let colon_not_port = !authority.starts_with('[')
+				&& authority.split_once(':').is_some_and(|(_, after)| {
+					after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit())
+				});
+			let before_query = rest.find(['?', '#']).map_or(rest, |i| &rest[..i]);
+			match before_query.rfind('@') {
+				Some(at) if colon_not_port => &rest[at + 1..],
+				_ => rest,
+			}
+		}
+	};
 	// Neither a query nor a fragment identifies a remote, and a query can carry a token
 	// (Roger on 79ec98d), so the shown URL ends where either begins.
-	let rest = rest.find(['?', '#']).map_or(rest, |i| &rest[..i]);
-	let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
-	// A password with a raw slash in it (malformed, but git prints it as given) puts the first
-	// slash inside the userinfo. When what precedes that slash has a colon that is not a port and
-	// an at-sign still follows before any query or fragment, the userinfo ends at that at-sign
-	// (Morticia Low on 79ec98d). A path's own at-sign with no userinfo in front stays.
-	// A bracketed IPv6 host holds colons of its own and is never userinfo (Morticia Info).
-	let colon_not_port = !authority.starts_with('[')
-		&& authority.split_once(':').is_some_and(|(_, after)| {
-			after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit())
-		});
-	if colon_not_port
-		&& !authority.contains('@')
-		&& let Some(at) = rest.rfind('@')
-	{
-		return format!("{scheme}://{}", &rest[at + 1..]);
-	}
-	let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
-	if path.is_empty() && !rest.contains('/') {
-		return format!("{scheme}://{host}");
-	}
-	format!("{scheme}://{host}/{path}")
+	let shown = after_userinfo
+		.find(['?', '#'])
+		.map_or(after_userinfo, |i| &after_userinfo[..i]);
+	format!("{scheme}://{shown}")
 }
 
 /// The web page for a remote URL, or None when the form is not one a browser can open.

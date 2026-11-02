@@ -111,6 +111,16 @@ fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
 		display_url("https://host.invalid/repo.git#private_token=x"),
 		"https://host.invalid/repo.git"
 	);
+	// A raw # or ? inside a malformed password must not end the string before its at-sign
+	// (Morticia Low on b5cc402): the userinfo goes first, the query and fragment after.
+	assert_eq!(
+		display_url("https://user:p#ss@host.invalid/x"),
+		"https://host.invalid/x"
+	);
+	assert_eq!(
+		display_url("https://tok?en@host.invalid/x"),
+		"https://host.invalid/x"
+	);
 	// A bracketed IPv6 host is never userinfo, so an at-sign in its path stays (Morticia Info).
 	assert_eq!(
 		display_url("ssh://[::1]:2222/@scope/pkg"),
