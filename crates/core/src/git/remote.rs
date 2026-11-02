@@ -70,10 +70,11 @@ pub fn display_url(url: &str) -> String {
 		.split_once(':')
 		.is_some_and(|(_, after)| after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit()));
 	let before_query = rest.find(['?', '#']).map_or(rest, |i| &rest[..i]);
-	if colon_not_port && !authority.contains('@') {
-		if let Some(at) = before_query.rfind('@') {
-			return format!("{scheme}://{}", &rest[at + 1..]);
-		}
+	if colon_not_port
+		&& !authority.contains('@')
+		&& let Some(at) = before_query.rfind('@')
+	{
+		return format!("{scheme}://{}", &rest[at + 1..]);
 	}
 	let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
 	if path.is_empty() && !rest.contains('/') {
