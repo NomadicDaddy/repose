@@ -264,7 +264,10 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 	if egui::Popup::is_any_open(ctx) {
 		return;
 	}
-	if !text_focus {
+	// Letters belong to the list only when neither a text box nor a Branches row holds focus;
+	// with a branch row focused they would jump the repository selection and swap the tab's
+	// branches out from under the reader (Morticia Low on 9d07b17).
+	if !text_focus && !rows_focus {
 		if escape {
 			state.type_ahead_clear();
 		}
