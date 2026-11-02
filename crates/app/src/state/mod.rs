@@ -9,6 +9,7 @@ mod diff_size;
 mod files;
 mod history;
 mod merge;
+mod msg;
 mod refresh;
 mod remote;
 mod scan;
@@ -35,46 +36,12 @@ pub use diff::{DiffContent, DiffMsg, DiffState, FileColours, OpenDiff};
 pub use files::{FileContent, FileRev, FileViewState, FilesMsg, FilesState, OpenFile};
 pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
+pub use msg::{Msg, PendingDiscard, View};
 pub use remote::Remote;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
 /// How often every status is re-read even when the watcher reported nothing.
 pub const BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
-
-pub enum Msg {
-	Discovered(u64, Vec<RepoSummary>),
-	Status(u64, Box<RepoSummary>),
-	/// The scan finished; carries the machine's UTC offset read on the scan thread.
-	Done(u64, Option<i32>),
-	/// A backstop pass over every row finished, with the UTC offset read on its thread.
-	PassDone(u64, Option<i32>),
-	WriteDone(Box<WriteOutcome>),
-	History(HistoryMsg),
-	Branches(BranchesMsg),
-	Diff(DiffMsg),
-	Files(FilesMsg),
-	/// The origin of a repository, read under a scan generation: a URL, none, or the failure.
-	Remote(u64, PathBuf, Remote),
-	/// An external action that ran on a thread failed; shown under the repository header.
-	Notice(String),
-}
-
-/// Which pane the right side shows for the selected repository.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum View {
-	Changes,
-	History,
-	Files,
-	Branches,
-}
-
-/// A pending discard, shown in the confirmation dialog until the user decides.
-#[derive(Debug, Clone)]
-pub struct PendingDiscard {
-	pub repo: PathBuf,
-	pub tracked: Vec<String>,
-	pub untracked: Vec<String>,
-}
 
 pub struct AppState {
 	pub config: Config,
