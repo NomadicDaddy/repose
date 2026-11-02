@@ -263,9 +263,12 @@ impl AppState {
 						self.refresh_history(&path, ctx);
 						self.refresh_files_for(&path, ctx);
 					}
-					// A checkout moves HEAD; a fetch from a terminal moves the saved counts and
-					// nothing else on the row; either re-reads a loaded branch list.
-					if merged.applied && (merged.head_changed || merged.changed) {
+					// Every accepted status read re-reads a loaded branch list: a branch made or
+					// deleted in a terminal changes nothing on the row, yet the watcher fires on
+					// refs/heads and Refresh re-reads every row, and this is where both land
+					// (Roger on ef766e2). One for-each-ref per status read, and only for
+					// repositories whose tab has been opened.
+					if merged.applied {
 						self.refresh_branches(&path, ctx);
 					}
 					if merged.applied {

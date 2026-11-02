@@ -102,12 +102,38 @@ fn spawn_read(repo: PathBuf, generation: u64, tx: Sender<Msg>, ctx: egui::Contex
 #[cfg(test)]
 mod tests {
 	use std::path::PathBuf;
+	use std::time::SystemTime;
 
+	use eframe::egui;
 	use repose_core::config::Config;
 	use repose_core::model::{Branch, Branches, HeadState};
 
 	use super::BranchesMsg;
-	use crate::state::AppState;
+	use crate::state::ui_harness::repo;
+	use crate::state::{AppState, Msg};
+
+	/// A branch made or deleted in a terminal changes nothing on the repository's row, so the
+	/// re-read must follow every accepted status, not only a changed one: the watcher's status
+	/// after a refs/heads write and Refresh both land here (Roger on ef766e2).
+	#[test]
+	fn an_accepted_unchanged_status_re_reads_a_loaded_list() {
+		let ctx = egui::Context::default();
+		let mut state = AppState::new(Config::default());
+		let row = repo("one", SystemTime::now());
+		let path = row.path.clone();
+		state.merge_discovered(vec![row.clone()]);
+		state
+			.branches
+			.insert(path.clone(), super::BranchesState::default());
+		let before = state.branches_of(&path).map(|b| b.generation);
+		assert_eq!(before, Some(0));
+		// The same row again: accepted, nothing changed, HEAD where it was.
+		let _ = state.tx.send(Msg::Status(state.generation, Box::new(row)));
+		state.pump(&ctx);
+		let after = state.branches_of(&path).unwrap_or_else(|| panic!("state"));
+		assert_eq!(after.generation, 1, "the list was asked to re-read");
+		assert!(after.loading, "and the read is in flight");
+	}
 
 	fn list(name: &str) -> Branches {
 		Branches {
