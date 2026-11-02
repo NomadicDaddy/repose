@@ -21,10 +21,17 @@ fn next_refresh(rx: &std::sync::mpsc::Receiver<Refresh>) -> Option<Refresh> {
 	rx.recv_timeout(SETTLE).ok()
 }
 
+/// Setup leaves events behind (the worktree add writes under .git), and the watcher hands them
+/// over up to a debounce window later, longer on a busy machine: on 2026-11-02 a fixed 400 ms
+/// pause let the worktree's refresh through as the "first" one and failed the gate. Wait until
+/// nothing has arrived for a whole window plus slack, bounded by SETTLE.
 fn drain(rx: &std::sync::mpsc::Receiver<Refresh>) {
-	while rx.try_recv().is_ok() {}
-	std::thread::sleep(Duration::from_millis(400));
-	while rx.try_recv().is_ok() {}
+	let started = Instant::now();
+	while started.elapsed() < SETTLE {
+		if rx.recv_timeout(Duration::from_millis(700)).is_err() {
+			break;
+		}
+	}
 }
 
 #[test]
