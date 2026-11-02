@@ -57,7 +57,11 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 	if response.has_focus() {
 		state.text_focus = true;
 	}
-	let cleared = response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape));
+	// egui's text box answers Escape by giving focus up before this line runs, so on that frame
+	// the box has lost focus rather than holding it; seen on screen 2026-11-02 (Escape left
+	// the filter standing), covered by ui_filter_tests.rs.
+	let cleared =
+		(response.has_focus() || response.lost_focus()) && ui.input(|i| i.key_pressed(Key::Escape));
 	if cleared {
 		state.filter.clear();
 	}
