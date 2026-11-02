@@ -56,6 +56,8 @@ impl eframe::App for App {
 		let ctx = root.ctx().clone();
 		self.state.pump(&ctx);
 		self.state.tick(&ctx);
+		// The bottom row goes first so it spans the window under both panes.
+		screens::footer::show(root);
 		screens::repo_list::show(root, &mut self.state, self.platform.as_ref());
 		screens::detail::show(root, &mut self.state, self.platform.as_ref());
 		if let Some(out) = &self.measure

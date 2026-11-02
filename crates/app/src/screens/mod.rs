@@ -9,6 +9,7 @@ pub mod diff;
 mod diff_draw;
 pub mod file_view;
 pub mod files;
+pub mod footer;
 pub mod history;
 mod menu;
 pub mod repo_list;
