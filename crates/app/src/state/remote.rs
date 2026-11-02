@@ -1,7 +1,7 @@
-//! The origin URL per repository, read on a thread the first time a repository is selected or a
-//! row's menu opens, and kept until the next Refresh (a remote can be added from a terminal).
-//! A read that fails is kept as the failure, so the menu can say why the remote items are off
-//! rather than claiming there is no origin (Morticia L-3 on 85ec3b0). Reads carry the scan
+//! The configured remotes per repository, read on a thread the first time a repository is
+//! selected or a row's menu opens, and kept until the next Refresh (a remote can be added from a
+//! terminal). A read that fails is kept as the failure, so the header and the menu can say why
+//! rather than claiming there is no remote (Morticia L-3 on 85ec3b0). Reads carry the scan
 //! generation, so one that lands after a Refresh is dropped instead of refilling the cleared
 //! cache (Roger 5Q-3 on 85ec3b0).
 
@@ -9,12 +9,13 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::remote::read_origin_url;
+use repose_core::git::remote::{RemoteEntry, read_remotes};
 
 use super::{AppState, Msg};
 
-/// What is known about a repository's origin: a URL, none, or why it could not be read.
-pub type Remote = Result<Option<String>, String>;
+/// What is known about a repository's remotes: the configured list, empty when there is none,
+/// or why it could not be read.
+pub type Remote = Result<Vec<RemoteEntry>, String>;
 
 impl AppState {
 	/// Starts a read when nothing is known for the repository and none is in flight.
@@ -42,7 +43,7 @@ impl AppState {
 
 fn spawn_remote(generation: u64, repo: PathBuf, tx: Sender<Msg>, ctx: egui::Context) {
 	std::thread::spawn(move || {
-		let remote = read_origin_url(&repo).map_err(|e| e.to_string());
+		let remote = read_remotes(&repo).map_err(|e| e.to_string());
 		let _ = tx.send(Msg::Remote(generation, repo, remote));
 		ctx.request_repaint();
 	});

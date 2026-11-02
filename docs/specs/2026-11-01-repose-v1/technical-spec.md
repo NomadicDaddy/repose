@@ -53,6 +53,10 @@ Decision: every git read and write goes through the installed `git` executable, 
   upstream:track, HEAD with %00 separators> refs/heads` for the read-only Branches tab, with
   `git rev-parse --short HEAD` only when no branch is current, to name a detached HEAD. The
   ahead and behind counts are `upstream:track`, saved refs as everywhere else; no fetch.
+- Remotes: `git remote --verbose` once per selected repository (saved config, no network), for
+  the header's one line per configured remote, `<name> · <url>` with a differing push URL in
+  parentheses, and for the menu's Copy remote URL and Open remote page, which use origin. No
+  line when none is configured.
 - Diff: `git diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -U3 -- <paths>`
   (working tree vs index), `git diff --cached` (index vs HEAD) and
   `git show --format= --diff-merges=first-parent <hash> -- <paths>` (commit vs first parent),

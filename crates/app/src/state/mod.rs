@@ -19,6 +19,8 @@ mod ui_focus_tests;
 #[cfg(test)]
 mod ui_harness;
 #[cfg(test)]
+mod ui_header_tests;
+#[cfg(test)]
 mod ui_tests;
 mod writes;
 

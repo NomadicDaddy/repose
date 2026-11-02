@@ -1,17 +1,26 @@
-//! The origin reader against real git (no remote, an added remote) and the page conversion.
+//! The remotes reader against real git (no remote, added remotes, a differing push URL), its
+//! parser on git's verbose listing, and the page conversion.
 #![allow(clippy::expect_used)]
 
 mod support;
 
-use repose_core::git::remote::{https_page, read_origin_url};
+use repose_core::git::remote::{RemoteEntry, https_page, origin, parse_remotes, read_remotes};
 use support::TempRepo;
 
+fn entry(name: &str, url: &str, push_url: Option<&str>) -> RemoteEntry {
+	RemoteEntry {
+		name: name.to_string(),
+		url: url.to_string(),
+		push_url: push_url.map(str::to_string),
+	}
+}
+
 #[test]
-fn origin_is_none_without_a_remote_and_its_url_with_one() {
+fn remotes_are_empty_without_one_and_listed_in_order_with_a_differing_push_url() {
 	let repo = TempRepo::new("remote");
 	assert_eq!(
-		read_origin_url(&repo.path).expect("no remote is not an error"),
-		None
+		read_remotes(&repo.path).expect("no remote is not an error"),
+		Vec::new()
 	);
 	repo.git(&[
 		"remote",
@@ -19,15 +28,50 @@ fn origin_is_none_without_a_remote_and_its_url_with_one() {
 		"origin",
 		"git@github.com:example/thing.git",
 	]);
-	assert_eq!(
-		read_origin_url(&repo.path).expect("origin"),
-		Some("git@github.com:example/thing.git".to_string())
-	);
 	repo.git(&["remote", "add", "upstream", "https://example.invalid/x.git"]);
+	let listed = read_remotes(&repo.path).expect("two remotes");
 	assert_eq!(
-		read_origin_url(&repo.path).expect("origin, not upstream"),
-		Some("git@github.com:example/thing.git".to_string())
+		listed,
+		vec![
+			entry("origin", "git@github.com:example/thing.git", None),
+			entry("upstream", "https://example.invalid/x.git", None),
+		]
 	);
+	assert_eq!(
+		origin(&listed).map(|r| r.url.as_str()),
+		Some("git@github.com:example/thing.git")
+	);
+	repo.git(&[
+		"remote",
+		"set-url",
+		"--push",
+		"upstream",
+		"ssh://push.example.invalid/x",
+	]);
+	assert_eq!(
+		read_remotes(&repo.path).expect("push url")[1],
+		entry(
+			"upstream",
+			"https://example.invalid/x.git",
+			Some("ssh://push.example.invalid/x")
+		)
+	);
+}
+
+#[test]
+fn the_verbose_listing_parses_pairs_and_push_only_lines() {
+	let out = b"origin\thttps://a.invalid/r.git (fetch)\norigin\thttps://a.invalid/r.git (push)\n\
+mirror\tgit@b.invalid:r.git (fetch)\nmirror\tssh://c.invalid/r (push)\nbare\tfile:///tmp/r (push)\n";
+	assert_eq!(
+		parse_remotes(out),
+		vec![
+			entry("origin", "https://a.invalid/r.git", None),
+			entry("mirror", "git@b.invalid:r.git", Some("ssh://c.invalid/r")),
+			entry("bare", "file:///tmp/r", None),
+		]
+	);
+	assert_eq!(parse_remotes(b""), Vec::new());
+	assert!(origin(&parse_remotes(b"mirror\tx (fetch)\n")).is_none());
 }
 
 #[test]

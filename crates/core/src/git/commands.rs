@@ -25,7 +25,8 @@ pub enum Verb {
 	RmCached,
 	/// `git symbolic-ref`: which branch HEAD names, to tell an unborn branch from a broken one.
 	SymbolicRef,
-	RemoteGetUrl,
+	/// `git remote --verbose`: the configured remotes with their URLs, read-only.
+	RemoteList,
 	/// `git for-each-ref`: the local branches with their saved upstream counts, read-only.
 	ForEachRef,
 }
@@ -45,7 +46,7 @@ impl Verb {
 		Verb::Commit,
 		Verb::RmCached,
 		Verb::SymbolicRef,
-		Verb::RemoteGetUrl,
+		Verb::RemoteList,
 		Verb::ForEachRef,
 	];
 
@@ -66,7 +67,7 @@ impl Verb {
 			// touched, and without it an edited staged file blocks the whole group.
 			Verb::RmCached => &["rm", "--cached", "--force", "--quiet"],
 			Verb::SymbolicRef => &["symbolic-ref", "--quiet"],
-			Verb::RemoteGetUrl => &["remote", "get-url"],
+			Verb::RemoteList => &["remote", "--verbose"],
 			Verb::ForEachRef => &["for-each-ref"],
 		}
 	}

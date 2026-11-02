@@ -60,6 +60,18 @@ pub(super) fn frame(
 	out.shapes
 }
 
+/// Every piece of text the frame painted, in paint order, for a test about what a header or a
+/// row says rather than where it sits.
+pub(super) fn texts(shapes: &[ClippedShape]) -> Vec<String> {
+	shapes
+		.iter()
+		.filter_map(|s| match &s.shape {
+			Shape::Text(t) => Some(t.galley.text().to_string()),
+			_ => None,
+		})
+		.collect()
+}
+
 /// One press and release of Tab, which moves keyboard focus to the next control.
 pub(super) fn tab() -> Vec<Event> {
 	[true, false]

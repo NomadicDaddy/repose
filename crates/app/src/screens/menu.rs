@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{self, Key, Popup, Response, RichText, SetOpenCommand, Ui};
+use repose_core::git::remote::{https_page, origin};
 
 use crate::platform::Platform;
 use crate::state::{AppState, Remote};
@@ -94,10 +95,10 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> O
 	if item(ui, "Copy path") {
 		return Some(Action::Copy(repo.display().to_string()));
 	}
-	match remote {
+	match remote.map(|r| r.as_ref().map(|list| origin(list))) {
 		None => {
-			disabled(ui, "Copy remote URL", "Reading the origin remote…");
-			disabled(ui, "Open remote page", "Reading the origin remote…");
+			disabled(ui, "Copy remote URL", "Reading the remotes…");
+			disabled(ui, "Open remote page", "Reading the remotes…");
 		}
 		Some(Ok(None)) => {
 			disabled(
@@ -112,15 +113,16 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> O
 			);
 		}
 		Some(Err(e)) => {
-			let why = format!("The origin could not be read: {e}");
+			let why = format!("The remotes could not be read: {e}");
 			disabled(ui, "Copy remote URL", &why);
 			disabled(ui, "Open remote page", &why);
 		}
-		Some(Ok(Some(url))) => {
+		Some(Ok(Some(entry))) => {
+			let url = &entry.url;
 			if item(ui, "Copy remote URL") {
 				return Some(Action::Copy(url.clone()));
 			}
-			match repose_core::git::remote::https_page(url) {
+			match https_page(url) {
 				Some(page) => {
 					if item(ui, "Open remote page") {
 						return Some(Action::OpenUrl(page));

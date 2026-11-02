@@ -1,25 +1,55 @@
-//! The origin remote, read-only: its configured URL from `git remote get-url origin` (saved
-//! config, no network) and the https page that URL names, for Copy remote URL and Open remote
-//! page.
+//! The configured remotes, read-only: names and URLs from `git remote --verbose` (saved config,
+//! no network), shown in the repository header, and the https page a URL names, for Copy remote
+//! URL and Open remote page.
 
 use std::path::Path;
 
 use super::commands::{GitError, Verb, run};
 
-/// `Ok(None)` when the repository has no remote named origin: git exits 2 with "No such
-/// remote" (exit 128 on older versions, with the same message); any other failure is an error.
-pub fn read_origin_url(repo: &Path) -> Result<Option<String>, GitError> {
-	match run(repo, Verb::RemoteGetUrl, &["origin"]) {
-		Ok(out) => {
-			let url = String::from_utf8_lossy(&out).trim().to_string();
-			Ok((!url.is_empty()).then_some(url))
+/// One configured remote. `push_url` is set only when it differs from the fetch URL.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteEntry {
+	pub name: String,
+	pub url: String,
+	pub push_url: Option<String>,
+}
+
+/// Every configured remote in git's order; an empty list when none is configured (git prints
+/// nothing and exits 0), so only a failed spawn or a broken repository is an error.
+pub fn read_remotes(repo: &Path) -> Result<Vec<RemoteEntry>, GitError> {
+	Ok(parse_remotes(&run(repo, Verb::RemoteList, &[])?))
+}
+
+/// `git remote --verbose` prints `<name>\t<url> (fetch)` and `<name>\t<url> (push)` per remote.
+/// A remote whose push URL equals its fetch URL keeps `push_url` None; a push-only line (a
+/// `pushurl` with no `url`) still names the remote, with that URL as its URL.
+pub fn parse_remotes(out: &[u8]) -> Vec<RemoteEntry> {
+	let mut remotes: Vec<RemoteEntry> = Vec::new();
+	for line in String::from_utf8_lossy(out).lines() {
+		let Some((name, rest)) = line.split_once('\t') else {
+			continue;
+		};
+		let (url, kind) = rest.rsplit_once(" (").unwrap_or((rest, "fetch)"));
+		let is_push = kind.starts_with("push");
+		match remotes.iter_mut().find(|r| r.name == name) {
+			Some(entry) => {
+				if is_push && entry.url != url {
+					entry.push_url = Some(url.to_string());
+				}
+			}
+			None => remotes.push(RemoteEntry {
+				name: name.to_string(),
+				url: url.to_string(),
+				push_url: None,
+			}),
 		}
-		Err(GitError::Failed {
-			code: Some(2 | 128),
-			ref stderr_tail,
-		}) if stderr_tail.contains("No such remote") => Ok(None),
-		Err(e) => Err(e),
 	}
+	remotes
+}
+
+/// The remote named origin, which the menu's Copy remote URL and Open remote page use.
+pub fn origin(remotes: &[RemoteEntry]) -> Option<&RemoteEntry> {
+	remotes.iter().find(|r| r.name == "origin")
 }
 
 /// The web page for a remote URL, or None when the form is not one a browser can open.

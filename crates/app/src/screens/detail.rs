@@ -1,12 +1,43 @@
-//! The right pane: the selected repository's header, a Changes | History switch, and the pane
+//! The right pane: the selected repository's header (name, branch line, path, the configured
+//! remotes when there are any), the Changes | History | Files | Branches switch, and the pane
 //! chosen. Diffs and files arrive with their own records.
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
 
 use super::{branches, changes, commit_box, confirm, diff, file_view, files, history};
 use crate::platform::Platform;
-use crate::state::{AppState, View};
+use crate::state::{AppState, Remote, View};
 use crate::theme::*;
+
+/// One line per configured remote, `<name> · <url>`, with the push URL in parentheses when it
+/// differs; nothing while the list is being read or when no remote is configured (Phillip
+/// #31822: show remotes if configured), and the failure when git could not list them.
+fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
+	match remote {
+		None => {}
+		Some(Ok(list)) => {
+			for entry in list {
+				let mut line = format!("{} · {}", entry.name, entry.url);
+				if let Some(push) = &entry.push_url {
+					line.push_str(&format!(" (push {push})"));
+				}
+				ui.label(
+					RichText::new(line)
+						.size(TEXT_SMALL)
+						.color(MUTED)
+						.family(FontFamily::Monospace),
+				);
+			}
+		}
+		Some(Err(e)) => {
+			ui.label(
+				RichText::new(format!("Remotes could not be read: {e}"))
+					.size(TEXT_SMALL)
+					.color(WARN),
+			);
+		}
+	}
+}
 
 pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let ctx = root.ctx().clone();
@@ -34,6 +65,8 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					.color(MUTED)
 					.family(FontFamily::Monospace),
 			);
+			state.ensure_remote(&repo.path, &ctx);
+			remotes(ui, state.remotes.get(&repo.path));
 			if let Some(n) = &state.notice {
 				ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
 			}
