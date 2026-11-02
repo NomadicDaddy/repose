@@ -41,7 +41,13 @@ pub fn parse_branches(bytes: &[u8]) -> Vec<Branch> {
 		else {
 			break;
 		};
-		let (ahead, behind) = parse_track(track);
+		// No upstream means no counts at all; with one, the track summary decides, and an empty
+		// summary is level, not unknown (Roger on 0de88a1).
+		let (ahead, behind) = if upstream.is_empty() {
+			(None, None)
+		} else {
+			parse_track(track)
+		};
 		out.push(Branch {
 			name: name.to_string(),
 			short_hash: short.to_string(),
@@ -54,12 +60,13 @@ pub fn parse_branches(bytes: &[u8]) -> Vec<Branch> {
 	out
 }
 
-/// `%(upstream:track)` is `[ahead 2, behind 1]`, `[ahead 2]`, `[behind 1]`, empty when level
-/// with the upstream or without one, and `[gone]` when the upstream ref no longer exists; the
-/// counts are both zero when level and both None when gone or without an upstream.
+/// `%(upstream:track)` for a branch with an upstream is `[ahead 2, behind 1]`, `[ahead 2]`,
+/// `[behind 1]`, empty when level with it, and `[gone]` when the upstream ref no longer exists;
+/// the counts are both zero when level and both None when gone. A branch without an upstream
+/// never reaches here.
 pub fn parse_track(track: &str) -> (Option<u32>, Option<u32>) {
 	let inner = track.trim().trim_start_matches('[').trim_end_matches(']');
-	if inner.is_empty() || inner == "gone" {
+	if inner == "gone" {
 		return (None, None);
 	}
 	let mut ahead = 0;
@@ -87,15 +94,26 @@ mod tests {
 		assert_eq!(parse_track("[ahead 2, behind 1]"), (Some(2), Some(1)));
 		assert_eq!(parse_track("[ahead 3]"), (Some(3), Some(0)));
 		assert_eq!(parse_track("[behind 4]"), (Some(0), Some(4)));
-		assert_eq!(parse_track(""), (None, None));
+		assert_eq!(
+			parse_track(""),
+			(Some(0), Some(0)),
+			"level with the upstream"
+		);
 		assert_eq!(parse_track("[gone]"), (None, None));
 	}
 
 	#[test]
 	fn records_parse_and_empty_upstream_is_none() {
-		let bytes = b"main\0ab12cd3\0origin/main\0[ahead 1]\0*\0\nfeature\0ef45ab6\0\0\0 \0\n";
+		let bytes = b"main\0ab12cd3\0origin/main\0[ahead 1]\0*\0\nfeature\0ef45ab6\0\0\0 \0\nlevel\0ab12cd3\0origin/level\0\0 \0\n";
 		let list = parse_branches(bytes);
-		assert_eq!(list.len(), 2);
+		assert_eq!(list.len(), 3);
+		assert_eq!(list[2].name, "level");
+		assert_eq!(list[2].upstream.as_deref(), Some("origin/level"));
+		assert_eq!(
+			(list[2].ahead, list[2].behind),
+			(Some(0), Some(0)),
+			"an upstream with an empty track summary is level, not unknown"
+		);
 		assert_eq!(list[0].name, "main");
 		assert!(list[0].current);
 		assert_eq!(list[0].upstream.as_deref(), Some("origin/main"));

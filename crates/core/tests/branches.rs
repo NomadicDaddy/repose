@@ -20,14 +20,25 @@ fn current_first_then_by_name_with_saved_counts() {
 	repo.write("mine.txt", "mine\n");
 	repo.commit_all("mine");
 	repo.git(&["branch", "-u", "up"]);
+	// "level" tracks "up" and sits on the same commit: counts of zero, not unknown (Roger on
+	// 0de88a1).
+	repo.git(&["branch", "level", "up"]);
+	repo.git(&["branch", "-u", "up", "level"]);
 	let branches = read_branches(&repo.path).expect("branches");
 	assert_eq!(branches.head, HeadState::OnBranch("main".into()));
 	let names: Vec<&str> = branches.list.iter().map(|b| b.name.as_str()).collect();
 	assert_eq!(
 		names,
-		vec!["main", "alpha", "up", "zeta"],
+		vec!["main", "alpha", "level", "up", "zeta"],
 		"current first, then by name"
 	);
+	let level = branches
+		.list
+		.iter()
+		.find(|b| b.name == "level")
+		.expect("level");
+	assert_eq!(level.upstream.as_deref(), Some("up"));
+	assert_eq!((level.ahead, level.behind), (Some(0), Some(0)));
 	let main = &branches.list[0];
 	assert!(main.current);
 	assert_eq!(main.upstream.as_deref(), Some("up"));
