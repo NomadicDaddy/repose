@@ -88,6 +88,20 @@ fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
 		"git@github.com:team/thing.git"
 	);
 	assert_eq!(display_url("C:\\repos\\thing"), "C:\\repos\\thing");
+	// A raw slash inside the password (Morticia Low on 79ec98d) still loses the userinfo, while
+	// a path's own at-sign behind a host with a port stays.
+	assert_eq!(
+		display_url("https://user:pa/ss@host.invalid/x"),
+		"https://host.invalid/x"
+	);
+	assert_eq!(
+		display_url("https://host.invalid:8443/@scope/pkg"),
+		"https://host.invalid:8443/@scope/pkg"
+	);
+	assert_eq!(
+		display_url("https://user:pa/ss@host.invalid/x?token=t"),
+		"https://host.invalid/x?token=t"
+	);
 }
 
 #[test]

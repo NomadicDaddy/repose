@@ -62,6 +62,19 @@ pub fn display_url(url: &str) -> String {
 		return url.to_string();
 	};
 	let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+	// A password with a raw slash in it (malformed, but git prints it as given) puts the first
+	// slash inside the userinfo. When what precedes that slash has a colon that is not a port and
+	// an at-sign still follows before any query or fragment, the userinfo ends at that at-sign
+	// (Morticia Low on 79ec98d). A path's own at-sign with no userinfo in front stays.
+	let colon_not_port = authority
+		.split_once(':')
+		.is_some_and(|(_, after)| after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit()));
+	let before_query = rest.find(['?', '#']).map_or(rest, |i| &rest[..i]);
+	if colon_not_port && !authority.contains('@') {
+		if let Some(at) = before_query.rfind('@') {
+			return format!("{scheme}://{}", &rest[at + 1..]);
+		}
+	}
 	let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
 	if path.is_empty() && !rest.contains('/') {
 		return format!("{scheme}://{host}");

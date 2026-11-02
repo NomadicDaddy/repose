@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use repose_core::config::Config;
 use repose_core::discovery::discover;
-use repose_core::watch::{Refresh, RepoMap, Watch};
+use repose_core::watch::{MAX_WAIT, Refresh, RepoMap, WINDOW, Watch};
 use support::TempRepo;
 
 const SETTLE: Duration = Duration::from_secs(4);
@@ -23,12 +23,13 @@ fn next_refresh(rx: &std::sync::mpsc::Receiver<Refresh>) -> Option<Refresh> {
 
 /// Setup leaves events behind (the worktree add writes under .git), and the watcher hands them
 /// over up to a debounce window later, longer on a busy machine: on 2026-11-02 a fixed 400 ms
-/// pause let the worktree's refresh through as the "first" one and failed the gate. Wait until
-/// nothing has arrived for a whole window plus slack, bounded by SETTLE.
+/// pause let the worktree's refresh through as the "first" one and failed the gate. A burst with
+/// gaps under WINDOW is held until MAX_WAIT, so the quiet spell waited for is MAX_WAIT plus
+/// WINDOW (Morticia Info on 4d3383d), bounded by SETTLE.
 fn drain(rx: &std::sync::mpsc::Receiver<Refresh>) {
 	let started = Instant::now();
 	while started.elapsed() < SETTLE {
-		if rx.recv_timeout(Duration::from_millis(700)).is_err() {
+		if rx.recv_timeout(MAX_WAIT + WINDOW).is_err() {
 			break;
 		}
 	}
