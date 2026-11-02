@@ -133,6 +133,21 @@ fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
 		display_url("https://host.invalid/x?who=a@b"),
 		"https://host.invalid/x"
 	);
+	// A dotted authority before its colon is a host with a bad port, never userinfo, so the
+	// guard stays out of its query (Roger Low on 0c3dc68); the pathless raw-hash password still
+	// loses its userinfo; the edge left is a dotted username with a raw slash in its password.
+	assert_eq!(
+		display_url("https://host.invalid:bad?access_token=abc@secret"),
+		"https://host.invalid:bad"
+	);
+	assert_eq!(
+		display_url("https://user:p#ss@host.invalid"),
+		"https://host.invalid"
+	);
+	assert_eq!(
+		display_url("https://first.last:p/w@host.invalid/x"),
+		"https://first.last:p/w@host.invalid/x"
+	);
 	// A bracketed IPv6 host is never userinfo, so an at-sign in its path stays (Morticia Info).
 	assert_eq!(
 		display_url("ssh://[::1]:2222/@scope/pkg"),

@@ -75,9 +75,14 @@ pub fn display_url(url: &str) -> String {
 			// userinfo in front stays, a bracketed IPv6 host, colons and all, is never userinfo,
 			// and a token-only userinfo holding a raw ? or / (tok?en@host) is the accepted edge:
 			// nothing tells it from a host, and git cannot use such a URL either.
+			// A host carries a dot before its colon and a username almost never does, so an
+			// authority like host.invalid:bad is a host with a bad port, not userinfo, and the
+			// guard leaves it alone (Roger Low on 0c3dc68, Morticia #31958). The edge that
+			// remains is a dotted username with a raw slash or hash in its password.
 			let colon_not_port = !authority.starts_with('[')
-				&& authority.split_once(':').is_some_and(|(_, after)| {
-					after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit())
+				&& authority.split_once(':').is_some_and(|(before, after)| {
+					!before.contains('.')
+						&& (after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit()))
 				});
 			let path_start = rest.find('/').unwrap_or(rest.len());
 			let query_after_path = rest[path_start..]
