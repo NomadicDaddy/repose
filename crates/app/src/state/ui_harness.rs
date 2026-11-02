@@ -17,7 +17,7 @@ use super::{AppState, DiffContent, DiffMsg, Msg};
 use crate::diff_rows::build_rows;
 use crate::platform::Platform;
 use crate::screens::{detail, repo_list};
-use crate::theme::{ROW_HEIGHT, SIDEBAR_WIDTH};
+use crate::theme::{ACCENT, ROW_HEIGHT, SIDEBAR_WIDTH};
 
 /// A platform that opens nothing; the frames here never click an action.
 pub(super) struct Headless;
@@ -74,16 +74,12 @@ pub(super) fn tab() -> Vec<Event> {
 		.collect()
 }
 
-/// Every rectangle the frame drew at a repository row's height inside the sidebar, with its fill
-/// and stroke: the row backgrounds and outlines, whatever state each row was in.
-pub(super) fn row_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
+/// Every rectangle the frame drew inside the sidebar, with its fill and stroke.
+fn sidebar_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
 	fn walk(shape: &Shape, out: &mut Vec<(Rect, Color32, Stroke)>) {
 		match shape {
 			Shape::Vec(inner) => inner.iter().for_each(|s| walk(s, out)),
-			Shape::Rect(r)
-				if (r.rect.height() - ROW_HEIGHT).abs() < 0.5
-					&& r.rect.right() <= SIDEBAR_WIDTH =>
-			{
+			Shape::Rect(r) if r.rect.right() <= SIDEBAR_WIDTH => {
 				out.push((r.rect, r.fill, r.stroke));
 			}
 			_ => {}
@@ -94,6 +90,25 @@ pub(super) fn row_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)>
 		walk(&clipped.shape, &mut out);
 	}
 	out
+}
+
+/// The sidebar rectangles at a repository row's height: the row backgrounds and outlines,
+/// whatever state each row was in.
+pub(super) fn row_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
+	sidebar_rects(shapes)
+		.into_iter()
+		.filter(|(r, _, _)| (r.height() - ROW_HEIGHT).abs() < 0.5)
+		.collect()
+}
+
+/// Every one-pixel bright accent outline the frame drew inside the sidebar, whatever its size:
+/// where keyboard focus is, on a row or on a worktree chevron.
+pub(super) fn accent_outlines(shapes: &[ClippedShape]) -> Vec<Rect> {
+	sidebar_rects(shapes)
+		.into_iter()
+		.filter(|(_, _, s)| s.color == ACCENT && s.width == 1.0)
+		.map(|(r, _, _)| r)
+		.collect()
 }
 
 /// Enough quiet frames (1/60 s each) for a scroll animation to finish.

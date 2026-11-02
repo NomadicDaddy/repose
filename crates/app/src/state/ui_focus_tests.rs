@@ -1,6 +1,6 @@
-//! visual-theme clause 5, checked on what a frame paints: Tab reaches the repository rows, a row
-//! holding keyboard focus shows a one-pixel accent outline, and the selected, hovered and focused
-//! rows each draw differently from the other two.
+//! visual-theme clause 5, checked on what a frame paints: Tab reaches the repository rows and the
+//! worktree chevrons, whichever holds keyboard focus shows a one-pixel accent outline, and the
+//! selected, hovered and focused rows each draw differently from the other two.
 
 use std::time::SystemTime;
 
@@ -8,8 +8,8 @@ use eframe::egui::{self, Color32, Event, Rect, Stroke};
 use repose_core::config::Config;
 
 use super::AppState;
-use super::ui_harness::{frame, repo, row_rects, tab};
-use crate::theme::{ACCENT, ACCENT_BG, ACCENT_LINE, BG_HOVER};
+use super::ui_harness::{accent_outlines, frame, repo, row_rects, tab};
+use crate::theme::{ACCENT, ACCENT_BG, ACCENT_LINE, BG_HOVER, ROW_HEIGHT};
 
 fn with(rects: &[(Rect, Color32, Stroke)], fill: Color32, line: Color32) -> Option<Rect> {
 	rects
@@ -76,4 +76,41 @@ fn a_focused_row_draws_an_accent_outline_distinct_from_selection_and_hover() {
 	assert!(hovered.contains(over_third));
 	assert_eq!(with(&drawn, Color32::TRANSPARENT, ACCENT), Some(focused));
 	assert_eq!(with(&drawn, ACCENT_BG, ACCENT_LINE), Some(selected));
+}
+
+/// The worktree chevron is in the Tab order too (Morticia on 7dfa781): after the parent row, the
+/// next Tab moves the outline from the row to the chevron's smaller box inside it, and no row
+/// carries the outline while the chevron holds focus.
+#[test]
+fn tab_reaches_the_worktree_chevron_and_outlines_it() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let t0 = SystemTime::now();
+	let mut parent = repo("p", t0);
+	parent.worktrees.push(repo("p-wt", t0));
+	state.merge_discovered(vec![parent, repo("q", t0)]);
+	let mut on_row = false;
+	for _ in 0..6 {
+		let drawn = frame(&ctx, &mut state, tab());
+		if with(&row_rects(&drawn), ACCENT_BG, ACCENT).is_some() {
+			on_row = true;
+			break;
+		}
+	}
+	assert!(on_row, "Tab did not reach the parent row in six presses");
+	let drawn = frame(&ctx, &mut state, tab());
+	let rows = row_rects(&drawn);
+	let parent_rect = with(&rows, ACCENT_BG, ACCENT_LINE)
+		.unwrap_or_else(|| panic!("the parent row keeps its soft line: {rows:?}"));
+	assert!(
+		rows.iter().all(|(_, _, s)| s.color != ACCENT),
+		"no row holds focus while the chevron does: {rows:?}"
+	);
+	let outlines = accent_outlines(&drawn);
+	assert_eq!(outlines.len(), 1, "one focus outline: {outlines:?}");
+	let chevron = outlines[0];
+	assert!(
+		chevron.height() < ROW_HEIGHT && parent_rect.contains_rect(chevron),
+		"the outline is the chevron's box inside the parent row: {chevron:?} in {parent_rect:?}"
+	);
 }
