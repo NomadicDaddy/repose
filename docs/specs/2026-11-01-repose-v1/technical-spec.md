@@ -49,6 +49,10 @@ Decision: every git read and write goes through the installed `git` executable, 
   expand, so a merge commit lists its first-parent changes instead of nothing.
 - Outgoing: the ahead count from the status call's `branch.ab`; no upstream means no Outgoing
   group. No separate `rev-list` spawn.
+- Branches: `git for-each-ref --format=<refname:short, objectname:short, upstream:short,
+  upstream:track, HEAD with %00 separators> refs/heads` for the read-only Branches tab, with
+  `git rev-parse --short HEAD` only when no branch is current, to name a detached HEAD. The
+  ahead and behind counts are `upstream:track`, saved refs as everywhere else; no fetch.
 - Diff: `git diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -U3 -- <paths>`
   (working tree vs index), `git diff --cached` (index vs HEAD) and
   `git show --format= --diff-merges=first-parent <hash> -- <paths>` (commit vs first parent),
