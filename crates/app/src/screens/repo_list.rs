@@ -54,6 +54,9 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 		response.request_focus();
 		state.focus_filter = false;
 	}
+	if response.has_focus() {
+		state.text_focus = true;
+	}
 	let cleared = response.has_focus() && ui.input(|i| i.key_pressed(Key::Escape));
 	if cleared {
 		state.filter.clear();
@@ -229,12 +232,25 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 		return;
 	}
 	let typing = ctx.memory(|m| m.focused().is_some());
-	let (down, up, enter, find) = ctx.input(|i| {
+	// A text box that had focus on the last frame owns this frame's letters; the boxes set the
+	// flag again as they draw (Phillip #31623).
+	let text_focus = std::mem::replace(&mut state.text_focus, false);
+	let (down, up, enter, escape, find, typed) = ctx.input(|i| {
+		let typed: String = i
+			.events
+			.iter()
+			.filter_map(|e| match e {
+				egui::Event::Text(t) => Some(t.as_str()),
+				_ => None,
+			})
+			.collect();
 		(
 			i.key_pressed(Key::ArrowDown),
 			i.key_pressed(Key::ArrowUp),
 			i.key_pressed(Key::Enter),
+			i.key_pressed(Key::Escape),
 			i.modifiers.command && i.key_pressed(Key::F),
+			typed,
 		)
 	});
 	if find {
@@ -244,6 +260,14 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 	// leave the menu on the old row (Morticia L-4 on 85ec3b0).
 	if egui::Popup::is_any_open(ctx) {
 		return;
+	}
+	if !text_focus {
+		if escape {
+			state.type_ahead_clear();
+		}
+		if !typed.is_empty() {
+			state.type_ahead(&typed, std::time::Instant::now());
+		}
 	}
 	if down {
 		state.move_selection(1);

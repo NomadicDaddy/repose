@@ -49,6 +49,39 @@ impl AppState {
 		self.expanded.retain(|_, open| *open);
 	}
 
+	/// A pause this long ends the typed prefix; the next letter starts a new one.
+	pub const TYPE_AHEAD_RESET: std::time::Duration = std::time::Duration::from_secs(1);
+
+	/// Letters typed with the list focused (Phillip #31623): the prefix grows while the letters
+	/// keep coming and starts over after a second's pause; the first visible row whose name
+	/// starts with it, case-insensitive, is selected and scrolled into view. No match leaves the
+	/// selection where it is, and the prefix still grows, so a mistyped letter followed by the
+	/// right ones can still land once the pause resets it.
+	pub fn type_ahead(&mut self, text: &str, now: std::time::Instant) {
+		let stale = self
+			.type_ahead_at
+			.is_none_or(|at| now.duration_since(at) > Self::TYPE_AHEAD_RESET);
+		if stale {
+			self.type_ahead.clear();
+		}
+		self.type_ahead.push_str(text);
+		self.type_ahead_at = Some(now);
+		let needle = self.type_ahead.to_lowercase();
+		let hit = self.visible_paths().into_iter().find(|p| {
+			super::find(&self.repos, p).is_some_and(|r| r.name.to_lowercase().starts_with(&needle))
+		});
+		if let Some(p) = hit {
+			self.select(p);
+			self.reveal_selected = true;
+		}
+	}
+
+	/// Escape with the list focused forgets the typed prefix at once.
+	pub fn type_ahead_clear(&mut self) {
+		self.type_ahead.clear();
+		self.type_ahead_at = None;
+	}
+
 	pub fn move_selection(&mut self, delta: i32) {
 		let paths = self.visible_paths();
 		if paths.is_empty() {
@@ -166,5 +199,59 @@ mod tests {
 		state.filter = "sum".into();
 		state.filter_changed();
 		assert_eq!(state.visible_paths().len(), 4, "a hand-open stays open");
+	}
+
+	/// Phillip #31623: typing with the list focused jumps to the first visible row whose name
+	/// starts with the letters so far; a pause over a second starts a new prefix; a worktree row
+	/// counts once it is showing; no match leaves the selection alone.
+	#[test]
+	fn typing_selects_the_first_row_whose_name_starts_with_the_letters() {
+		use std::time::{Duration, Instant};
+		let mut state = fixture();
+		let t0 = Instant::now();
+		state.type_ahead("o", t0);
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/t/other").as_path())
+		);
+		assert!(state.reveal_selected, "the jump scrolls the row into view");
+		state.reveal_selected = false;
+		state.type_ahead("t", t0 + Duration::from_millis(300));
+		assert_eq!(
+			state.type_ahead, "ot",
+			"the prefix grows while the keys keep coming"
+		);
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/t/other").as_path())
+		);
+		state.type_ahead("s", t0 + Duration::from_millis(1500));
+		assert_eq!(state.type_ahead, "s", "a pause over a second starts over");
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/t/summon").as_path())
+		);
+		state.reveal_selected = false;
+		state.type_ahead("zz", t0 + Duration::from_millis(3000));
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/t/summon").as_path()),
+			"no match leaves the selection where it is"
+		);
+		assert!(!state.reveal_selected, "and asks for no scroll");
+		state.type_ahead_clear();
+		assert!(state.type_ahead.is_empty() && state.type_ahead_at.is_none());
+		// A worktree row joins the candidates once its parent is open.
+		state.type_ahead("st", t0 + Duration::from_millis(5000));
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/t/summon").as_path())
+		);
+		state.expanded.insert(PathBuf::from("D:/t/summon"), true);
+		state.type_ahead("st", t0 + Duration::from_millis(7000));
+		assert_eq!(
+			state.selected.as_deref(),
+			Some(PathBuf::from("D:/w/summon/stop-confirm").as_path())
+		);
 	}
 }

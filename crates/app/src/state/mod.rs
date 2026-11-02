@@ -89,6 +89,14 @@ pub struct AppState {
 	pub expanded: HashMap<PathBuf, bool>,
 	pub filter: String,
 	pub focus_filter: bool,
+	/// Letters typed with the list focused (Phillip #31623): the prefix so far and when its last
+	/// letter arrived. It selects the first visible row whose name starts with it and starts over
+	/// after a second's pause.
+	pub type_ahead: String,
+	pub type_ahead_at: Option<std::time::Instant>,
+	/// A text box (the Find box, a commit message) had focus on the last frame, so typed letters
+	/// are its own and never move the selection. Each frame clears it and the boxes set it.
+	pub text_focus: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
 	/// When the last backstop pass or scan finished (or the app started, before the first).
@@ -150,6 +158,9 @@ impl AppState {
 			expanded: HashMap::new(),
 			filter: String::new(),
 			focus_filter: false,
+			type_ahead: String::new(),
+			type_ahead_at: None,
+			text_focus: false,
 			scanning: false,
 			checked_at: None,
 			backstop_at: None,

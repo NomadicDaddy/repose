@@ -25,6 +25,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		.desired_rows(3)
 		.desired_width(f32::INFINITY);
 	let response = ui.add(edit);
+	if response.has_focus() {
+		// Letters typed here are the message's, never the list's type-ahead (Phillip #31623).
+		state.text_focus = true;
+	}
 	let submit =
 		response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(Key::Enter));
 	let message = draft.clone();
