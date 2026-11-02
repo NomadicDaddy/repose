@@ -35,8 +35,10 @@ fn main() {
 	// and a fresh time instead of keeping the old clean stamp (Morticia Low on c1fb690).
 	println!("cargo:rerun-if-changed=src");
 	println!("cargo:rerun-if-changed=build.rs");
-	// The executable also compiles repose-core, so an edit there must restamp as well.
+	// The executable also compiles repose-core and embeds the vendored syntaxes with include_str!,
+	// so an edit to either must restamp as well.
 	println!("cargo:rerun-if-changed=../core/src");
+	println!("cargo:rerun-if-changed=syntaxes");
 	if let Some(dir) = git(&["rev-parse", "--git-dir"]) {
 		println!("cargo:rerun-if-changed={dir}/HEAD");
 		println!("cargo:rerun-if-changed={dir}/index");
