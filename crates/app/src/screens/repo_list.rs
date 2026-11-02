@@ -235,6 +235,9 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 	// A text box that had focus on the last frame owns this frame's letters; the boxes set the
 	// flag again as they draw (Phillip #31623).
 	let text_focus = std::mem::replace(&mut state.text_focus, false);
+	// A Branches row that had focus on the last frame owns the arrows this frame; the tab sets
+	// the flag again as it draws (branches-list clause 5).
+	let rows_focus = std::mem::replace(&mut state.rows_focus, false);
 	let (down, up, enter, escape, find, typed) = ctx.input(|i| {
 		let typed: String = i
 			.events
@@ -269,10 +272,10 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 			state.type_ahead(&typed, std::time::Instant::now());
 		}
 	}
-	if down {
+	if down && !rows_focus {
 		state.move_selection(1);
 	}
-	if up {
+	if up && !rows_focus {
 		state.move_selection(-1);
 	}
 	if enter

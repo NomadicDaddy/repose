@@ -101,6 +101,9 @@ pub struct AppState {
 	/// A text box (the Find box, a commit message) had focus on the last frame, so typed letters
 	/// are its own and never move the selection. Each frame clears it and the boxes set it.
 	pub text_focus: bool,
+	/// A row of the Branches tab had focus on the last frame, so Up and Down move within that
+	/// list and leave the repository selection where it is (branches-list clause 5).
+	pub rows_focus: bool,
 	pub scanning: bool,
 	pub checked_at: Option<SystemTime>,
 	/// When the last backstop pass or scan finished (or the app started, before the first).
@@ -167,6 +170,7 @@ impl AppState {
 			type_ahead: String::new(),
 			type_ahead_at: None,
 			text_focus: false,
+			rows_focus: false,
 			scanning: false,
 			checked_at: None,
 			backstop_at: None,

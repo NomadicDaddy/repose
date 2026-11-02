@@ -2,7 +2,7 @@
 //! marked, with the short hash, the upstream and the saved ahead/behind pills. Nothing here
 //! switches, creates, deletes or fetches (branches-list clauses 2 and 3).
 
-use eframe::egui::{self, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::{Branch, HeadState};
 
 use super::row::pill;
@@ -55,13 +55,33 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		.color(MUTED),
 	);
 	ui.add_space(4.0);
-	for branch in &branches.list {
-		branch_row(ui, branch);
+	let ids: Vec<egui::Id> = branches
+		.list
+		.iter()
+		.map(|branch| branch_row(ui, branch))
+		.collect();
+	// Up and Down move focus within the list while a row holds it (clause 5); the repository
+	// list reads rows_focus next frame and leaves its selection alone.
+	let focused = ids.iter().position(|id| ui.memory(|m| m.has_focus(*id)));
+	if let Some(index) = focused {
+		state.rows_focus = true;
+		let (up, down) = ui.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown)));
+		let next = match (up, down) {
+			(true, false) => index.saturating_sub(1),
+			(false, true) => (index + 1).min(ids.len() - 1),
+			_ => index,
+		};
+		if next != index {
+			ui.memory_mut(|m| m.request_focus(ids[next]));
+		}
 	}
 }
 
-fn branch_row(ui: &mut Ui, branch: &Branch) {
-	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click());
+/// Draws one row and returns the id its focus lives under.
+fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
+	let id = ui.make_persistent_id(("branch-row", branch.name.as_str()));
+	let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::hover());
+	let response = ui.interact(rect, id, Sense::click());
 	let painter = ui.painter_at(rect);
 	// The same three looks as a repository row (visual-theme clause 5): the current branch has
 	// the accent fill with its soft line, a hovered row the grey fill, and a row holding keyboard
@@ -148,4 +168,5 @@ fn branch_row(ui: &mut Ui, branch: &Branch) {
 			ui.close();
 		}
 	});
+	id
 }
