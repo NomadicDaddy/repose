@@ -45,9 +45,26 @@ fn the_header_lists_each_configured_remote_with_a_differing_push_url() {
 				url: "git@example.invalid:team/thing.git".into(),
 				push_url: Some("ssh://push.example.invalid/thing".into()),
 			},
+			RemoteEntry {
+				name: "tokened".into(),
+				url: "https://user:ghp_secret@example.invalid/team/thing.git".into(),
+				push_url: None,
+			},
 		]),
 	);
 	let lines = header_lines(&mut state);
+	assert!(
+		!lines
+			.iter()
+			.any(|l| l.contains("ghp_secret") || l.contains("user:")),
+		"a token in a remote URL never reaches the header: {lines:?}"
+	);
+	assert!(
+		lines
+			.iter()
+			.any(|l| l == "tokened · https://example.invalid/team/thing.git"),
+		"the tokened remote is shown without its userinfo: {lines:?}"
+	);
 	assert!(
 		lines
 			.iter()

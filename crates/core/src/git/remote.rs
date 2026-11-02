@@ -52,6 +52,23 @@ pub fn origin(remotes: &[RemoteEntry]) -> Option<&RemoteEntry> {
 	remotes.iter().find(|r| r.name == "origin")
 }
 
+/// A remote URL as the header may paint it: `scheme://user:token@host/path` loses everything
+/// before the `@` in its authority, because git keeps a configured token there verbatim and a
+/// selected repository must not put it on screen or into a screenshot (Morticia and Roger on
+/// 462cf80). The scp form `git@host:path` keeps its user, which is a login name, not a secret.
+/// Copy remote URL still hands over the verbatim URL behind its explicit action.
+pub fn display_url(url: &str) -> String {
+	let Some((scheme, rest)) = url.split_once("://") else {
+		return url.to_string();
+	};
+	let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+	let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+	if path.is_empty() && !rest.contains('/') {
+		return format!("{scheme}://{host}");
+	}
+	format!("{scheme}://{host}/{path}")
+}
+
 /// The web page for a remote URL, or None when the form is not one a browser can open.
 /// `scheme://[user@]host[:port]/path`: http and https keep their scheme, host and port; ssh,
 /// git+ssh and git become https on the host alone; the scp form `[user@]host:path` becomes

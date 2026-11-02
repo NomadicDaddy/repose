@@ -3,6 +3,7 @@
 //! chosen. Diffs and files arrive with their own records.
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
+use repose_core::git::remote::display_url;
 
 use super::{branches, changes, commit_box, confirm, diff, file_view, files, history};
 use crate::platform::Platform;
@@ -17,9 +18,9 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 		None => {}
 		Some(Ok(list)) => {
 			for entry in list {
-				let mut line = format!("{} · {}", entry.name, entry.url);
+				let mut line = format!("{} · {}", entry.name, display_url(&entry.url));
 				if let Some(push) = &entry.push_url {
-					line.push_str(&format!(" (push {push})"));
+					line.push_str(&format!(" (push {})", display_url(push)));
 				}
 				ui.label(
 					RichText::new(line)

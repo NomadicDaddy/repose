@@ -4,7 +4,9 @@
 
 mod support;
 
-use repose_core::git::remote::{RemoteEntry, https_page, origin, parse_remotes, read_remotes};
+use repose_core::git::remote::{
+	RemoteEntry, display_url, https_page, origin, parse_remotes, read_remotes,
+};
 use support::TempRepo;
 
 fn entry(name: &str, url: &str, push_url: Option<&str>) -> RemoteEntry {
@@ -56,6 +58,36 @@ fn remotes_are_empty_without_one_and_listed_in_order_with_a_differing_push_url()
 			Some("ssh://push.example.invalid/x")
 		)
 	);
+}
+
+/// The header never paints a token kept in a remote URL (Morticia and Roger on 462cf80).
+#[test]
+fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
+	assert_eq!(
+		display_url("https://user:ghp_secret@github.com/team/thing.git"),
+		"https://github.com/team/thing.git"
+	);
+	assert_eq!(
+		display_url("https://token@example.invalid/x"),
+		"https://example.invalid/x"
+	);
+	assert_eq!(
+		display_url("ssh://git@host.invalid:2222/r"),
+		"ssh://host.invalid:2222/r"
+	);
+	assert_eq!(
+		display_url("https://plain.invalid/r.git"),
+		"https://plain.invalid/r.git"
+	);
+	assert_eq!(
+		display_url("https://user:pw@host.invalid"),
+		"https://host.invalid"
+	);
+	assert_eq!(
+		display_url("git@github.com:team/thing.git"),
+		"git@github.com:team/thing.git"
+	);
+	assert_eq!(display_url("C:\\repos\\thing"), "C:\\repos\\thing");
 }
 
 #[test]
