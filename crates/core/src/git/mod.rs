@@ -1,5 +1,6 @@
 //! Everything that talks to the installed `git`. `commands` is the only module that spawns it.
 
+pub mod branches;
 pub mod commands;
 pub mod diff;
 pub mod error;

@@ -26,10 +26,12 @@ pub enum Verb {
 	/// `git symbolic-ref`: which branch HEAD names, to tell an unborn branch from a broken one.
 	SymbolicRef,
 	RemoteGetUrl,
+	/// `git for-each-ref`: the local branches with their saved upstream counts, read-only.
+	ForEachRef,
 }
 
 impl Verb {
-	pub const ALL: [Verb; 14] = [
+	pub const ALL: [Verb; 15] = [
 		Verb::Status,
 		Verb::RevParse,
 		Verb::Log,
@@ -44,6 +46,7 @@ impl Verb {
 		Verb::RmCached,
 		Verb::SymbolicRef,
 		Verb::RemoteGetUrl,
+		Verb::ForEachRef,
 	];
 
 	pub fn args(self) -> &'static [&'static str] {
@@ -64,6 +67,7 @@ impl Verb {
 			Verb::RmCached => &["rm", "--cached", "--force", "--quiet"],
 			Verb::SymbolicRef => &["symbolic-ref", "--quiet"],
 			Verb::RemoteGetUrl => &["remote", "get-url"],
+			Verb::ForEachRef => &["for-each-ref"],
 		}
 	}
 

@@ -65,7 +65,7 @@ fn no_remote_commands() {
 			);
 		}
 	}
-	assert_eq!(Verb::ALL.len(), 14);
+	assert_eq!(Verb::ALL.len(), 15);
 }
 
 #[test]

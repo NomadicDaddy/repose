@@ -1,5 +1,6 @@
 //! Plain data that crosses from core to the app.
 
+mod branch;
 mod changes;
 mod commit;
 mod diff;
@@ -8,6 +9,7 @@ mod tree;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+pub use branch::{Branch, Branches, HeadState};
 pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange};
 pub use commit::{Commit, CommitFile, parse_iso, relative};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind};
