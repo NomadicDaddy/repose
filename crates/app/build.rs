@@ -30,7 +30,11 @@ fn main() {
 		.unwrap_or(0);
 	println!("cargo:rustc-env=REPOSE_COMMIT={stamp}");
 	println!("cargo:rustc-env=REPOSE_BUILT_AT={}", utc_stamp(secs));
-	// A new commit or a change to the index changes the stamp; anything else leaves it cached.
+	// Naming any rerun path turns off cargo's default of rerunning on every source change, so
+	// the crate's own sources are named too: an edit to a tracked file then restamps "+dirty"
+	// and a fresh time instead of keeping the old clean stamp (Morticia Low on c1fb690).
+	println!("cargo:rerun-if-changed=src");
+	println!("cargo:rerun-if-changed=build.rs");
 	if let Some(dir) = git(&["rev-parse", "--git-dir"]) {
 		println!("cargo:rerun-if-changed={dir}/HEAD");
 		println!("cargo:rerun-if-changed={dir}/index");
