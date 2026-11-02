@@ -6,9 +6,13 @@
 # that hold %variables% keep them and the value keeps its REG_EXPAND_SZ type (Morticia on
 # 9f74cb6; [Environment]::GetEnvironmentVariable expands them and SetEnvironmentVariable writes
 # REG_SZ). A shell opened before the PATH change does not see it until reopened.
-# Usage: pwsh scripts/install-user.ps1 [-Check]
+# Usage: pwsh scripts/install-user.ps1 [-Check] [-CopyOnly]
+# -CopyOnly copies the pair and leaves the user PATH alone, reporting when the folder is not on
+# it; the gate's refresh uses it, so a folder taken off the PATH on purpose stays off (Morticia
+# L-1 on 2f884b9).
 param(
-    [switch] $Check
+    [switch] $Check,
+    [switch] $CopyOnly
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -54,7 +58,9 @@ try {
         Copy-Item -Path (Join-Path $dist $name) -Destination (Join-Path $target $name) -Force
         "COPIED $name -> $target"
     }
-    if (-not $onPath) {
+    if (-not $onPath -and $CopyOnly) {
+        "PATH-MISSING $target is not on the user PATH and -CopyOnly leaves it so; run scripts/install-user.ps1 without -CopyOnly to add it"
+    } elseif (-not $onPath) {
         # Append to the raw value as it is, never split and rejoined, so empty segments and
         # every byte of the existing entries survive (Roger on ba3a580). The value keeps its own
         # type; a PATH that never existed is created as REG_EXPAND_SZ.

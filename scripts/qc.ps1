@@ -58,14 +58,28 @@ if (Test-Path (Join-Path $installDir 'repose.exe')) {
     } elseif ($exit -ne 0) {
         Write-Host "INSTALL kept: the gate failed, so the per-user copy stays as it is, behind in $($behind -join ', ')"
     } else {
-        $lines = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'install-user.ps1') 2>&1 | ForEach-Object { "$_" })
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "INSTALL refreshed: the per-user copy is now this build ($($behind -join ', ') replaced)"
-            $lines | Where-Object { $_ -like 'INSTALLED *' } | ForEach-Object { Write-Host $_ }
+        # Only a build of a commit on main reaches the per-user copy: a dirty tree or another branch
+        # would install bytes that match no commit the log names (Morticia M-1 on 2f884b9).
+        $dirty = @(git status --porcelain)
+        $head = git symbolic-ref -q HEAD
+        if (-not $head) { $head = 'detached' }
+        $commit = git rev-parse --short HEAD
+        if ($dirty.Count -gt 0) {
+            Write-Host "INSTALL kept: the tree has $($dirty.Count) uncommitted path(s), so this build matches no commit; commit first"
+        } elseif ($head -ne 'refs/heads/main') {
+            Write-Host "INSTALL kept: HEAD is $head, not refs/heads/main"
         } else {
-            $why = $lines | Where-Object { $_ -match 'repose is running|missing ' } | Select-Object -First 1
-            if (-not $why) { $why = "install-user.ps1 exited $LASTEXITCODE" }
-            Write-Host "INSTALL skipped: $why; the next green gate refreshes it"
+            # Copy only: the gate never writes the user PATH, so a folder removed from it stays
+            # removed and the script says so (Morticia L-1 on 2f884b9); every PATH line is echoed.
+            $lines = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'install-user.ps1') -CopyOnly 2>&1 | ForEach-Object { "$_" })
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "INSTALL refreshed: the per-user copy is now main $commit ($($behind -join ', ') replaced)"
+                $lines | Where-Object { $_ -like 'INSTALLED *' -or $_ -like 'PATH-*' } | ForEach-Object { Write-Host $_ }
+            } else {
+                $why = $lines | Where-Object { $_ -match 'repose is running|missing ' } | Select-Object -First 1
+                if (-not $why) { $why = "install-user.ps1 exited $LASTEXITCODE" }
+                Write-Host "INSTALL skipped: $why; the next green gate refreshes it"
+            }
         }
     }
 }
