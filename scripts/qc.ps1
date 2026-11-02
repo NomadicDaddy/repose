@@ -24,22 +24,6 @@ Step 'cargo build --release' { cargo build --workspace --release }
 # The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
 # the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
 Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
-# A per-user install (scripts/install-user.ps1) is not refreshed by the gate; say when it is behind,
-# judging both files of the pair (Roger on ba3a580).
-$installDir = Join-Path $env:LOCALAPPDATA 'Programs\repose'
-if (Test-Path (Join-Path $installDir 'repose.exe')) {
-    $behind = @()
-    foreach ($name in @('repose.exe', 'THIRD-PARTY-NOTICES.md')) {
-        $here = Join-Path $installDir $name
-        $there = Join-Path $root "target\dist\$name"
-        if (-not (Test-Path $here) -or -not (Test-Path $there) -or (Get-FileHash $here).Hash -ne (Get-FileHash $there).Hash) { $behind += $name }
-    }
-    if ($behind.Count -gt 0) {
-        Write-Host "INSTALL stale: the per-user copy differs in $($behind -join ', '); run scripts/install-user.ps1 to refresh it"
-    } else {
-        Write-Host 'INSTALL current: the per-user copy is this build, both files'
-    }
-}
 Write-Host '== file length (300 lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
     Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
@@ -54,6 +38,35 @@ if (Test-Path $exe) {
     Write-Host "MEASURE exe-size-mb $size (target about 25)"
     if (-not $SkipMeasure) {
         & (Join-Path $PSScriptRoot 'measure-startup.ps1') -Exe $exe
+    }
+}
+# A per-user install (scripts/install-user.ps1) is refreshed by a green gate (Phillip #31471 on
+# #31468): when every step passed and a per-user copy exists, the staged pair is copied over it,
+# unless that repose is running, in which case the gate says so and the next green gate does it.
+# A failed gate leaves the copy alone and says whether it is behind, judging both files of the pair
+# (Roger on ba3a580). Nothing here changes the exit code.
+$installDir = Join-Path $env:LOCALAPPDATA 'Programs\repose'
+if (Test-Path (Join-Path $installDir 'repose.exe')) {
+    $behind = @()
+    foreach ($name in @('repose.exe', 'THIRD-PARTY-NOTICES.md')) {
+        $here = Join-Path $installDir $name
+        $there = Join-Path $root "target\dist\$name"
+        if (-not (Test-Path $here) -or -not (Test-Path $there) -or (Get-FileHash $here).Hash -ne (Get-FileHash $there).Hash) { $behind += $name }
+    }
+    if ($behind.Count -eq 0) {
+        Write-Host 'INSTALL current: the per-user copy is this build, both files'
+    } elseif ($exit -ne 0) {
+        Write-Host "INSTALL kept: the gate failed, so the per-user copy stays as it is, behind in $($behind -join ', ')"
+    } else {
+        $lines = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'install-user.ps1') 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "INSTALL refreshed: the per-user copy is now this build ($($behind -join ', ') replaced)"
+            $lines | Where-Object { $_ -like 'INSTALLED *' } | ForEach-Object { Write-Host $_ }
+        } else {
+            $why = $lines | Where-Object { $_ -match 'repose is running|missing ' } | Select-Object -First 1
+            if (-not $why) { $why = "install-user.ps1 exited $LASTEXITCODE" }
+            Write-Host "INSTALL skipped: $why; the next green gate refreshes it"
+        }
     }
 }
 Write-Host "QC_EXIT=$exit"
