@@ -100,7 +100,21 @@ fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
 	);
 	assert_eq!(
 		display_url("https://user:pa/ss@host.invalid/x?token=t"),
-		"https://host.invalid/x?token=t"
+		"https://host.invalid/x"
+	);
+	// A query or a fragment never shows: a token can ride in a query (Roger on 79ec98d).
+	assert_eq!(
+		display_url("https://host.invalid/repo.git?access_token=example_secret"),
+		"https://host.invalid/repo.git"
+	);
+	assert_eq!(
+		display_url("https://host.invalid/repo.git#private_token=x"),
+		"https://host.invalid/repo.git"
+	);
+	// A bracketed IPv6 host is never userinfo, so an at-sign in its path stays (Morticia Info).
+	assert_eq!(
+		display_url("ssh://[::1]:2222/@scope/pkg"),
+		"ssh://[::1]:2222/@scope/pkg"
 	);
 }
 
