@@ -7,10 +7,17 @@ use super::Platform;
 
 pub struct Windows;
 
+/// Explorer wants backslashes: given `C:/roots/x\repo` (a config root written with forward
+/// slashes, joined by the scanner) it opens Documents instead of the folder, silently. Seen on
+/// screen 2026-11-02 with a fixture root; every path handed to explorer.exe goes through here.
+fn backslashed(path: &Path) -> String {
+	path.display().to_string().replace('/', "\\")
+}
+
 impl Platform for Windows {
 	fn open_folder(&self, dir: &Path) -> Result<(), String> {
 		Command::new("explorer.exe")
-			.arg(dir)
+			.arg(backslashed(dir))
 			.spawn()
 			.map(|_| ())
 			.map_err(|e| e.to_string())
@@ -27,7 +34,7 @@ impl Platform for Windows {
 				None => Err("no folder to open".to_string()),
 			};
 		}
-		let select = format!("/select,\"{}\"", file.display());
+		let select = format!("/select,\"{}\"", backslashed(file));
 		Command::new("explorer.exe")
 			.raw_arg(select)
 			.spawn()
