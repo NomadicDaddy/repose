@@ -117,8 +117,20 @@ fn a_displayed_url_loses_its_userinfo_and_keeps_an_scp_login() {
 		display_url("https://user:p#ss@host.invalid/x"),
 		"https://host.invalid/x"
 	);
+	// The token-only userinfo with a raw ? is the accepted edge: nothing tells it from a host.
+	assert_eq!(display_url("https://tok?en@host.invalid/x"), "https://tok");
+	// A pathless URL whose query holds an at-sign keeps its host and shows no query
+	// (Roger Medium on f6b80e4); a query behind a path never feeds the malformed guard.
 	assert_eq!(
-		display_url("https://tok?en@host.invalid/x"),
+		display_url("https://host.invalid?access_token=abc@secret"),
+		"https://host.invalid"
+	);
+	assert_eq!(
+		display_url("https://user:pa/ss@host.invalid/x?who=a@b"),
+		"https://host.invalid/x"
+	);
+	assert_eq!(
+		display_url("https://host.invalid/x?who=a@b"),
 		"https://host.invalid/x"
 	);
 	// A bracketed IPv6 host is never userinfo, so an at-sign in its path stays (Morticia Info).

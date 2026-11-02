@@ -61,25 +61,29 @@ pub fn display_url(url: &str) -> String {
 	let Some((scheme, rest)) = url.split_once("://") else {
 		return url.to_string();
 	};
-	// The userinfo goes first, on the untrimmed text, so a raw ? or # inside a malformed
-	// password cannot end the string before its at-sign (Morticia Low on b5cc402). The authority
-	// runs to the first slash; everything up to its last at-sign is userinfo.
-	let authority = rest.split_once('/').map_or(rest, |(a, _)| a);
+	// The RFC authority first: it ends at the first slash, question mark or hash, and everything
+	// up to its last at-sign is userinfo. A query is never searched for an at-sign, so a pathless
+	// host.invalid?access_token=abc@secret shows the host (Roger Medium on f6b80e4).
+	let authority = rest.find(['/', '?', '#']).map_or(rest, |i| &rest[..i]);
 	let after_userinfo = match authority.rfind('@') {
 		Some(at) => &rest[at + 1..],
 		None => {
-			// A password with a raw slash in it (malformed, but git prints it as given) puts the
-			// first slash inside the userinfo. When what precedes that slash has a colon that is
-			// not a port and an at-sign still follows before any query or fragment, the userinfo
-			// ends at that at-sign (Morticia Low on 79ec98d). A path's own at-sign with no
-			// userinfo in front stays, and a bracketed IPv6 host, colons and all, is never
-			// userinfo (Morticia Info on b5cc402).
+			// A password with a raw slash or hash in it (malformed, but git prints it as given)
+			// ends that authority early. When the authority has a colon that is not a port, the
+			// userinfo ends at the last at-sign of the untrimmed text, up to a query that begins
+			// after the path (Morticia Lows on 79ec98d and b5cc402). A path's own at-sign with no
+			// userinfo in front stays, a bracketed IPv6 host, colons and all, is never userinfo,
+			// and a token-only userinfo holding a raw ? or / (tok?en@host) is the accepted edge:
+			// nothing tells it from a host, and git cannot use such a URL either.
 			let colon_not_port = !authority.starts_with('[')
 				&& authority.split_once(':').is_some_and(|(_, after)| {
 					after.is_empty() || !after.bytes().all(|b| b.is_ascii_digit())
 				});
-			let before_query = rest.find(['?', '#']).map_or(rest, |i| &rest[..i]);
-			match before_query.rfind('@') {
+			let path_start = rest.find('/').unwrap_or(rest.len());
+			let query_after_path = rest[path_start..]
+				.find(['?', '#'])
+				.map_or(rest.len(), |i| path_start + i);
+			match rest[..query_after_path].rfind('@') {
 				Some(at) if colon_not_port => &rest[at + 1..],
 				_ => rest,
 			}
