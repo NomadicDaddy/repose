@@ -62,8 +62,10 @@ if (Test-Path (Join-Path $installDir 'repose.exe')) {
         # would install bytes that match no commit the log names (Morticia M-1 on 2f884b9).
         # Each Git answer counts only when Git succeeded: a failed status with empty output must
         # keep the copy, not pass as clean (Roger on 2c7e596). symbolic-ref -q exits 1 when HEAD
-        # is detached, which is a plain not-main answer, not a failure.
-        $dirty = @(git status --porcelain 2>&1 | ForEach-Object { "$_" })
+        # is detached, which is a plain not-main answer, not a failure. Only stdout is the answer:
+        # on this host git status writes two global-ignore permission warnings to stderr with
+        # exit 0, and folded in they read as two dirty paths (Roger on 29bcb6b).
+        $dirty = @(git status --porcelain 2>$null | ForEach-Object { "$_" } | Where-Object { $_ -ne '' })
         $statusOk = ($LASTEXITCODE -eq 0)
         $head = "$(git symbolic-ref -q HEAD 2>$null)"
         if (-not $head) { $head = 'detached' }
