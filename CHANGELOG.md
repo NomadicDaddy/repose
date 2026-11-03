@@ -41,8 +41,8 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 - Configuration in `%APPDATA%\repose\config.toml`, created with defaults on first run.
 - The Find box and the commit message field have visible labels, which are also their
   accessible names.
-- `THIRD-PARTY-NOTICES.md` ships beside the executable with the licence texts of the Rust crates
-  linked into it, the vendored PowerShell grammar, and the acknowledgements for the syntax
+- `THIRD-PARTY-NOTICES.md` ships beside the executable with the licence texts of its Cargo
+  dependency crates, the vendored PowerShell grammar, and the acknowledgements for the syntax
   definitions and themes compiled in through two-face.
 
 ### Security
