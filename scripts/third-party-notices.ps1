@@ -109,6 +109,26 @@ if ($missing.Count -gt 0) {
     exit 1
 }
 
+# two-face compiles syntax and theme dumps into the executable. Their collected notices are
+# separate from the crate's own MIT/Apache licence files and must travel with the release pair.
+$twoFace = @($crates | Where-Object { $_.name -eq 'two-face' })
+if ($twoFace.Count -ne 1 -or $twoFace[0].version -ne '0.4.5') {
+    Write-Host 'FAILED: update the embedded two-face notices for the locked two-face version'
+    exit 1
+}
+$twoFacePath = Join-Path $root 'licenses/two-face/acknowledgements_full.md'
+if (-not (Test-Path -LiteralPath $twoFacePath)) {
+    Write-Host 'FAILED: missing two-face syntax and theme acknowledgements'
+    exit 1
+}
+$twoFaceBytes = [System.IO.File]::ReadAllBytes($twoFacePath)
+$twoFaceHash = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($twoFaceBytes))
+if ($twoFaceHash -ne 'AFCFB536E62C5F78AF45AAD96498F658E8494F151AE0835440F3BE5A91C2B00B') {
+    Write-Host 'FAILED: two-face syntax and theme acknowledgements differ from the pinned upstream text'
+    exit 1
+}
+$twoFaceText = [System.Text.UTF8Encoding]::new($false, $true).GetString($twoFaceBytes)
+
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add('# Third-party notices')
 $lines.Add('')
@@ -150,6 +170,14 @@ $lines.Add('')
 $lines.Add('```')
 foreach ($l in (Get-Content (Join-Path $root 'crates/app/syntaxes/PowerShell/LICENSE.txt'))) { $lines.Add($l) }
 $lines.Add('```')
+$lines.Add('')
+$lines.Add('### two-face 0.4.5 embedded syntax and theme dumps')
+$lines.Add('')
+$lines.Add('`two_face::syntax::extra_newlines` and `two_face::theme::extra` compile in the')
+$lines.Add('`syntaxes-fancy-newlines.bin` and `themes.bin` dumps. The full upstream syntax and')
+$lines.Add('theme acknowledgements below are pinned in `licenses/two-face/`; see `licenses/SOURCE.md`.')
+$lines.Add('')
+foreach ($l in ($twoFaceText -split "`r?`n")) { $lines.Add($l.TrimEnd()) }
 $lines.Add('')
 $lines.Add('## Not shipped')
 $lines.Add('')
