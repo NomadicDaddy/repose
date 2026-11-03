@@ -46,10 +46,14 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 			}
 		});
 	});
+	let label = ui.label("Find a repository");
 	let edit = egui::TextEdit::singleline(&mut state.filter)
-		.hint_text("Find a repository")
+		.hint_text("name or path...")
 		.desired_width(f32::INFINITY);
-	let response = ui.add(edit);
+	let response = ui
+		.add(edit)
+		.labelled_by(label.id)
+		.accessible_name("Find a repository");
 	if state.focus_filter {
 		response.request_focus();
 		state.focus_filter = false;

@@ -53,7 +53,11 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			});
 		ui.add_space(10.0);
 		ui.horizontal(|ui| {
-			if ui.button("Cancel").clicked() {
+			let cancel = ui.push_id("discard-cancel", |ui| ui.button("Cancel")).inner;
+			if pending.focus_cancel {
+				cancel.request_focus();
+			}
+			if cancel.clicked() {
 				decision = Some(false);
 			}
 			let discard = egui::Button::new(RichText::new("Discard").color(BG_APP)).fill(DANGER);
@@ -62,8 +66,19 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			}
 		});
 	});
+	if let Some(current) = state.pending_discard.as_mut() {
+		current.focus_cancel = false;
+	}
 	if decision.is_none() && modal.should_close() {
 		decision = Some(false);
+	}
+	if decision.is_some()
+		&& state
+			.selected_repo()
+			.is_some_and(|repo| repo.path == pending.repo)
+		&& let Some(id) = pending.return_focus
+	{
+		ctx.memory_mut(|memory| memory.request_focus(id));
 	}
 	match decision {
 		Some(true) => {

@@ -15,6 +15,8 @@ mod remote;
 mod scan;
 mod select;
 #[cfg(test)]
+mod ui_discard_tests;
+#[cfg(test)]
 mod ui_filter_tests;
 #[cfg(test)]
 mod ui_focus_tests;
@@ -22,6 +24,8 @@ mod ui_focus_tests;
 mod ui_harness;
 #[cfg(test)]
 mod ui_header_tests;
+#[cfg(test)]
+mod ui_labels_tests;
 #[cfg(test)]
 mod ui_tests;
 mod writes;

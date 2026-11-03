@@ -18,13 +18,17 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	};
 	let busy = state.writes.busy_for(&repo.path);
 	ui.add_space(10.0);
+	let label = ui.label("Commit message");
 	let hint = format!("Message (Ctrl+Enter to commit on {branch})");
 	let draft = state.commit_messages.entry(repo.path.clone()).or_default();
 	let edit = egui::TextEdit::multiline(draft)
 		.hint_text(hint)
 		.desired_rows(3)
 		.desired_width(f32::INFINITY);
-	let response = ui.add(edit);
+	let response = ui
+		.add(edit)
+		.labelled_by(label.id)
+		.accessible_name("Commit message");
 	if response.has_focus() {
 		// Letters typed here are the message's, never the list's type-ahead (Phillip #31623).
 		state.text_focus = true;

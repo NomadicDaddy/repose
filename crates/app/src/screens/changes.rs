@@ -281,6 +281,8 @@ fn hover_actions(
 					repo: g.repo.path.clone(),
 					tracked,
 					untracked,
+					return_focus: child.memory(|m| m.focused()).or(Some(button.id)),
+					focus_cancel: true,
 				});
 			}
 		}

@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 
+use eframe::egui;
 use repose_core::model::RepoSummary;
 
 use super::{BranchesMsg, DiffMsg, FilesMsg, HistoryMsg, Remote, WriteOutcome};
@@ -40,4 +41,6 @@ pub struct PendingDiscard {
 	pub repo: PathBuf,
 	pub tracked: Vec<String>,
 	pub untracked: Vec<String>,
+	pub return_focus: Option<egui::Id>,
+	pub focus_cancel: bool,
 }
