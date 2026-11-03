@@ -7,7 +7,7 @@ use eframe::egui::epaint::{ClippedShape, Shape};
 use eframe::egui::{self, Event, PointerButton};
 use repose_core::config::Config;
 
-use super::ui_harness::{frame, real_repo, repo_at, texts};
+use super::ui_harness::{frame, real_repo, repo_at, tab, texts};
 use super::{AppState, PendingDiscard, WriteKind};
 
 fn prepared(name: &str) -> (AppState, PathBuf) {
@@ -103,6 +103,47 @@ fn cancel_discards_nothing_and_restores_focus() {
 	assert!(state.pending_discard.is_none());
 	assert!(state.writes.running.is_empty() && state.writes.waiting.is_empty());
 	assert!(ctx.memory(|memory| memory.has_focus(egui::Id::unique("discard-origin"))));
+}
+
+#[test]
+fn a_row_discard_click_keeps_that_button_as_the_return_target() {
+	let (mut state, _) = prepared("discard-row-focus-ui");
+	state.pending_discard = None;
+	// A selected row keeps its actions drawn while the pointer sits on them.
+	state.selected_file = Some("x.txt".into());
+	let ctx = egui::Context::default();
+	frame(&ctx, &mut state, Vec::new());
+	frame(&ctx, &mut state, Vec::new());
+	// Another control holds keyboard focus when the pointer clicks the row's Discard.
+	frame(&ctx, &mut state, tab());
+	let prior = ctx
+		.memory(|memory| memory.focused())
+		.unwrap_or_else(|| panic!("Tab focuses a control"));
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let discard = button_at(&shapes, "Discard");
+	frame(&ctx, &mut state, vec![Event::PointerMoved(discard)]);
+	assert!(
+		ctx.memory(|memory| memory.has_focus(prior)),
+		"the other control still holds focus before the click"
+	);
+	click(&ctx, &mut state, discard);
+	let target = state
+		.pending_discard
+		.as_ref()
+		.and_then(|pending| pending.return_focus)
+		.unwrap_or_else(|| panic!("the row click opens the dialog with a return target"));
+	assert_ne!(
+		target, prior,
+		"the return target is not the control that held focus"
+	);
+	let rect = ctx
+		.read_response(target)
+		.unwrap_or_else(|| panic!("the return target is a drawn widget"))
+		.rect;
+	assert!(
+		rect.contains(discard),
+		"the return target is the clicked Discard button"
+	);
 }
 
 #[test]

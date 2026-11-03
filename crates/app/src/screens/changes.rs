@@ -281,7 +281,9 @@ fn hover_actions(
 					repo: g.repo.path.clone(),
 					tracked,
 					untracked,
-					return_focus: child.memory(|m| m.focused()).or(Some(button.id)),
+					// The clicked Discard is the control to come back to, whatever held focus
+					// (stage-and-commit; Roger 5Q-1 on bf3df80).
+					return_focus: Some(button.id),
 					focus_cancel: true,
 				});
 			}
