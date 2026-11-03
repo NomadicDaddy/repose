@@ -118,15 +118,17 @@ pub fn hide_console(cmd: &mut Command) {
 #[cfg(not(windows))]
 pub fn hide_console(_cmd: &mut Command) {}
 
-/// Builds the command every spawn shares: literal pathspecs and no fsmonitor program on every
-/// verb; no optional locks on reads; stdin closed; no console window; the repository as working
-/// directory.
+/// Builds the command every spawn shares: literal pathspecs, no fsmonitor program and no lazy
+/// fetch from a partial clone's promisor remote on every verb (A1: a missing object is an error,
+/// never a download); no optional locks on reads; stdin closed; no console window; the repository
+/// as working directory.
 pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 	let mut cmd = Command::new("git");
 	hide_console(&mut cmd);
 	cmd.current_dir(repo)
 		.env("GIT_TERMINAL_PROMPT", "0")
 		.env("GIT_LITERAL_PATHSPECS", "1")
+		.env("GIT_NO_LAZY_FETCH", "1")
 		.env("LC_ALL", "C")
 		.arg("-c")
 		.arg("core.quotePath=false")
@@ -179,6 +181,13 @@ pub fn run_cancellable(
 	extra: &[&str],
 	cancel: Option<&Cancel>,
 ) -> Result<Vec<u8>, GitError> {
+	// `remote` runs only as `remote --verbose`: an extra word such as `update` or `show origin`
+	// would reach a remote (A1).
+	if verb == Verb::RemoteList && !extra.is_empty() {
+		return Err(GitError::Spawn(
+			"git remote takes no extra arguments in repose".into(),
+		));
+	}
 	let _permit = Permit::acquire();
 	// A Cancel clicked while this request waited for the pool must not start git at all (Roger
 	// 5Q-1 on a31e63b); nothing ran, so nothing needs killing.

@@ -83,3 +83,50 @@ fn submodule_records_and_binary_rule() {
 		"a NUL after the first 8000 bytes does not count"
 	);
 }
+
+/// A1: in a blobless partial clone, reading an absent blob must fail rather than make git fetch
+/// it from the promisor remote, and the blob must still be absent afterwards.
+#[test]
+fn a_partial_clone_never_fetches_a_missing_blob() {
+	let src = TempRepo::new("promisor-src");
+	src.git(&["config", "uploadpack.allowFilter", "true"]);
+	src.write("a.txt", "first\n");
+	src.commit_all("first");
+	let first = src.git(&["rev-parse", "HEAD"]).trim().to_string();
+	src.write("a.txt", "second\n");
+	src.commit_all("second");
+	let dest = src.path.with_extension("clone");
+	let url = format!(
+		"file:///{}",
+		src.path.display().to_string().replace('\\', "/")
+	);
+	let dest_arg = dest.display().to_string();
+	support::git_in(
+		&std::env::temp_dir(),
+		&[
+			"clone",
+			"-q",
+			"--filter=blob:none",
+			"--no-checkout",
+			&url,
+			&dest_arg,
+		],
+	);
+	assert!(dest.join(".git").is_dir(), "the partial clone was made");
+	let absent = |dir: &std::path::Path| {
+		!std::process::Command::new("git")
+			.current_dir(dir)
+			.env("GIT_NO_LAZY_FETCH", "1")
+			.args(["cat-file", "-e", &format!("{first}:a.txt")])
+			.status()
+			.expect("git runs")
+			.success()
+	};
+	assert!(absent(&dest), "the old blob starts out absent in the clone");
+	assert!(
+		read_file(&dest, &first, "a.txt").is_err(),
+		"repose reports the absent blob instead of fetching it"
+	);
+	assert!(absent(&dest), "and the blob is still absent afterwards");
+	let _ = std::fs::remove_dir_all(&dest);
+}

@@ -69,6 +69,26 @@ fn no_remote_commands() {
 }
 
 #[test]
+fn every_spawn_disables_lazy_fetch() {
+	for verb in Verb::ALL {
+		let cmd = commands::command(Path::new("."), verb, &[]);
+		let set = cmd
+			.get_envs()
+			.any(|(k, v)| k == "GIT_NO_LAZY_FETCH" && v.is_some_and(|v| v == "1"));
+		assert!(set, "{verb:?} would let git fetch a missing object (A1)");
+	}
+}
+
+#[test]
+fn remote_list_rejects_extra_arguments() {
+	let dir = std::env::temp_dir();
+	for extra in [&["update"][..], &["show", "origin"][..]] {
+		let result = commands::run(&dir, Verb::RemoteList, extra);
+		assert!(result.is_err(), "remote {extra:?} must never run");
+	}
+}
+
+#[test]
 fn every_spawn_sets_literal_pathspecs_and_reads_set_optional_locks_off() {
 	let read = commands::command(Path::new("."), Verb::Status, &["--porcelain=v2"]);
 	let env: Vec<(String, String)> = read
