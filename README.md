@@ -18,17 +18,34 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - A Rust stable toolchain to build from source, plus Microsoft's C++ build tools (the MSVC linker
   and the Windows SDK, from the "Desktop development with C++" workload of Visual Studio or its
   Build Tools), which Rust's Windows target links with. No runtime is bundled or downloaded.
+- For the gate scripts only: PowerShell 7 (`pwsh`), and cargo-audit installed per user with
+  `cargo install cargo-audit --locked`. Running repose needs neither.
 
 ## Build, run and install
 
 - `pwsh scripts/qc.ps1` runs the full gate (format, clippy, tests, cargo audit, release build,
-  the 300-line check and the notices check) and stages `repose.exe` with
-  `THIRD-PARTY-NOTICES.md` in `target/dist`. Its last line is `QC_EXIT=<code>`.
-- `pwsh scripts/install-user.ps1` copies the staged pair to `%LOCALAPPDATA%\Programs\repose` and
+  the 300-line check and the notices check) and stages the release files in `target/dist`:
+  `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. Its last line
+  is `QC_EXIT=<code>`.
+- `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
   adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
 - `repose` opens on every repository under the roots in `%APPDATA%\repose\config.toml`, which is
-  created with defaults on first run. `--select <path>` and `--view changes|history|files` open
-  on a repository and tab.
+  created with defaults on first run.
+
+## Command-line flags
+
+- `--config <path>`: read this config file instead of `%APPDATA%\repose\config.toml`.
+- `--select <path>`: open on this repository. Without it, starting from inside a listed
+  repository selects that one.
+- `--view changes|history|files|branches`: open on this tab. Any other value opens Changes.
+- `--file <path>`: open this file's working-tree diff; `--inline` shows it inline.
+- `--open <path>`: open this file read-only as HEAD holds it.
+- `--scale <factor>`: zoom on top of the desktop's scaling, from 0.5 to 4. Any other value is
+  refused and repose exits with code 2.
+- `--measure-startup [file]`: write the milliseconds to the first frame with repository rows into
+  the file (default `repose-startup-ms.txt`), print them, then exit.
+
+There is no `--help` yet.
 
 ## Layout
 

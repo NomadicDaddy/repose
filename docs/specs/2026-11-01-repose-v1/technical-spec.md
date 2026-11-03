@@ -2,7 +2,7 @@
 
 Written 2026-11-01 from Phillip's brief and his answers. Feature records under `.aidd/features/`
 carry the acceptance clauses; this document holds the architecture and the decisions the records
-share. Decisions still open are listed at the end and in `decisions.md`.
+share. Decisions, open and resolved, are listed at the end and in `decisions.md`.
 
 ## Overview
 
@@ -21,7 +21,7 @@ files, read-only diffs and files with highlighting, and a commit box. Scope sett
 | Actions            | Explorer, VS Code, terminal, copy path, hash and remote URL.           |
 | Platform           | Windows 11 first; nothing that blocks Linux or macOS.                  |
 | Look               | Dark only, the `look.jpg` palette.                                     |
-| Toolkit            | Decided by a measured comparison, not assumed.                         |
+| Toolkit            | eframe/egui, chosen by a measured comparison (ADR-001, accepted).      |
 
 ## Architecture
 
@@ -30,20 +30,23 @@ crates/core   discovery, git, watch, config, model     no UI dependency, fixture
 crates/app    window, screens, state, theme, platform  the only consumer of core
 ```
 
-Plain data crosses the boundary: `RepoSummary`, `Changes`, `Commit`, `DiffFile`. `core` exposes
-async functions returning those; `app` drives them from its event loop and merges results into
-`state` by repository path, which is what keeps selection and scroll stable across refreshes.
+Plain data crosses the boundary: `RepoSummary`, `Changes`, `Commit`, `FileDiff`. `core` exposes
+synchronous functions returning those; `app` runs them on worker threads, receives the results
+over a channel in its event loop and merges them into `state` by repository path, which is what
+keeps selection and scroll stable across refreshes.
 
 ### Git backend: the installed `git`
 
 Decision: every git read and write goes through the installed `git` executable, through one module
-(`core::git::commands`) with an allowed-verb list. Machine-readable forms only:
+(`core::git::commands`) with an allowed-verb list: status, rev-parse, log, show, diff, ls-tree,
+cat-file, add, restore, clean, commit, rm --cached, symbolic-ref, remote and for-each-ref. Every
+call runs with `-c core.fsmonitor=false`, writes included, so a repository's own config cannot
+name a program for repose to run. Machine-readable forms only:
 
 - Status: `git status --porcelain=v2 -z --branch --untracked-files=all` (branch, upstream, ahead
   and behind from the `branch.ab` line, entries with rename scores and conflict states in one
   call). Reads run with `GIT_OPTIONAL_LOCKS=0` so a background status never rewrites the index or
-  takes `index.lock` (the installed VS Code extension does the same), and with
-  `-c core.fsmonitor=false` so a repository's own config cannot name a program for repose to run.
+  takes `index.lock` (the installed VS Code extension does the same).
 - History: `git log -z --format=<fields with %x00 separators> --max-count=100 --skip=<n>` and
   `git log -1 -z --name-status --diff-merges=first-parent --format=` for a commit's files on
   expand, so a merge commit lists its first-parent changes instead of nothing.
@@ -66,8 +69,9 @@ Decision: every git read and write goes through the installed `git` executable, 
   from changing what the parser reads. Word-level highlighting is computed in the app with the
   `similar` crate on changed line pairs; git's output stays the source of lines.
 - Files: `git ls-tree -r -z <rev>` and `git cat-file -p <rev>:<path>`.
-- Writes: `git add --`, `git restore --staged --`, `git restore --`, `git clean -f --`, and
-  `git commit -F <tempfile>`. Never `--no-verify`.
+- Writes: `git add --`, `git restore --staged --`, `git restore --`, `git clean -f --`,
+  `git rm --cached` (unstaging in a repository with no commit yet) and `git commit -F <tempfile>`.
+  Never `--no-verify`.
 
 Why not libgit2 or gitoxide: parity. Hooks under `core.hooksPath`, ignore rules, `core.longpaths`,
 credential helpers and config all behave as they do in the terminal and in VS Code, which is the
@@ -176,9 +180,13 @@ terminal = "wt"
 
 Startup under 300 ms to a painted list, all statuses under 3 s, one refresh under 200 ms, idle
 under 150 MB, executable under 25 MB, smooth scroll at 5,000 diff lines. `scripts/qc.ps1` measures
-the first four on a release build and fails above budget.
+startup, the idle working set and the executable size on a release build and reports them; the
+budgets are targets, not gates (Phillip, 2026-11-01).
 
-## UI toolkit: open, decided by measurement
+## UI toolkit: eframe/egui (ADR-001, accepted 2026-11-01)
+
+Resolved: Phillip chose eframe/egui from the measured comparison below (`decisions.md`, ADR-001).
+The comparison is kept as it was planned and run.
 
 Candidates: eframe/egui (immediate mode, wgpu, one executable) and Tauri 2 (Rust core, HTML/CSS in
 the OS WebView2). iced and Slint were considered and set aside for the comparison: iced for the
@@ -192,16 +200,22 @@ pixels. Phillip chooses from the screenshots and numbers; `decisions.md` records
 ## Quality gate
 
 `scripts/qc.ps1`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
-`cargo test --workspace`, `cargo build --release`, a 300-line file check over `crates/**/*.rs`,
-then the budget measurements. The release table cites its log. Hooks are a smokestack delivery and
+`cargo test --workspace`, `cargo audit` (through `scripts/audit.ps1`), `cargo build --release`,
+staging the release files in `target/dist` (`scripts/stage-release.ps1`), a 300-line file check
+over `crates/**/*.rs`, the third-party notices check (`scripts/third-party-notices.ps1 -Check`),
+then the budget measurements, which are reported and never fail it. The release table cites its
+log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
+of running repose. Hooks are a smokestack delivery and
 Alice's; until one exists for a Rust repository, commits of source wait for it or run the gate by
 hand and say so.
 
 ## Open decisions
 
-1. ADR-001 toolkit (the spike).
+1. Resolved: ADR-001 toolkit is eframe/egui (`decisions.md`).
 2. Whether `D:\applications.worktrees` is a root or found through each main repository's
    `.git/worktrees/`; the spec says a root, because an agent's worktree can be registered against
    a main repository outside the scanned roots. Revisit if the list shows orphans.
-3. Highlighting library: `syntect` with the `fancy-regex` feature (no C dependency) unless the
-   spike shows it too slow for 5,000-line diffs; `tree-sitter` is the fallback.
+3. Resolved: highlighting is `syntect` with the `fancy-regex` feature (no C dependency) and the
+   two-face syntax and theme set, as Cargo.toml pins them. A 5,000-line diff takes 6 to 11 s to
+   appear (recorded with the row-layout performance finding for v1.1); `tree-sitter` was not
+   needed.

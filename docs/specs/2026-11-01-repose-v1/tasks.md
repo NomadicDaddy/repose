@@ -5,9 +5,10 @@ Each task names its feature record. Gates: `cargo fmt --check`, `cargo clippy --
 once it exists. Heavy steps (builds, the spike's measurements, screenshots) take a shared build slot under
 the team's rules; the spec and record edits do not.
 
-1. **Toolkit spike** (`ui-toolkit-decision`). Two throwaway prototypes of the repository list
-   over the real roots, one eframe and one Tauri 2. Measure and screenshot per the record. Post the
-   comparison; Phillip decides. Write ADR-001 in `decisions.md`. Delete the prototype that lost.
+1. **Toolkit spike** (`ui-toolkit-decision`). Done: ADR-001 accepted eframe/egui on 2026-11-01
+   (`decisions.md`). As planned: two throwaway prototypes of the repository list over the real
+   roots, one eframe and one Tauri 2, measured and screenshotted per the record; Phillip decided;
+   the prototype that lost was deleted.
 2. **Workspace and gate** (`quality-gate-and-release`, first half). `Cargo.toml` workspace,
    `rust-toolchain.toml`, `rustfmt.toml`, `clippy.toml`, `scripts/qc.ps1` with fmt, clippy, test,
    release build and the line check. Budgets are added in step 12 when there is something to

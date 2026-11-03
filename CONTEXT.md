@@ -67,6 +67,6 @@ button forces a full rescan.
 and Copy path, hash or remote URL (which also opens the remote page in the browser).
 
 **Toolkit decision**
-: The first piece of work. Two small prototypes, one in a native Rust GUI and one in Tauri, are
-measured and screenshotted, and Phillip chooses. The decision is recorded in
-`docs/specs/2026-11-01-repose-v1/decisions.md` before any screen is built.
+: The first piece of work, now resolved: two small prototypes, one in a native Rust GUI and one in
+Tauri, were measured and screenshotted, and Phillip chose eframe/egui. ADR-001 in
+`docs/specs/2026-11-01-repose-v1/decisions.md` records it.
