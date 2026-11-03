@@ -57,6 +57,7 @@ impl AppState {
 					wt.status = old.status.clone();
 					wt.changes = old.changes.clone();
 					wt.error = old.error.clone();
+					wt.checked_at = old.checked_at;
 				}
 			}
 		}
@@ -161,9 +162,10 @@ fn find_mut<'a>(repos: &'a mut [RepoSummary], path: &Path) -> Option<&'a mut Rep
 #[cfg(test)]
 mod tests {
 	use std::path::PathBuf;
+	use std::time::{Duration, SystemTime};
 
 	use repose_core::config::Config;
-	use repose_core::model::{DiffSource, RepoKind, RepoSummary};
+	use repose_core::model::{DiffSource, RepoKind, RepoSummary, StatusSummary};
 
 	use crate::state::{
 		AppState, DiffContent, DiffState, FileContent, FileRev, FileViewState, OpenDiff, OpenFile,
@@ -171,6 +173,41 @@ mod tests {
 
 	fn repo(name: &str) -> RepoSummary {
 		RepoSummary::new(PathBuf::from(format!("D:/t/{name}")), RepoKind::Repository)
+	}
+
+	#[test]
+	fn rescan_keeps_nested_worktree_freshness() {
+		let mut state = AppState::new(Config::default());
+		let mut main = repo("a");
+		let path = PathBuf::from("D:/t/a-wt");
+		let t1 = SystemTime::UNIX_EPOCH + Duration::from_secs(1);
+		let t2 = t1 + Duration::from_secs(1);
+		let mut current = RepoSummary::new(path.clone(), RepoKind::Worktree);
+		current.status = Some(StatusSummary {
+			staged: 1,
+			..StatusSummary::default()
+		});
+		current.checked_at = Some(t2);
+		main.worktrees.push(current);
+		state.merge_discovered(vec![main]);
+
+		let mut discovered = repo("a");
+		discovered
+			.worktrees
+			.push(RepoSummary::new(path.clone(), RepoKind::Worktree));
+		state.merge_discovered(vec![discovered]);
+		let mut stale = RepoSummary::new(path.clone(), RepoKind::Worktree);
+		stale.status = Some(StatusSummary {
+			staged: 2,
+			..StatusSummary::default()
+		});
+		stale.checked_at = Some(t1);
+		assert!(!state.merge_status(stale).applied);
+		let Some(retained) = super::find(&state.repos, &path) else {
+			panic!("worktree remains after rescan");
+		};
+		assert_eq!(retained.status.as_ref().map(|s| s.staged), Some(1));
+		assert_eq!(retained.checked_at, Some(t2));
 	}
 
 	/// Morticia Low on dd01d61: a start from inside a linked worktree selects a row that is drawn
