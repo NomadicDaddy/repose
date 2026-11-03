@@ -138,7 +138,7 @@ Tokens from `look.jpg`, as values the Bolt sketch used for the same look:
 | muted         | `#97a8ad` | secondary text                       |
 | accent        | `#87d6b2` | selection, section labels, links     |
 | accent-bg / accent-line | `#283c3a` / `#608b7b` | selected row     |
-| info          | `#809fce` | hashes                               |
+| info          | `#85a3d0` | hashes                               |
 | warn          | `#e3be7b` | M badge, ahead                       |
 | danger        | `#f07878` | D badge, conflicts, errors           |
 | added         | `#87d6b2` on `#1b2f28` | diff additions          |

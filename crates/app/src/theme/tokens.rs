@@ -15,7 +15,9 @@ pub const MUTED: Color32 = Color32::from_rgb(0x97, 0xa8, 0xad);
 pub const ACCENT: Color32 = Color32::from_rgb(0x87, 0xd6, 0xb2);
 pub const ACCENT_BG: Color32 = Color32::from_rgb(0x28, 0x3c, 0x3a);
 pub const ACCENT_LINE: Color32 = Color32::from_rgb(0x60, 0x8b, 0x7b);
-pub const INFO: Color32 = Color32::from_rgb(0x80, 0x9f, 0xce);
+/// Lifted from #809fce so a hash or chevron on the selected-row fill reaches 4.5:1 (audit
+/// web-design-guidelines; `tests::info_reads_at_aa_on_the_selected_fill_and_the_app_background`).
+pub const INFO: Color32 = Color32::from_rgb(0x85, 0xa3, 0xd0);
 pub const WARN: Color32 = Color32::from_rgb(0xe3, 0xbe, 0x7b);
 pub const DANGER: Color32 = Color32::from_rgb(0xf0, 0x78, 0x78);
 /// Diff line backgrounds, and the stronger fill behind the changed words within a line.
@@ -32,3 +34,34 @@ pub const TEXT_TITLE: f32 = 17.0;
 pub const ROW_HEIGHT: f32 = 46.0;
 pub const SIDEBAR_WIDTH: f32 = 300.0;
 pub const RADIUS: f32 = 4.0;
+
+#[cfg(test)]
+mod tests {
+	use super::{ACCENT_BG, BG_APP, Color32, INFO};
+
+	/// WCAG 2 relative luminance of an sRGB colour.
+	fn luminance(c: Color32) -> f64 {
+		let lin = |v: u8| {
+			let v = f64::from(v) / 255.0;
+			if v <= 0.04045 {
+				v / 12.92
+			} else {
+				((v + 0.055) / 1.055).powf(2.4)
+			}
+		};
+		0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+	}
+
+	fn contrast(a: Color32, b: Color32) -> f64 {
+		let (x, y) = (luminance(a), luminance(b));
+		(x.max(y) + 0.05) / (x.min(y) + 0.05)
+	}
+
+	#[test]
+	fn info_reads_at_aa_on_the_selected_fill_and_the_app_background() {
+		for (name, bg) in [("ACCENT_BG", ACCENT_BG), ("BG_APP", BG_APP)] {
+			let ratio = contrast(INFO, bg);
+			assert!(ratio >= 4.5, "INFO on {name} is {ratio:.2}:1");
+		}
+	}
+}
