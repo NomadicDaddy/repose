@@ -14,7 +14,8 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 - Repository list: every repository, worktree and submodule under the configured roots, with
   branch, short hash and state badges, worktrees grouped under their main repository, a Find box
   that filters as you type (Escape clears it), type-ahead selection and a Refresh button. The
-  header lists the selected repository's configured remotes under its path.
+  header lists the selected repository's configured remotes under its path, and shows ahead and
+  behind against the upstream, or names an upstream that is gone.
 - Changes tab: Staged Changes and Changes groups with counts, folder paths and letter badges, as
   VS Code's Source Control view shows them. Stage, unstage, discard (a confirmation lists every
   path) and commit with a message, all through the installed `git`, so hooks run as they do in a
@@ -25,7 +26,8 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   (PowerShell included) and a breadcrumb naming the repository, folder and file.
 - History tab: the current branch's commits newest first, an Outgoing changes group for commits
   not yet on the upstream, each commit expanding to the files it changed, and Load more. If the
-  outgoing read fails, the tab says so and keeps the last known outgoing commits.
+  outgoing read fails, the tab says so and keeps the last known outgoing commits. A commit whose
+  files can't be read says so in its own block and tries again when reopened.
 - Files tab: the repository's tree at HEAD or at a selected commit, any file opened read-only in
   the same highlighted viewer.
 - Branches tab: local branches with the current one marked, each with its short hash, upstream
@@ -36,14 +38,17 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   terminal in the folder; copy a path, hash or remote URL; open the remote's page.
 - Dark theme from named tokens, Segoe UI for interface text and Cascadia Code for names, hashes
   and code. A bottom row shows the version, commit and build time.
-- Command-line flags: `--select`, `--view`, `--file`, `--inline`, `--open`, `--scale`,
-  `--config` and `--measure-startup`.
-- Configuration in `%APPDATA%\repose\config.toml`, created with defaults on first run.
+- Command-line flags: `--select`, `--view` (changes, history, files or branches), `--file`,
+  `--inline`, `--open`, `--scale`, `--config` and `--measure-startup`, listed in the README.
+- Configuration in `%APPDATA%\repose\config.toml`, created with defaults on first run. Folder
+  names in its exclude list match without regard to case.
 - The Find box and the commit message field have visible labels, which are also their
   accessible names.
+- repose is MIT-licensed; `LICENSE` ships beside the executable.
 - `THIRD-PARTY-NOTICES.md` ships beside the executable with the licence texts of its Cargo
   dependency crates, the vendored PowerShell grammar, and the acknowledgements for the syntax
-  definitions and themes compiled in through two-face.
+  definitions and themes compiled in through two-face. `RUST-STD-COPYRIGHT.html`, the Rust
+  toolchain's own notice for the standard library linked into the executable, ships beside it.
 
 ### Security
 
