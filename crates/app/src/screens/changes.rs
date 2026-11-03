@@ -148,6 +148,9 @@ fn badge_color(kind: ChangeKind) -> egui::Color32 {
 fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChange) {
 	let selected = state.selected_file.as_deref() == Some(file.path.as_str());
 	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+	// The row's own buttons cover it, so `hovered()` goes false under them and the actions would
+	// vanish every other frame; the pointer being in the row is what keeps them drawn.
+	let pointer_in = ui.rect_contains_pointer(rect);
 	let painter = ui.painter_at(rect);
 	if selected {
 		painter.rect(
@@ -157,7 +160,7 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 			egui::Stroke::new(1.0, ACCENT_LINE),
 			StrokeKind::Inside,
 		);
-	} else if response.hovered() {
+	} else if pointer_in {
 		painter.rect_filled(rect, RADIUS, BG_HOVER);
 	}
 	let x = rect.left() + 8.0;
@@ -230,7 +233,7 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		let ctx = ui.ctx().clone();
 		menu::perform(a, state, g.platform, &ctx);
 	}
-	if response.hovered() || selected {
+	if pointer_in || selected {
 		hover_actions(ui, state, g, file, rect);
 	}
 }

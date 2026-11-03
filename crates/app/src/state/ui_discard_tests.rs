@@ -106,6 +106,33 @@ fn cancel_discards_nothing_and_restores_focus() {
 }
 
 #[test]
+fn an_unselected_rows_actions_stay_drawn_under_the_pointer_and_discard_opens_the_dialog() {
+	let (mut state, _) = prepared("discard-hover-ui");
+	state.pending_discard = None;
+	let ctx = egui::Context::default();
+	frame(&ctx, &mut state, Vec::new());
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let row = button_at(&shapes, "x.txt");
+	frame(&ctx, &mut state, vec![Event::PointerMoved(row)]);
+	let shapes = frame(&ctx, &mut state, vec![Event::PointerMoved(row)]);
+	let discard = button_at(&shapes, "Discard");
+	// The flicker seen on screen at 2d2352e: every other frame dropped the actions.
+	for n in 0..4 {
+		let shapes = frame(&ctx, &mut state, vec![Event::PointerMoved(discard)]);
+		assert!(
+			texts(&shapes).iter().any(|t| t == "Discard"),
+			"Discard drawn on frame {n} with the pointer on it"
+		);
+	}
+	assert!(state.selected_file.is_none(), "the row is still unselected");
+	click(&ctx, &mut state, discard);
+	assert!(
+		state.pending_discard.is_some(),
+		"the click reached Discard, not the row"
+	);
+}
+
+#[test]
 fn a_row_discard_click_keeps_that_button_as_the_return_target() {
 	let (mut state, _) = prepared("discard-row-focus-ui");
 	state.pending_discard = None;
