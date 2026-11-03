@@ -118,8 +118,8 @@ pub fn hide_console(cmd: &mut Command) {
 #[cfg(not(windows))]
 pub fn hide_console(_cmd: &mut Command) {}
 
-/// Builds the command every spawn shares: literal pathspecs always; no optional locks and no
-/// fsmonitor program on reads; stdin closed; no console window; the repository as working
+/// Builds the command every spawn shares: literal pathspecs and no fsmonitor program on every
+/// verb; no optional locks on reads; stdin closed; no console window; the repository as working
 /// directory.
 pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 	let mut cmd = Command::new("git");
@@ -130,14 +130,14 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 		.env("LC_ALL", "C")
 		.arg("-c")
 		.arg("core.quotePath=false")
+		.arg("-c")
+		.arg("core.fsmonitor=false")
 		.stdin(Stdio::null())
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped());
 	if !verb.is_write() {
 		// No signature text in parsed log output on a machine that sets log.showSignature.
 		cmd.env("GIT_OPTIONAL_LOCKS", "0")
-			.arg("-c")
-			.arg("core.fsmonitor=false")
 			.arg("-c")
 			.arg("log.showSignature=false");
 	}

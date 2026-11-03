@@ -99,6 +99,11 @@ fn every_spawn_sets_literal_pathspecs_and_reads_set_optional_locks_off() {
 		!wenv.contains(&"GIT_OPTIONAL_LOCKS".to_string()),
 		"writes keep optional locks"
 	);
+	let wargs: Vec<String> = write
+		.get_args()
+		.map(|a| a.to_string_lossy().to_string())
+		.collect();
+	assert!(wargs.contains(&"core.fsmonitor=false".to_string()));
 }
 
 // CREATE_NO_WINDOW on child processes cannot be read back from a Command, so it has no unit
