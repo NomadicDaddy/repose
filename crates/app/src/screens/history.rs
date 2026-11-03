@@ -28,7 +28,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let files = h.files.clone();
 	let loading = h.loading;
 	let exhausted = h.exhausted;
-	let error = h.error.clone();
+	let error = h.error.clone().or_else(|| h.outgoing_error.clone());
 	if let Some(e) = error {
 		ui.label(RichText::new(e).size(TEXT_SMALL).color(DANGER));
 	}

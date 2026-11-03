@@ -23,14 +23,16 @@ pub struct HistoryState {
 	pub loading: bool,
 	pub exhausted: bool,
 	pub error: Option<String>,
+	/// Kept across successful file and later-page reads until the first page can retry it.
+	pub outgoing_error: Option<String>,
 	pub expanded: Option<String>,
 	pub files: HashMap<String, Vec<CommitFile>>,
 }
 
 pub struct PageResult {
 	pub commits: Vec<Commit>,
-	/// Read with the first page only.
-	pub outgoing: Option<HashSet<String>>,
+	/// Read with the first page only; None means there is no counted upstream.
+	pub outgoing: Option<Result<HashSet<String>, String>>,
 }
 
 pub enum HistoryMsg {
@@ -160,7 +162,20 @@ impl AppState {
 						}
 						if skip == 0 {
 							h.commits = page.commits;
-							h.outgoing = page.outgoing.unwrap_or_default();
+							match page.outgoing {
+								Some(Ok(outgoing)) => {
+									h.outgoing = outgoing;
+									h.outgoing_error = None;
+								}
+								Some(Err(error)) => {
+									h.error = Some(error.clone());
+									h.outgoing_error = Some(error);
+								}
+								None => {
+									h.outgoing.clear();
+									h.outgoing_error = None;
+								}
+							}
 						} else {
 							h.commits.extend(page.commits);
 						}
@@ -202,7 +217,7 @@ fn spawn_page(req: PageRequest, tx: Sender<Msg>, ctx: egui::Context) {
 			.map(|commits| {
 				// The outgoing set is extra; a failure to read it leaves the page standing.
 				let outgoing = match (skip, &upstream) {
-					(0, Some(u)) => read_outgoing(&repo, u).ok(),
+					(0, Some(u)) => Some(read_outgoing(&repo, u).map_err(|e| e.to_string())),
 					_ => None,
 				};
 				PageResult { commits, outgoing }
@@ -224,4 +239,63 @@ fn spawn_files(repo: PathBuf, hash: String, tx: Sender<Msg>, ctx: egui::Context)
 		let _ = tx.send(Msg::History(HistoryMsg::Files { repo, hash, result }));
 		ctx.request_repaint();
 	});
+}
+
+#[cfg(test)]
+mod tests {
+	use std::path::PathBuf;
+
+	use repose_core::config::Config;
+	use repose_core::model::Commit;
+
+	use super::{AppState, HistoryMsg, HistoryState, PageResult};
+
+	#[test]
+	fn failed_outgoing_read_keeps_prior_hashes_and_shows_error() {
+		let mut state = AppState::new(Config::default());
+		let repo = PathBuf::from("D:/t/a");
+		let mut history = HistoryState::default();
+		history.outgoing.insert("prior".into());
+		state.history.insert(repo.clone(), history);
+		state.merge_history(HistoryMsg::Page {
+			repo: repo.clone(),
+			generation: 0,
+			skip: 0,
+			result: Ok(PageResult {
+				commits: vec![Commit {
+					hash: "new".into(),
+					short: "new".into(),
+					author: "test".into(),
+					time: 0,
+					date: "1970-01-01T00:00:00Z".into(),
+					subject: "new page".into(),
+					body: String::new(),
+				}],
+				outgoing: Some(Err("outgoing read failed".into())),
+			}),
+		});
+		let Some(history) = state.history.get(&repo) else {
+			panic!("history remains loaded");
+		};
+		assert_eq!(history.commits[0].hash, "new");
+		assert!(history.outgoing.contains("prior"));
+		assert_eq!(history.error.as_deref(), Some("outgoing read failed"));
+		assert_eq!(
+			history.outgoing_error.as_deref(),
+			Some("outgoing read failed")
+		);
+		state.merge_history(HistoryMsg::Files {
+			repo: repo.clone(),
+			hash: "new".into(),
+			result: Ok(Vec::new()),
+		});
+		let Some(history) = state.history.get(&repo) else {
+			panic!("history remains loaded after file read");
+		};
+		assert!(history.error.is_none());
+		assert_eq!(
+			history.outgoing_error.as_deref(),
+			Some("outgoing read failed")
+		);
+	}
 }
