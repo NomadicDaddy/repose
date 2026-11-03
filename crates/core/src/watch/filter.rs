@@ -3,6 +3,8 @@
 //! moved. Everything else git writes while it works (objects, lock files, logs of other refs)
 //! is noise that would only make the refresh fire more often.
 
+use crate::config::name_excluded;
+
 /// `rel` is the path inside the repository, slash-separated (`.git/index`, `src/main.rs`), or
 /// inside a worktree's gitdir prefixed with `.git/` by the map. `exclude` is the config's list.
 pub fn keep(rel: &str, exclude: &[String]) -> bool {
@@ -13,9 +15,7 @@ pub fn keep(rel: &str, exclude: &[String]) -> bool {
 	if first.eq_ignore_ascii_case(".git") {
 		return keep_in_git(&parts[1..]);
 	}
-	!parts
-		.iter()
-		.any(|p| exclude.iter().any(|e| e.eq_ignore_ascii_case(p)))
+	!parts.iter().any(|p| name_excluded(p, exclude))
 }
 
 /// HEAD, index, ORIG_HEAD, MERGE_HEAD, packed-refs, anything under refs/, logs/HEAD, and the same
@@ -89,5 +89,12 @@ mod tests {
 		] {
 			assert!(!keep(path, &exclude), "dropped: {path}");
 		}
+	}
+
+	#[test]
+	fn an_exclude_entry_drops_a_path_whatever_its_case() {
+		let exclude = vec!["node_modules".to_string()];
+		assert!(!keep("Node_Modules/pkg/index.js", &exclude));
+		assert!(keep("src/main.rs", &exclude));
 	}
 }

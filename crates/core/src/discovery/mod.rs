@@ -9,7 +9,7 @@ pub use classify::{Found, classify};
 pub use group::group;
 pub use walk::walk;
 
-use crate::config::Config;
+use crate::config::{Config, name_excluded};
 use crate::model::RepoSummary;
 
 /// One scan of every root. Repositories come back sorted by name with their worktrees attached.
@@ -25,5 +25,17 @@ pub fn discover(config: &Config) -> Vec<RepoSummary> {
 
 /// Whether a directory name is pruned from the walk.
 pub fn skipped(name: &str, exclude: &[String]) -> bool {
-	name == ".git" || exclude.iter().any(|e| e == name)
+	name == ".git" || name_excluded(name, exclude)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::skipped;
+
+	#[test]
+	fn an_exclude_entry_prunes_a_folder_whatever_its_case() {
+		let exclude = vec!["Node_Modules".to_string()];
+		assert!(skipped("node_modules", &exclude));
+		assert!(!skipped("src", &exclude));
+	}
 }

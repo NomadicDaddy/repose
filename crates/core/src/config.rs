@@ -117,6 +117,12 @@ pub fn validate(config: &Config) -> Result<(), ConfigError> {
 	Ok(())
 }
 
+/// Whether a folder name is on the config's exclude list. Windows names folders without regard
+/// to ASCII case, so the walk and the watcher both compare this way (audit data-architecture).
+pub fn name_excluded(name: &str, exclude: &[String]) -> bool {
+	exclude.iter().any(|e| e.eq_ignore_ascii_case(name))
+}
+
 /// The configured roots that are not directories right now, for the status line to name.
 pub fn missing_roots(config: &Config) -> Vec<PathBuf> {
 	config
