@@ -74,7 +74,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			if files.is_empty() {
 				let text = match open.source {
 					DiffSource::Working => {
-						"No differences against the index. An untracked file has no diff until it is staged; the file view arrives with the file browser."
+						"No differences against the index. An untracked file has no diff until it is staged."
 					}
 					_ => "No differences.",
 				};

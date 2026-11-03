@@ -1,13 +1,14 @@
 //! repose: the window. Flags: `--config <path>` overrides the config file location;
 //! `--measure-startup [file]` writes the milliseconds from process start to the first frame that
 //! shows repository rows into the file (default `repose-startup-ms.txt`), prints it, then exits.
-//! `--select <repository path>` opens on that repository and `--view changes|history|files` on
-//! that pane, so a shortcut or a script can land where the user wants; `--file <path>` opens that
-//! file's working-tree diff there, `--inline` in inline mode; `--open <path>` opens the file
-//! read-only as HEAD holds it. `--scale <factor>` multiplies the window's zoom on top of the
-//! desktop's own scaling (so 1.25 on a 100% desktop renders as 125% would, and 0.8333 on a 150%
-//! desktop too), for eyesight and for the scaling captures in the records. Without `--select`,
-//! a start from inside a repository selects that repository when it is in the list.
+//! `--select <repository path>` opens on that repository and
+//! `--view changes|history|files|branches` on that pane, so a shortcut or a script can land where
+//! the user wants; `--file <path>` opens that file's working-tree diff there, `--inline` in
+//! inline mode; `--open <path>` opens the file read-only as HEAD holds it. `--scale <factor>`
+//! multiplies the window's zoom on top of the desktop's own scaling (so 1.25 on a 100% desktop
+//! renders as 125% would, and 0.8333 on a 150% desktop too), for eyesight and for the scaling
+//! captures in the records. Without `--select`, a start from inside a repository selects that
+//! repository when it is in the list.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod diff_rows;
@@ -148,6 +149,7 @@ fn main() -> eframe::Result {
 	{
 		Some("history") => state::View::History,
 		Some("files") => state::View::Files,
+		Some("branches") => state::View::Branches,
 		_ => state::View::Changes,
 	};
 	let file = args
