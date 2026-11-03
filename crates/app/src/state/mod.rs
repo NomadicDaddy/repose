@@ -8,6 +8,8 @@ mod diff;
 mod diff_size;
 mod files;
 mod history;
+#[cfg(test)]
+mod history_tests;
 mod merge;
 mod msg;
 mod refresh;

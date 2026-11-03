@@ -26,7 +26,9 @@ pub struct HistoryState {
 	/// Kept across successful file and later-page reads until the first page can retry it.
 	pub outgoing_error: Option<String>,
 	pub expanded: Option<String>,
-	pub files: HashMap<String, Vec<CommitFile>>,
+	/// One commit's own file read, kept beside it: a failure shows in that commit's block and
+	/// never in `error`, so a late file read can neither clear nor replace a page error.
+	pub files: HashMap<String, Result<Vec<CommitFile>, String>>,
 }
 
 pub struct PageResult {
@@ -127,7 +129,8 @@ impl AppState {
 			return;
 		}
 		h.expanded = Some(hash.to_string());
-		let fetch = !h.files.contains_key(hash);
+		// A failed read is retried when the commit is opened again.
+		let fetch = !matches!(h.files.get(hash), Some(Ok(_)));
 		self.set_files_rev(repo, super::FileRev::Commit(hash.to_string()));
 		if fetch {
 			spawn_files(
@@ -184,14 +187,10 @@ impl AppState {
 				}
 			}
 			HistoryMsg::Files { repo, hash, result } => {
+				// A commit's files are fixed by its hash, so a read from before a page refresh is
+				// still right; only the page error must be left alone (audit-logic finding).
 				if let Some(h) = self.history.get_mut(&repo) {
-					match result {
-						Ok(files) => {
-							h.error = None;
-							h.files.insert(hash, files);
-						}
-						Err(e) => h.error = Some(e),
-					}
+					h.files.insert(hash, result);
 				}
 			}
 		}
@@ -239,63 +238,4 @@ fn spawn_files(repo: PathBuf, hash: String, tx: Sender<Msg>, ctx: egui::Context)
 		let _ = tx.send(Msg::History(HistoryMsg::Files { repo, hash, result }));
 		ctx.request_repaint();
 	});
-}
-
-#[cfg(test)]
-mod tests {
-	use std::path::PathBuf;
-
-	use repose_core::config::Config;
-	use repose_core::model::Commit;
-
-	use super::{AppState, HistoryMsg, HistoryState, PageResult};
-
-	#[test]
-	fn failed_outgoing_read_keeps_prior_hashes_and_shows_error() {
-		let mut state = AppState::new(Config::default());
-		let repo = PathBuf::from("D:/t/a");
-		let mut history = HistoryState::default();
-		history.outgoing.insert("prior".into());
-		state.history.insert(repo.clone(), history);
-		state.merge_history(HistoryMsg::Page {
-			repo: repo.clone(),
-			generation: 0,
-			skip: 0,
-			result: Ok(PageResult {
-				commits: vec![Commit {
-					hash: "new".into(),
-					short: "new".into(),
-					author: "test".into(),
-					time: 0,
-					date: "1970-01-01T00:00:00Z".into(),
-					subject: "new page".into(),
-					body: String::new(),
-				}],
-				outgoing: Some(Err("outgoing read failed".into())),
-			}),
-		});
-		let Some(history) = state.history.get(&repo) else {
-			panic!("history remains loaded");
-		};
-		assert_eq!(history.commits[0].hash, "new");
-		assert!(history.outgoing.contains("prior"));
-		assert_eq!(history.error.as_deref(), Some("outgoing read failed"));
-		assert_eq!(
-			history.outgoing_error.as_deref(),
-			Some("outgoing read failed")
-		);
-		state.merge_history(HistoryMsg::Files {
-			repo: repo.clone(),
-			hash: "new".into(),
-			result: Ok(Vec::new()),
-		});
-		let Some(history) = state.history.get(&repo) else {
-			panic!("history remains loaded after file read");
-		};
-		assert!(history.error.is_none());
-		assert_eq!(
-			history.outgoing_error.as_deref(),
-			Some("outgoing read failed")
-		);
-	}
 }

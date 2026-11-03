@@ -109,7 +109,8 @@ fn section(ui: &mut Ui, title: &str, count: usize) {
 /// What every commit row shares: which commit is open, the files fetched so far, and the clock.
 struct Rows<'a> {
 	expanded: Option<&'a str>,
-	files: &'a std::collections::HashMap<String, Vec<repose_core::model::CommitFile>>,
+	files:
+		&'a std::collections::HashMap<String, Result<Vec<repose_core::model::CommitFile>, String>>,
 	now: i64,
 	platform: &'a dyn Platform,
 }
@@ -184,7 +185,9 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 			state,
 			repo,
 			c,
-			files.get(&c.hash).map(Vec::as_slice),
+			files
+				.get(&c.hash)
+				.map(|r| r.as_ref().map(Vec::as_slice).map_err(String::as_str)),
 			rows.platform,
 		);
 	}
@@ -199,7 +202,7 @@ fn expanded_block(
 	state: &mut AppState,
 	repo: &RepoSummary,
 	c: &Commit,
-	files: Option<&[repose_core::model::CommitFile]>,
+	files: Option<Result<&[repose_core::model::CommitFile], &str>>,
 	platform: &dyn Platform,
 ) {
 	let mut action = None;
@@ -220,14 +223,21 @@ fn expanded_block(
 							.color(MUTED),
 					);
 				}
-				Some([]) => {
+				Some(Err(e)) => {
+					ui.label(
+						RichText::new(format!("Files could not be read: {e}"))
+							.size(TEXT_SMALL)
+							.color(DANGER),
+					);
+				}
+				Some(Ok([])) => {
 					ui.label(
 						RichText::new("No files changed")
 							.size(TEXT_SMALL)
 							.color(MUTED),
 					);
 				}
-				Some(list) => {
+				Some(Ok(list)) => {
 					// The working copy matches only this commit's files when it is HEAD; a file
 					// deleted here has none (Morticia L-2 on 85ec3b0).
 					let at_head = repo
