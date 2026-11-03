@@ -1,6 +1,32 @@
 # Third-party notices
 
-repose is MIT. It ships one executable that links the Rust crates below and compiles in the
+repose is under the MIT licence (also shipped as LICENSE):
+
+```
+MIT License
+
+Copyright (c) 2026 Phillip Beazley
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+It ships one executable that links the Rust crates below and compiles in the
 vendored files after them. Each crate is under the licence its authors chose, given as its
 SPDX expression from the crate metadata, and every licence, copying and notice file found in
 its package (or, for a crate that publishes none in its package, fetched from its repository
@@ -250,6 +276,21 @@ run it after a dependency change (the gate fails when this file is stale).
 - Unlicense/MIT: 2
 - Zlib: 2
 - Zlib OR Apache-2.0 OR MIT: 1
+
+### Elections
+
+- self_cell 1.3.0 is offered as `Apache-2.0 OR GPL-2.0-only`; repose distributes it under Apache-2.0. The other texts in its package are reproduced below as upstream alternatives.
+
+## Rust standard library
+
+Built with rustc 1.99.1 (58cf8f9c3 2026-10-13). The standard library runtime for x86_64-pc-windows-msvc with
+panic=unwind is statically linked into the executable: alloc, cfg_if, compiler_builtins, core, hashbrown, panic_unwind, rustc_demangle, rustc_std_workspace_alloc, rustc_std_workspace_core, std, std_detect, unwind, windows_link.
+Its terms (Apache-2.0 OR MIT, with Unicode-3.0 for the Unicode tables in core, and each
+out-of-tree crate's own notices) are in the toolchain's notice file, shipped beside the
+executable as `RUST-STD-COPYRIGHT.html`, copied byte for byte from
+`share/doc/rust/COPYRIGHT-library.html` in the sysroot (SHA-256 5647BE074C8EDF7339FD863055923A8FC80BC5610A8D4661EC3B767B9D392C27).
+That file covers every crate the standard library is built from, so it lists more than
+repose links.
 
 ## Vendored files
 

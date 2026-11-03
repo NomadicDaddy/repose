@@ -129,10 +129,52 @@ if ($twoFaceHash -ne 'AFCFB536E62C5F78AF45AAD96498F658E8494F151AE0835440F3BE5A91
 }
 $twoFaceText = [System.Text.UTF8Encoding]::new($false, $true).GetString($twoFaceBytes)
 
+# repose's own licence, reproduced in the preamble and shipped as LICENSE beside the executable.
+$ownLicence = Join-Path $root 'LICENSE'
+if (-not (Test-Path -LiteralPath $ownLicence)) { Write-Host 'FAILED: missing LICENSE'; exit 1 }
+
+# A crate offered under alternatives names the branch repose distributes it under; the generator
+# fails if the crate or that branch leaves the expression, so the election is never stale.
+$elections = @{ 'self_cell' = 'Apache-2.0' }
+foreach ($name in $elections.Keys) {
+    $c = @($crates | Where-Object { $_.name -eq $name })
+    if ($c.Count -ne 1 -or $c[0].license -notmatch [regex]::Escape($elections[$name])) {
+        Write-Host "FAILED: the $name election ($($elections[$name])) no longer matches its licence expression"
+        exit 1
+    }
+}
+
+# The Rust standard library, statically linked into every Rust executable: the toolchain ships its
+# own notice for it, staged beside the executable as RUST-STD-COPYRIGHT.html; its version and hash
+# are written here, so a toolchain change makes -Check fail until this file is regenerated.
+$rustVersion = (rustc -V).Trim()
+$sysroot = (rustc --print sysroot).Trim()
+$stdNotice = Join-Path $sysroot 'share\doc\rust\COPYRIGHT-library.html'
+if (-not (Test-Path -LiteralPath $stdNotice)) { Write-Host "FAILED: missing $stdNotice"; exit 1 }
+$stdHash = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($stdNotice)))
+# Runtime crates of the standard library for this target with panic=unwind; compile-time and test
+# crates in the sysroot (test, getopts, proc_macro, profiler_builtins, panic_abort and the like)
+# are not linked into repose.exe. Each must exist in the sysroot or the run fails.
+$stdCrates = @('alloc', 'cfg_if', 'compiler_builtins', 'core', 'hashbrown', 'panic_unwind',
+    'rustc_demangle', 'rustc_std_workspace_alloc', 'rustc_std_workspace_core', 'std', 'std_detect',
+    'unwind', 'windows_link')
+$stdLib = Join-Path $sysroot "lib\rustlib\$hostTriple\lib"
+foreach ($s in $stdCrates) {
+    if (-not (Get-ChildItem -Path $stdLib -Filter "lib$s-*.rlib" -ErrorAction SilentlyContinue)) {
+        Write-Host "FAILED: lib$s is not in $stdLib"; exit 1
+    }
+}
+
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add('# Third-party notices')
 $lines.Add('')
-$lines.Add('repose is MIT. It ships one executable that links the Rust crates below and compiles in the')
+$lines.Add('repose is under the MIT licence (also shipped as LICENSE):')
+$lines.Add('')
+$lines.Add('```')
+foreach ($l in (Get-Content $ownLicence)) { $lines.Add($l) }
+$lines.Add('```')
+$lines.Add('')
+$lines.Add('It ships one executable that links the Rust crates below and compiles in the')
 $lines.Add('vendored files after them. Each crate is under the licence its authors chose, given as its')
 $lines.Add('SPDX expression from the crate metadata, and every licence, copying and notice file found in')
 $lines.Add('its package (or, for a crate that publishes none in its package, fetched from its repository')
@@ -158,6 +200,24 @@ $lines.Add('')
 $crates | Group-Object { if ($_.license) { $_.license } else { 'not declared' } } | Sort-Object Name | ForEach-Object {
     $lines.Add("- $($_.Name): $($_.Count)")
 }
+$lines.Add('')
+$lines.Add('### Elections')
+$lines.Add('')
+foreach ($name in ($elections.Keys | Sort-Object)) {
+    $c = @($crates | Where-Object { $_.name -eq $name })[0]
+    $lines.Add("- $name $($c.version) is offered as ``$($c.license)``; repose distributes it under $($elections[$name]). The other texts in its package are reproduced below as upstream alternatives.")
+}
+$lines.Add('')
+$lines.Add('## Rust standard library')
+$lines.Add('')
+$lines.Add("Built with $rustVersion. The standard library runtime for $hostTriple with")
+$lines.Add("panic=unwind is statically linked into the executable: $($stdCrates -join ', ').")
+$lines.Add('Its terms (Apache-2.0 OR MIT, with Unicode-3.0 for the Unicode tables in core, and each')
+$lines.Add('out-of-tree crate''s own notices) are in the toolchain''s notice file, shipped beside the')
+$lines.Add('executable as `RUST-STD-COPYRIGHT.html`, copied byte for byte from')
+$lines.Add("``share/doc/rust/COPYRIGHT-library.html`` in the sysroot (SHA-256 $stdHash).")
+$lines.Add('That file covers every crate the standard library is built from, so it lists more than')
+$lines.Add('repose links.')
 $lines.Add('')
 $lines.Add('## Vendored files')
 $lines.Add('')

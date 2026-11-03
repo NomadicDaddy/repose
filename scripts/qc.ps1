@@ -21,8 +21,9 @@ Step 'cargo test' { cargo test --workspace }
 # and holds the list of accepted advisory ids. Unmaintained-crate warnings are printed, not failed.
 Step 'cargo audit' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'audit.ps1') }
 Step 'cargo build --release' { cargo build --workspace --release }
-# The pair a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9):
-# the executable and THIRD-PARTY-NOTICES.md, no runtimes, listed as RELEASE lines in the log.
+# What a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9): the
+# executable, LICENSE, THIRD-PARTY-NOTICES.md and the toolchain's RUST-STD-COPYRIGHT.html, no
+# runtimes, listed as RELEASE lines in the log.
 Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
 Write-Host '== file length (300 lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
@@ -43,18 +44,18 @@ if (Test-Path $exe) {
 # A per-user install (scripts/install-user.ps1) is refreshed by a green gate (Phillip #31471 on
 # #31468): when every step passed and a per-user copy exists, the staged pair is copied over it,
 # unless that repose is running, in which case the gate says so and the next green gate does it.
-# A failed gate leaves the copy alone and says whether it is behind, judging both files of the pair
+# A failed gate leaves the copy alone and says whether it is behind, judging every staged file
 # (Roger on ba3a580). Nothing here changes the exit code.
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\repose'
 if (Test-Path (Join-Path $installDir 'repose.exe')) {
     $behind = @()
-    foreach ($name in @('repose.exe', 'THIRD-PARTY-NOTICES.md')) {
+    foreach ($name in @('repose.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'RUST-STD-COPYRIGHT.html')) {
         $here = Join-Path $installDir $name
         $there = Join-Path $root "target\dist\$name"
         if (-not (Test-Path $here) -or -not (Test-Path $there) -or (Get-FileHash $here).Hash -ne (Get-FileHash $there).Hash) { $behind += $name }
     }
     if ($behind.Count -eq 0) {
-        Write-Host 'INSTALL current: the per-user copy is this build, both files'
+        Write-Host 'INSTALL current: the per-user copy is this build, every staged file'
     } elseif ($exit -ne 0) {
         Write-Host "INSTALL kept: the gate failed, so the per-user copy stays as it is, behind in $($behind -join ', ')"
     } else {

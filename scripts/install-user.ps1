@@ -1,6 +1,6 @@
 # Installs the gated release pair for the current user so `repose` runs from any shell: copies
-# target\dist\repose.exe and THIRD-PARTY-NOTICES.md (the pair scripts/stage-release.ps1 staged and a
-# gate verified) to %LOCALAPPDATA%\Programs\repose and puts that folder on the user PATH when it is
+# target\dist\repose.exe with its LICENSE, THIRD-PARTY-NOTICES.md and RUST-STD-COPYRIGHT.html (the
+# files scripts/stage-release.ps1 staged and a gate verified) to %LOCALAPPDATA%\Programs\repose and puts that folder on the user PATH when it is
 # not there yet. No runtime is bundled: repose is a single executable. Nothing touches the machine
 # PATH or other users. The user PATH is read and written as the raw registry value, so entries
 # that hold %variables% keep them and the value keeps its REG_EXPAND_SZ type (Morticia on
@@ -18,7 +18,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $root 'target\dist'
 $target = Join-Path $env:LOCALAPPDATA 'Programs\repose'
-$pair = @('repose.exe', 'THIRD-PARTY-NOTICES.md')
+$pair = @('repose.exe', 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'RUST-STD-COPYRIGHT.html')
 foreach ($name in $pair) {
     if (-not (Test-Path (Join-Path $dist $name))) { throw "missing $dist\$name; run scripts/qc.ps1 first, which stages the gated pair" }
 }
@@ -35,7 +35,7 @@ try {
         "INSTALLED $installed"
         "ON-USER-PATH $onPath (user PATH is $kind with $($entries.Count) entries)"
         if ($installed) {
-            # Both files of the pair, so a stale or missing notices file is never called current
+            # Every staged file, so a stale or missing notices file is never called current
             # (Roger on 9f74cb6).
             $current = $true
             foreach ($name in $pair) {
