@@ -18,12 +18,14 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 - Changes tab: Staged Changes and Changes groups with counts, folder paths and letter badges, as
   VS Code's Source Control view shows them. Stage, unstage, discard (a confirmation lists every
   path) and commit with a message, all through the installed `git`, so hooks run as they do in a
-  terminal. A commit whose hooks run long can be cancelled.
+  terminal. A commit whose hooks run long can be cancelled. The discard confirmation takes
+  keyboard focus on Cancel and returns it to the Discard button that opened it.
 - Diff viewer: read-only side-by-side and inline diffs for working-tree, staged and commit
   changes, with line numbers, hunk separators, word-level highlights, syntax colouring
   (PowerShell included) and a breadcrumb naming the repository, folder and file.
 - History tab: the current branch's commits newest first, an Outgoing changes group for commits
-  not yet on the upstream, each commit expanding to the files it changed, and Load more.
+  not yet on the upstream, each commit expanding to the files it changed, and Load more. If the
+  outgoing read fails, the tab says so and keeps the last known outgoing commits.
 - Files tab: the repository's tree at HEAD or at a selected commit, any file opened read-only in
   the same highlighted viewer.
 - Branches tab: local branches with the current one marked, each with its short hash, upstream
@@ -37,10 +39,17 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 - Command-line flags: `--select`, `--view`, `--file`, `--inline`, `--open`, `--scale`,
   `--config` and `--measure-startup`.
 - Configuration in `%APPDATA%\repose\config.toml`, created with defaults on first run.
-- `THIRD-PARTY-NOTICES.md` ships beside the executable with every dependency licence text.
+- The Find box and the commit message field have visible labels that screen readers announce.
+- `THIRD-PARTY-NOTICES.md` ships beside the executable with every dependency licence text,
+  including the acknowledgements for the syntax definitions and themes compiled in through
+  two-face.
 
 ### Security
 
+- Every `git` command repose runs, stage, discard and commit included, disables the repository's
+  `core.fsmonitor` setting, so reading or changing a repository never starts the file-system
+  monitor program that repository's config names. Commit hooks still run, as they do in a
+  terminal.
 - A remote URL shown in the header never paints its userinfo, so a token or password stored in
   a remote URL stays off the screen. Copy still copies the URL exactly as configured. One
   malformed form is a known edge: a dotted username with a raw slash or hash in its password,
