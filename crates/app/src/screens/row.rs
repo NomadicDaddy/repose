@@ -215,6 +215,7 @@ fn tooltip_text(repo: &RepoSummary) -> String {
 				(Some(u), Some(a), Some(b)) => {
 					lines.push(format!("↑{a} ↓{b} from saved refs of {u}"))
 				}
+				(Some(u), None, None) => lines.push(format!("{u} · upstream gone")),
 				_ => lines.push("No upstream".to_string()),
 			}
 		}

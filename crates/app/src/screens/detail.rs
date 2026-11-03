@@ -83,6 +83,9 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 						(Some(u), Some(a), Some(b)) => {
 							format!("↑{a} ↓{b} against {u} (saved refs)")
 						}
+						// A gone upstream keeps its name and has no counts: porcelain v2 prints
+						// branch.upstream without branch.ab (core git/parse/porcelain.rs).
+						(Some(u), None, None) => format!("{u} · upstream gone"),
 						_ => "No upstream".to_string(),
 					};
 					ui.label(RichText::new(upstream).size(12.0).color(MUTED));

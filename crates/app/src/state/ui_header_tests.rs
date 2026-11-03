@@ -1,6 +1,7 @@
 //! The repository header's remotes lines, drawn through the real right pane: one line per
 //! configured remote, the push URL only when it differs, nothing when none is configured, and
-//! the failure text when git could not list them (Phillip #31822).
+//! the failure text when git could not list them (Phillip #31822). Also the upstream line: counts
+//! against a tracked upstream, a gone upstream by name, and No upstream only when there is none.
 
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -102,5 +103,40 @@ fn no_remote_line_is_drawn_without_a_configured_remote_and_a_failure_is_named() 
 			.iter()
 			.any(|l| l == "Remotes could not be read: git exited 128: not a git repository"),
 		"the failure is named: {lines:?}"
+	);
+}
+
+#[test]
+fn the_upstream_line_names_a_gone_upstream_instead_of_saying_none() {
+	let (mut state, _) = selected_state();
+	let set = |state: &mut AppState, upstream: Option<&str>, counts: Option<(u32, u32)>| {
+		let status = state.repos[0]
+			.status
+			.as_mut()
+			.unwrap_or_else(|| panic!("the fixture row has a status"));
+		status.upstream = upstream.map(str::to_string);
+		status.ahead = counts.map(|c| c.0);
+		status.behind = counts.map(|c| c.1);
+	};
+	set(&mut state, Some("origin/main"), Some((2, 1)));
+	let lines = header_lines(&mut state);
+	assert!(
+		lines
+			.iter()
+			.any(|l| l == "↑2 ↓1 against origin/main (saved refs)"),
+		"counted upstream: {lines:?}"
+	);
+	set(&mut state, Some("origin/gone"), None);
+	let lines = header_lines(&mut state);
+	assert!(
+		lines.iter().any(|l| l == "origin/gone · upstream gone"),
+		"gone upstream by name: {lines:?}"
+	);
+	assert!(!lines.iter().any(|l| l == "No upstream"), "{lines:?}");
+	set(&mut state, None, None);
+	let lines = header_lines(&mut state);
+	assert!(
+		lines.iter().any(|l| l == "No upstream"),
+		"no upstream at all: {lines:?}"
 	);
 }
