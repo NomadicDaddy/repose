@@ -20,10 +20,6 @@ pub fn draw(
 	let (rect, response) =
 		ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::click());
 	let painter = ui.painter_at(rect);
-	// Three states a reader must tell apart (visual-theme clause 5): the selected row has the
-	// accent fill with its soft line, a hovered row the grey fill alone, and the row holding
-	// keyboard focus (Tab reaches every row) a one-pixel bright accent outline, drawn over
-	// whichever fill applies so a selected row with focus still reads as both.
 	let fill = if selected {
 		Some(ACCENT_BG)
 	} else if response.hovered() {
@@ -31,22 +27,8 @@ pub fn draw(
 	} else {
 		None
 	};
-	let outline = if response.has_focus() {
-		Some(ACCENT)
-	} else if selected {
-		Some(ACCENT_LINE)
-	} else {
-		None
-	};
-	if fill.is_some() || outline.is_some() {
-		painter.rect(
-			rect,
-			RADIUS,
-			fill.unwrap_or(egui::Color32::TRANSPARENT),
-			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c)),
-			StrokeKind::Inside,
-		);
-	}
+	let line = selected.then_some(ACCENT_LINE);
+	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
 	let x = rect.left() + 10.0 + indent;
 	let name_color = if repo.error.is_some() {
 		MUTED
@@ -114,6 +96,32 @@ pub fn draw(
 	RowOut {
 		response,
 		chevron_clicked,
+	}
+}
+
+/// The looks every list row shares, so a reader can tell them apart (visual-theme clause 5,
+/// keyboard-row-focus): `fill` is the row's selected, open, current or hovered fill, `line` its
+/// own soft line when it has one, and a row holding keyboard focus (Tab reaches it) gets a
+/// one-pixel bright accent outline in place of that line, drawn over whichever fill applies so a
+/// selected row with focus still reads as both. Repository, branch, change and commit rows and
+/// file-view lines all paint through here.
+pub(super) fn frame(
+	painter: &egui::Painter,
+	rect: Rect,
+	radius: f32,
+	fill: Option<egui::Color32>,
+	line: Option<egui::Color32>,
+	focused: bool,
+) {
+	let outline = if focused { Some(ACCENT) } else { line };
+	if fill.is_some() || outline.is_some() {
+		painter.rect(
+			rect,
+			radius,
+			fill.unwrap_or(egui::Color32::TRANSPARENT),
+			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c)),
+			StrokeKind::Inside,
+		);
 	}
 }
 

@@ -5,7 +5,7 @@
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 
 use super::crumb;
-use super::diff_draw::{GUTTER, MONO_ADVANCE, ROW_H, draw_file_line};
+use super::diff_draw::{GUTTER, LineLook, MONO_ADVANCE, ROW_H, draw_file_line};
 use crate::platform::Platform;
 use crate::state::{AppState, FileContent, FileRev, FileViewState};
 use crate::theme::*;
@@ -157,7 +157,10 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 							(i + 1) as u32,
 							&lines[i],
 							spans,
-							*current_line == Some(i + 1),
+							LineLook {
+								current: *current_line == Some(i + 1),
+								focused: response.has_focus(),
+							},
 						);
 					}
 				});

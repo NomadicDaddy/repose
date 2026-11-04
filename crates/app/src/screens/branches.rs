@@ -2,10 +2,10 @@
 //! marked, with the short hash, the upstream and the saved ahead/behind pills. Nothing here
 //! switches, creates, deletes or fetches (branches-list clauses 2 and 3).
 
-use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{Branch, HeadState};
 
-use super::row::pill;
+use super::row::{frame, pill};
 use crate::state::AppState;
 use crate::theme::*;
 
@@ -93,22 +93,8 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 	} else {
 		None
 	};
-	let outline = if response.has_focus() {
-		Some(ACCENT)
-	} else if branch.current {
-		Some(ACCENT_LINE)
-	} else {
-		None
-	};
-	if fill.is_some() || outline.is_some() {
-		painter.rect(
-			rect,
-			RADIUS,
-			fill.unwrap_or(egui::Color32::TRANSPARENT),
-			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c)),
-			StrokeKind::Inside,
-		);
-	}
+	let line = branch.current.then_some(ACCENT_LINE);
+	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
 	// Pills from the right, as the repository rows draw them: behind, then ahead, only when
 	// non-zero; the name and the rest take what is left.
 	let mut right = rect.right() - 8.0;

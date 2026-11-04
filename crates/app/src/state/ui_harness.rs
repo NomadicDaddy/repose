@@ -86,14 +86,12 @@ pub(super) fn tab() -> Vec<Event> {
 		.collect()
 }
 
-/// Every rectangle the frame drew inside the sidebar, with its fill and stroke.
-fn sidebar_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
+/// Every rectangle the frame drew, with its fill and stroke.
+fn all_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
 	fn walk(shape: &Shape, out: &mut Vec<(Rect, Color32, Stroke)>) {
 		match shape {
 			Shape::Vec(inner) => inner.iter().for_each(|s| walk(s, out)),
-			Shape::Rect(r) if r.rect.right() <= SIDEBAR_WIDTH => {
-				out.push((r.rect, r.fill, r.stroke));
-			}
+			Shape::Rect(r) => out.push((r.rect, r.fill, r.stroke)),
 			_ => {}
 		}
 	}
@@ -102,6 +100,23 @@ fn sidebar_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
 		walk(&clipped.shape, &mut out);
 	}
 	out
+}
+
+/// Every rectangle the frame drew inside the sidebar, with its fill and stroke.
+fn sidebar_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)> {
+	all_rects(shapes)
+		.into_iter()
+		.filter(|(r, _, _)| r.right() <= SIDEBAR_WIDTH)
+		.collect()
+}
+
+/// The rectangles of one row height drawn in the right pane: the change, commit or file-view
+/// line backgrounds and outlines, whatever state each was in.
+pub(super) fn pane_rects(shapes: &[ClippedShape], height: f32) -> Vec<(Rect, Color32, Stroke)> {
+	all_rects(shapes)
+		.into_iter()
+		.filter(|(r, _, _)| r.left() >= SIDEBAR_WIDTH && (r.height() - height).abs() < 0.5)
+		.collect()
 }
 
 /// The sidebar rectangles at a repository row's height: the row backgrounds and outlines,

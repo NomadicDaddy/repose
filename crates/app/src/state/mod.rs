@@ -31,6 +31,8 @@ mod ui_header_tests;
 #[cfg(test)]
 mod ui_labels_tests;
 #[cfg(test)]
+mod ui_row_focus_tests;
+#[cfg(test)]
 mod ui_tests;
 mod writes;
 

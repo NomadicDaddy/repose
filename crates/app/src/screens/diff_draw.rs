@@ -115,21 +115,28 @@ fn cell(
 	text_cell(ui, text_rect, &l.text, marks, mark, src.spans(r));
 }
 
+/// How a file-view line looks besides its text: the current line, and the line holding keyboard
+/// focus.
+pub(super) struct LineLook {
+	pub current: bool,
+	pub focused: bool,
+}
+
 /// One line of a file in the read-only viewer: a single gutter and the coloured text, drawn with
 /// the same font, row height and colours as a diff line; the current line sits on the accent
-/// fill.
+/// fill, and the focused line has the one-pixel accent outline every list row uses
+/// (keyboard-row-focus), over the fill when it is also the current line.
 pub(super) fn draw_file_line(
 	ui: &Ui,
 	rect: Rect,
 	no: u32,
 	text: &str,
 	spans: &[Span],
-	current: bool,
+	look: LineLook,
 ) {
 	let p = ui.painter_at(rect);
-	if current {
-		p.rect_filled(rect, 0.0, ACCENT_BG);
-	}
+	let fill = look.current.then_some(ACCENT_BG);
+	super::row::frame(&p, rect, 0.0, fill, None, look.focused);
 	gutter(&p, rect.left(), rect, Some(no));
 	let text_rect = Rect::from_min_max(pos2(rect.left() + GUTTER, rect.top()), rect.max);
 	text_cell(ui, text_rect, text, &[], Color32::TRANSPARENT, spans);

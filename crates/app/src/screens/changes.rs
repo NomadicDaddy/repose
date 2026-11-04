@@ -7,6 +7,7 @@ use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind
 use repose_core::model::{ChangeKind, DiffSource, DiscardPlan, FileChange, RepoSummary};
 
 use super::menu;
+use super::row::frame;
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff, PendingDiscard, WriteKind};
 use crate::theme::*;
@@ -152,17 +153,15 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	// vanish every other frame; the pointer being in the row is what keeps them drawn.
 	let pointer_in = ui.rect_contains_pointer(rect);
 	let painter = ui.painter_at(rect);
-	if selected {
-		painter.rect(
-			rect,
-			RADIUS,
-			ACCENT_BG,
-			egui::Stroke::new(1.0, ACCENT_LINE),
-			StrokeKind::Inside,
-		);
+	let fill = if selected {
+		Some(ACCENT_BG)
 	} else if pointer_in {
-		painter.rect_filled(rect, RADIUS, BG_HOVER);
-	}
+		Some(BG_HOVER)
+	} else {
+		None
+	};
+	let line = selected.then_some(ACCENT_LINE);
+	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
 	let x = rect.left() + 8.0;
 	let name_font = FontId::new(TEXT_BASE, FontFamily::Proportional);
 	let name_color = if file.kind == ChangeKind::Deleted {

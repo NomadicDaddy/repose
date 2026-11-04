@@ -1,10 +1,11 @@
 //! The History pane: the current branch newest first, an Outgoing changes group for commits not
 //! on the upstream, each commit expanding to its message and files, and Load more.
 
-use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{BranchState, ChangeKind, Commit, DiffSource, RepoSummary, relative};
 
 use super::menu;
+use super::row::frame;
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff};
 use crate::theme::*;
@@ -120,17 +121,15 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	let open = expanded == Some(c.hash.as_str());
 	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
 	let painter = ui.painter_at(rect);
-	if open {
-		painter.rect(
-			rect,
-			RADIUS,
-			ACCENT_BG,
-			egui::Stroke::new(1.0, ACCENT_LINE),
-			StrokeKind::Inside,
-		);
+	let fill = if open {
+		Some(ACCENT_BG)
 	} else if response.hovered() {
-		painter.rect_filled(rect, RADIUS, BG_HOVER);
-	}
+		Some(BG_HOVER)
+	} else {
+		None
+	};
+	let line = open.then_some(ACCENT_LINE);
+	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
 	let x = rect.left() + 8.0;
 	painter.text(
 		pos2(x, rect.center().y),
