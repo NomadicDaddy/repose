@@ -40,6 +40,7 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   and code. A bottom row shows the version, commit and build time.
 - Command-line flags: `--select`, `--view` (changes, history, files or branches), `--file`,
   `--inline`, `--open`, `--scale`, `--config` and `--measure-startup`, listed in the README.
+  `--select` accepts a relative path, a trailing separator and any letter case.
 - Configuration in `%APPDATA%\repose\config.toml`, created with defaults on first run. Folder
   names in its exclude list match without regard to case.
 - The Find box and the commit message field have visible labels, which are also their
@@ -56,6 +57,9 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   repository's `core.fsmonitor` setting, so reading or changing a repository never starts the
   file-system monitor program that repository's config names. Commit hooks still run, as they
   do in a terminal.
+- repose makes no network calls: in a partial clone, an object missing from the local store is
+  reported as an error instead of being fetched from the remote, and `git remote` runs only as
+  `remote --verbose`.
 - A remote URL shown in the header never paints its userinfo, so a token or password stored in
   a remote URL stays off the screen. Copy still copies the URL exactly as configured. One
   malformed form is a known edge: a dotted username with a raw slash or hash in its password,

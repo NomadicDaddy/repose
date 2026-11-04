@@ -39,9 +39,11 @@ keeps selection and scroll stable across refreshes.
 
 Decision: every git read and write goes through the installed `git` executable, through one module
 (`core::git::commands`) with an allowed-verb list: status, rev-parse, log, show, diff, ls-tree,
-cat-file, add, restore, clean, commit, rm --cached, symbolic-ref, remote and for-each-ref. Every
-call runs with `-c core.fsmonitor=false`, writes included, so a repository's own config cannot
-name a program for repose to run. Machine-readable forms only:
+cat-file, add, restore, clean, commit, rm --cached, symbolic-ref, remote (only as
+`remote --verbose`; extra arguments are refused) and for-each-ref. Every call runs with
+`-c core.fsmonitor=false`, writes included, so a repository's own config cannot name a program for
+repose to run, and with `GIT_NO_LAZY_FETCH=1`, so a partial clone's missing object is an error and
+never a fetch from its remote. Machine-readable forms only:
 
 - Status: `git status --porcelain=v2 -z --branch --untracked-files=all` (branch, upstream, ahead
   and behind from the `branch.ab` line, entries with rename scores and conflict states in one
