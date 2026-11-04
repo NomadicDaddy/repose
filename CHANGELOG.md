@@ -78,8 +78,9 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 
 ### Known limitations
 
-The first six were accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the
-v1.1 roadmap.
+The first five were accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the
+v1.1 roadmap. A sixth, the development machine's host name in early commits, was resolved before
+publication by rewriting the history, so no published commit carries it.
 
 - Changes, History and file-view rows show no keyboard focus outline.
 - Painted rows and diff lines have no accessible names, so a screen reader cannot read them.
@@ -87,9 +88,6 @@ v1.1 roadmap.
 - The ASSERTIONS audit could not run for this release; it is scheduled again for v1.1.
 - `scripts/install-user.ps1` has been run only on the development machine; there is no
   clean-machine install record and no uninstall script yet.
-- Commits before 16faf64 hold the development machine's host name in three specification files.
-  The current tree does not. Before this repository is given any remote,
-  public or private, those commits must be rewritten.
 
 Found later by the release's native check, and accepted for 1.0.0 by the owner (Phillip, in
 session, recorded at #33446); the fix is on the v1.1 roadmap:
