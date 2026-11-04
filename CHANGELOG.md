@@ -70,9 +70,10 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   userinfo: a dotted username with a raw slash or hash in its password, token-only userinfo with
   a raw question mark or slash (`https://tok?en@host/x` shows `https://tok`), and a password of
   digits followed by a slash.
-- Open remote page hands the browser the remote's host and path only. The userinfo (a password
-  with a raw slash included), any query and any fragment are left out, for scheme URLs and the
-  `host:path` form alike.
+- For ordinary remote URL forms, Open remote page hands the browser the remote's host and path
+  only: the userinfo, any query and any fragment are left out, for scheme URLs and the
+  `host:path` form alike. Token-only userinfo with a raw question mark or hash gets no page. The
+  other malformed forms listed above can still pass part of their userinfo through.
 
 ### Known limitations
 
