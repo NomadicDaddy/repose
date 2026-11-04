@@ -1,5 +1,7 @@
-# The repose gate: format, clippy, tests, release build, the 300-line file limit, then the
-# measurements (reported, never failed: Phillip, 2026-11-01). Prints QC_EXIT=<code> last.
+# The repose gate: format, clippy, tests, advisory audit, release build, release staging, the
+# 300-line file limit and the notices check; then the measurements (reported, never failed:
+# Phillip, 2026-11-01) and, after a green run on a clean main, the per-user copy refresh, which
+# never changes the exit code. Prints QC_EXIT=<code> last.
 param(
     [switch] $SkipMeasure
 )

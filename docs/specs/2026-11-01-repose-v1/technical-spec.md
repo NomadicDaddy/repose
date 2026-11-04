@@ -207,8 +207,13 @@ pixels. Phillip chooses from the screenshots and numbers; `decisions.md` records
 `cargo test --workspace`, `cargo audit` (through `scripts/audit.ps1`), `cargo build --release`,
 staging the release files in `target/dist` (`scripts/stage-release.ps1`), a 300-line file check
 over `crates/**/*.rs`, the third-party notices check (`scripts/third-party-notices.ps1 -Check`),
-then the budget measurements, which are reported and never fail it. The release table cites its
-log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
+then the measurements: the executable size and, unless `-SkipMeasure` is given, the median of
+three starts to a painted list and the private working set after 60 s idle
+(`scripts/measure-startup.ps1`). They are printed as `MEASURE` lines and never change `QC_EXIT`
+(assertions A8 and A9; Phillip, 2026-11-01). Last, when every step passed and a per-user copy
+exists, the gate refreshes that copy from `target/dist`, but only for a clean tree on `main`;
+otherwise it prints why the copy was kept. That refresh never changes the exit code either. The
+release table cites its log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
 of running repose. Hooks are a smokestack delivery and
 Alice's; until one exists for a Rust repository, commits of source wait for it or run the gate by
 hand and say so.

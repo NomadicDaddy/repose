@@ -27,8 +27,12 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 
 - `pwsh scripts/qc.ps1` runs the full gate (format, clippy, tests, cargo audit, release build,
   the 300-line check and the notices check) and stages the release files in `target/dist`:
-  `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. Its last line
-  is `QC_EXIT=<code>`.
+  `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. It then prints
+  the executable size, startup time and idle memory as `MEASURE` lines, which are reported
+  against targets and never fail the gate (`-SkipMeasure` skips the startup and memory runs).
+  When every step passed, the tree is clean and you are on `main`, it also refreshes a per-user
+  copy installed by `install-user.ps1`, or says why it left that copy alone. Its last line is
+  `QC_EXIT=<code>`.
 - `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
   adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with
