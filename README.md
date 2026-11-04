@@ -31,8 +31,9 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   is `QC_EXIT=<code>`.
 - `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
   adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
-- `repose` opens on every repository under the roots in `%APPDATA%\repose\config.toml`, which is
-  created with defaults on first run.
+- `repose` opens on every repository within the configured depth (3 folders by default) under
+  the roots in `%APPDATA%\repose\config.toml`, which is created with defaults on first run.
+  Submodules are counted on their parent rather than listed as rows.
 
 ## Command-line flags
 

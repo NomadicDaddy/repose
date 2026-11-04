@@ -11,8 +11,9 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 
 ### Added
 
-- Repository list: every repository, worktree and submodule under the configured roots, with
-  branch, short hash and state badges, worktrees grouped under their main repository, a Find box
+- Repository list: every repository and worktree within the configured depth under the roots
+  (3 folders by default), with branch, short hash and state badges, worktrees grouped under their
+  main repository and submodules counted on their parent rather than listed as rows, a Find box
   that filters as you type (Escape clears it), type-ahead selection and a Refresh button. The
   header lists the selected repository's configured remotes under its path, and shows ahead and
   behind against the upstream, or names an upstream that is gone.
@@ -61,7 +62,9 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   later, an object missing from a partial clone is reported as an error instead of being fetched,
   and `git remote` runs only as `remote --verbose`. Your own commit hooks still run as written and
   may use the network.
-- A remote URL shown in the header never paints its userinfo, so a token or password stored in
-  a remote URL stays off the screen. Copy still copies the URL exactly as configured. One
-  malformed form is a known edge: a dotted username with a raw slash or hash in its password,
-  which Git cannot use as a remote.
+- A remote URL shown in the header does not paint its userinfo, so a token or password stored in
+  an ordinary remote URL stays off the screen. Copy still copies the URL exactly as configured.
+  Some malformed forms, none of which Git can use as a remote, can still show part of the
+  userinfo: a dotted username with a raw slash or hash in its password, token-only userinfo with
+  a raw question mark or slash (`https://tok?en@host/x` shows `https://tok`), and a password of
+  digits followed by a slash.
