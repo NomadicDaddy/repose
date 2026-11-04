@@ -21,6 +21,8 @@ All notable changes to repose are recorded here. The format follows
   rows. This resolves the first 1.0.0 known limitation.
 - The 1.0.0 limitation that painted rows and diff lines had no accessible names is resolved by
   the additions above.
+- A branch row's accessible name says "upstream gone" only when the row itself does, when
+  neither the ahead nor the behind count is known, not when just one of them is missing.
 
 ### Changed
 
