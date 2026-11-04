@@ -107,10 +107,14 @@ pub fn display_url(url: &str) -> String {
 /// git+ssh and git become https on the host alone; the scp form `[user@]host:path` becomes
 /// https on the host. User info is only ever removed from the authority, never from the path,
 /// so a path that contains `@` keeps it (Roger 5Q-1, Morticia L-1 on 85ec3b0). A local path, a
-/// Windows drive or a `file://` URL has no page. A trailing `.git` or `/` is dropped.
+/// Windows drive or a `file://` URL has no page. A trailing `.git` or `/` is dropped. A scheme
+/// URL goes through `display_url` first, so the browser gets no userinfo (a slash-containing
+/// password included), query or fragment; an scp path loses its query and fragment too
+/// (remote-page-sanitization). Copy remote URL stays the verbatim action.
 pub fn https_page(url: &str) -> Option<String> {
 	let url = url.trim();
-	if let Some((scheme, rest)) = url.split_once("://") {
+	let shown = display_url(url);
+	if let Some((scheme, rest)) = shown.split_once("://") {
 		let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
 		let authority = authority
 			.rsplit_once('@')
@@ -133,6 +137,7 @@ pub fn https_page(url: &str) -> Option<String> {
 	}
 	// scp form: [user@]host:path
 	let (host_part, path) = url.split_once(':')?;
+	let path = path.find(['?', '#']).map_or(path, |i| &path[..i]);
 	let host = host_part.rsplit_once('@').map_or(host_part, |(_, h)| h);
 	// A one-letter "host" is a Windows drive (C:/repos/x), which git also reads as a path.
 	if host.is_empty() || path.is_empty() || host.contains('/') || host.len() == 1 {

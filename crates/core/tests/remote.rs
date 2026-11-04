@@ -223,6 +223,27 @@ fn remote_urls_become_pages() {
 			"user@host.example:org/na@me.git",
 			Some("https://host.example/org/na@me"),
 		),
+		// remote-page-sanitization: no query, fragment or userinfo reaches the browser.
+		(
+			"https://host.example/org/repo.git?access_token=synthetic",
+			Some("https://host.example/org/repo"),
+		),
+		(
+			"https://host.example/org/repo.git#private_token=synthetic",
+			Some("https://host.example/org/repo"),
+		),
+		(
+			"https://user:pa/ss@host.example/org/repo.git",
+			Some("https://host.example/org/repo"),
+		),
+		(
+			"git@host.example:org/repo.git?token=synthetic",
+			Some("https://host.example/org/repo"),
+		),
+		(
+			"git@host.example:org/repo.git#frag",
+			Some("https://host.example/org/repo"),
+		),
 		("svn://host.example/x", None),
 		("../relative/repo", None),
 		("D:\\applications\\thing", None),
