@@ -14,9 +14,9 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 
 - Windows 11 x64 for the first release. Nothing in the design blocks Linux or macOS later.
 - Git 2.45 or later on `PATH`. repose drives the same `git` you already use, so hooks, ignore
-  rules and config behave exactly as they do in the terminal. Older releases ignore
-  `GIT_NO_LAZY_FETCH`, so in a partial clone they would fetch missing objects from the remote.
-  Tested with 2.56.
+  rules and config behave exactly as they do in the terminal. repose sets `GIT_NO_LAZY_FETCH` so
+  a partial clone never fetches missing objects; a Git build without support for that variable
+  would. 2.45 is the supported minimum, and repose is tested with 2.56.
 - A Rust stable toolchain to build from source, plus Microsoft's C++ build tools (the MSVC linker
   and the Windows SDK, from the "Desktop development with C++" workload of Visual Studio or its
   Build Tools), which Rust's Windows target links with. No runtime is bundled or downloaded.
