@@ -70,3 +70,20 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   userinfo: a dotted username with a raw slash or hash in its password, token-only userinfo with
   a raw question mark or slash (`https://tok?en@host/x` shows `https://tok`), and a password of
   digits followed by a slash.
+- Open remote page hands the browser the remote's host and path only. The userinfo (a password
+  with a raw slash included), any query and any fragment are left out, for scheme URLs and the
+  `host:path` form alike.
+
+### Known limitations
+
+Accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the v1.1 roadmap.
+
+- Changes, History and file-view rows show no keyboard focus outline.
+- Painted rows and diff lines have no accessible names, so a screen reader cannot read them.
+- The gate reruns every step on each run; there is no cache for unchanged checks.
+- The ASSERTIONS audit could not run for this release; it is scheduled again for v1.1.
+- `scripts/install-user.ps1` has been run only on the development machine; there is no
+  clean-machine install record and no uninstall script yet.
+- Commits before 16faf64 hold the development machine's host name in three specification files.
+  The current tree does not. Before this repository is given any remote,
+  public or private, those commits must be rewritten.
