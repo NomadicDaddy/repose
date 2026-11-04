@@ -74,16 +74,46 @@ pub(super) fn texts(shapes: &[ClippedShape]) -> Vec<String> {
 
 /// One press and release of Tab, which moves keyboard focus to the next control.
 pub(super) fn tab() -> Vec<Event> {
+	key(egui::Key::Tab)
+}
+
+/// One press and release of `k`.
+pub(super) fn key(k: egui::Key) -> Vec<Event> {
 	[true, false]
 		.into_iter()
 		.map(|pressed| Event::Key {
-			key: egui::Key::Tab,
+			key: k,
 			physical_key: None,
 			pressed,
 			repeat: false,
 			modifiers: egui::Modifiers::default(),
 		})
 		.collect()
+}
+
+/// The centre of where the frame painted `label`, for a click on it.
+pub(super) fn text_at(shapes: &[ClippedShape], label: &str) -> Option<Pos2> {
+	fn walk(shape: &Shape, label: &str) -> Option<Pos2> {
+		match shape {
+			Shape::Vec(inner) => inner.iter().find_map(|s| walk(s, label)),
+			Shape::Text(t) if t.galley.text() == label => {
+				Some(t.pos + t.galley.rect.center().to_vec2())
+			}
+			_ => None,
+		}
+	}
+	shapes.iter().find_map(|c| walk(&c.shape, label))
+}
+
+/// A primary click at `at`: move, press, release.
+pub(super) fn click(at: Pos2) -> Vec<Event> {
+	let button = |pressed| Event::PointerButton {
+		pos: at,
+		button: egui::PointerButton::Primary,
+		pressed,
+		modifiers: egui::Modifiers::default(),
+	};
+	vec![Event::PointerMoved(at), button(true), button(false)]
 }
 
 /// Every rectangle the frame drew, with its fill and stroke.

@@ -5,8 +5,8 @@
 use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{Branch, HeadState};
 
-use super::a11y;
 use super::row::{frame, pill};
+use super::{a11y, menu};
 use crate::state::AppState;
 use crate::theme::*;
 
@@ -155,8 +155,10 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 		None,
 		&a11y::branch_name(branch),
 	);
+	// Through the shared row menu, so the Menu key opens it on the focused row as it does on every
+	// other row, not only a secondary click (audit-frontend-1793711157).
 	let name_text = branch.name.clone();
-	response.context_menu(|ui| {
+	menu::row_menu(ui, &response, false, |ui| {
 		if ui.button("Copy branch name").clicked() {
 			ui.ctx().copy_text(name_text.clone());
 			ui.close();

@@ -5,7 +5,7 @@
 use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::git::remote::display_url;
 
-use super::{branches, changes, commit_box, confirm, diff, file_view, files, history};
+use super::{branches, changes, close_guard, commit_box, confirm, diff, file_view, files, history};
 use crate::platform::Platform;
 use crate::state::{AppState, Remote, View};
 use crate::theme::*;
@@ -130,4 +130,5 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				});
 		});
 	confirm::show(&ctx, state);
+	close_guard::show(&ctx, state);
 }

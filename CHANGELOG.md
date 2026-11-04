@@ -23,6 +23,11 @@ All notable changes to repose are recorded here. The format follows
   the additions above.
 - A branch row's accessible name says "upstream gone" only when the row itself does, when
   neither the ahead nor the behind count is known, not when just one of them is missing.
+- Copy branch name opens from the Menu key on the focused branch row, as every other row's
+  menu does, not only from a secondary click.
+- Closing the window with an unsaved commit message asks first. It names the repositories, with
+  Keep editing (the default, also Escape) or Close without committing; drafts live only in
+  memory, so the close used to drop them silently.
 
 ### Changed
 

@@ -3,6 +3,7 @@
 mod a11y;
 pub mod branches;
 pub mod changes;
+mod close_guard;
 pub mod commit_box;
 pub mod confirm;
 mod crumb;
