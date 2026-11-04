@@ -254,6 +254,15 @@ fn remote_urls_become_pages() {
 		("https://first.last:p#w@host.invalid/x", None),
 		("https://to.k?en@host.invalid/x", None),
 		("https://host.invalid?access_token=abc@secret", None),
+		// Settled (Roger Low on a89d417): a valid undotted host whose pathless query holds an
+		// at-sign has the same shape as tok?en@host, so it gets no page too; behind a path it
+		// keeps its page.
+		("http://localhost?who=a@b", None),
+		("http://localhost:8080?who=a@b", None),
+		(
+			"http://localhost:8080/x?who=a@b",
+			Some("http://localhost:8080/x"),
+		),
 		(
 			"https://host.invalid/x?who=a@b",
 			Some("https://host.invalid/x"),

@@ -117,7 +117,8 @@ pub fn https_page(url: &str) -> Option<String> {
 	// and display_url keeps only its first piece; opening that as a host would send the browser
 	// and DNS to it (Morticia L-1 on baf23c8 and on 6096728). Raw text cannot tell a dotted name
 	// from a dotted host, so any at-sign after a raw ? or # before the first slash has no page,
-	// a pathless host with an at-sign in its query included: no page, never a leak.
+	// a pathless host with an at-sign in its query included (localhost?who=a@b, settled on
+	// Roger's Low on a89d417): no page, never a leak.
 	if let Some((_, rest)) = url.split_once("://") {
 		let raw_authority = rest.split('/').next().unwrap_or(rest);
 		if raw_authority
