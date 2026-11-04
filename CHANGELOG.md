@@ -34,6 +34,8 @@ All notable changes to repose are recorded here. The format follows
   as a lighter grey.
 - Screen readers announce the repository scan and status line, the commit box's progress and
   outcome ("Committed.", "Commit failed" and the like), and "Reading status…" as they change.
+  The status line's announcement leaves out its clock, so the minute-by-minute check doesn't
+  repeat it when nothing else changed.
 
 ### Changed
 

@@ -19,9 +19,11 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		.show(root, |ui| {
 			header(ui, state);
 			ui.add_space(4.0);
-			let line = status_line(state, state.repos.len());
+			let count = state.repos.len();
+			let line = status_line(state, count, true);
 			let shown = ui.label(RichText::new(&line).size(TEXT_SMALL).color(MUTED));
-			a11y::live(&shown, &line);
+			let quiet = &status_line(state, count, false);
+			a11y::live_beside(ui, shown.id.with("live"), shown.rect, quiet);
 			ui.add_space(6.0);
 			list(ui, state, platform);
 		});
@@ -71,7 +73,8 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 	}
 }
 
-fn status_line(state: &AppState, count: usize) -> String {
+/// The header status line; with `clock_shown` false, no "Checked HH:MM" (the live region).
+fn status_line(state: &AppState, count: usize, clock_shown: bool) -> String {
 	if state.scanning && state.checked_at.is_none() {
 		return "Scanning…".to_string();
 	}
@@ -102,6 +105,8 @@ fn status_line(state: &AppState, count: usize) -> String {
 	}
 	if state.scanning {
 		format!("{count} {noun} · Checking… · Saved refs; no fetch{missing}{note}")
+	} else if !clock_shown {
+		format!("{count} {noun} · Saved refs; no fetch{missing}{note}")
 	} else {
 		format!("{count} {noun} · Checked {time} · Saved refs; no fetch{missing}{note}")
 	}

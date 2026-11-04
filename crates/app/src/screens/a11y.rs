@@ -29,6 +29,23 @@ pub(super) fn live(response: &Response, text: &str) {
 	});
 }
 
+/// A live region of its own, beside a label whose visible text also carries something that
+/// changes without news (the status line's clock): only `text` is announced, so a backstop
+/// pass that moves just the clock says nothing (Morticia L-1 on 3e371ab).
+pub(super) fn live_beside(ui: &Ui, id: Id, rect: Rect, text: &str) {
+	ui.ctx().accesskit_node_builder(id, |node| {
+		node.set_role(Role::Status);
+		node.set_live(accesskit::Live::Polite);
+		node.set_bounds(accesskit::Rect {
+			x0: rect.min.x.into(),
+			y0: rect.min.y.into(),
+			x1: rect.max.x.into(),
+			y1: rect.max.y.into(),
+		});
+		node.set_label(text);
+	});
+}
+
 /// Read-only painted text: a node with the text and where it sits, and no actions.
 pub(super) fn text(ui: &Ui, id: Id, rect: Rect, role: Role, text: &str) {
 	ui.ctx().accesskit_node_builder(id, |node| {

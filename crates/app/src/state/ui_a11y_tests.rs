@@ -262,3 +262,30 @@ fn status_lines_are_polite_live_regions() {
 		"status lines are not Tab stops"
 	);
 }
+
+/// Morticia L-1 on 3e371ab: a backstop pass that moves only the clock must not re-announce the
+/// status line, so the live region leaves the clock out while the visible line keeps it.
+#[test]
+fn a_clock_only_change_leaves_the_live_status_unchanged() {
+	use std::time::Duration;
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	state.merge_discovered(vec![repo("clocked", SystemTime::now())]);
+	let t0 = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+	state.checked_at = Some(t0);
+	frame(&ctx, &mut state, Vec::new());
+	let before = a11y_frame(&ctx, &mut state);
+	let live = find(&before, Role::Status, "1 repositor").name.clone();
+	assert!(
+		!live.contains("Checked"),
+		"the live text has no clock: {live:?}"
+	);
+	let shown = super::ui_harness::texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(
+		shown.iter().any(|t| t.contains("Checked")),
+		"the screen still shows it"
+	);
+	state.checked_at = Some(t0 + Duration::from_secs(120));
+	let after = a11y_frame(&ctx, &mut state);
+	assert_eq!(find(&after, Role::Status, "1 repositor").name, live);
+}
