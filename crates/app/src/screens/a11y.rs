@@ -77,12 +77,19 @@ pub(super) fn branch_name(branch: &Branch) -> String {
 	if branch.current {
 		parts.push("current".into());
 	}
+	// "Upstream gone" exactly when the painted row says it: an upstream with neither count
+	// (branches.rs; Morticia and Roger Info on 8eebf0e).
 	match (&branch.upstream, branch.ahead, branch.behind) {
-		(Some(u), Some(a), Some(b)) => {
+		(Some(u), None, None) => parts.push(format!("tracks {u}, upstream gone")),
+		(Some(u), ahead, behind) => {
 			parts.push(format!("tracks {u}"));
-			parts.push(format!("{a} ahead, {b} behind"));
+			if let Some(a) = ahead {
+				parts.push(format!("{a} ahead"));
+			}
+			if let Some(b) = behind {
+				parts.push(format!("{b} behind"));
+			}
 		}
-		(Some(u), _, _) => parts.push(format!("tracks {u}, upstream gone")),
 		(None, _, _) => parts.push("no upstream".into()),
 	}
 	parts.join(", ")
