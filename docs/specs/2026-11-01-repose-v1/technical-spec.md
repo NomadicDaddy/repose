@@ -78,8 +78,9 @@ never a fetch from its remote. Machine-readable forms only:
 Why not libgit2 or gitoxide: parity. Hooks under `core.hooksPath`, ignore rules, `core.longpaths`,
 credential helpers and config all behave as they do in the terminal and in VS Code, which is the
 view being replicated, and the Summon team's `.githooks` deliveries run unchanged. The cost is
-process spawns: about 75 at startup. A bounded pool of 8 keeps that under the 3 s budget on the development machine
-(VS Code spawns the same status command, with `GIT_OPTIONAL_LOCKS=0`, which repose copies). If a
+process spawns: about 75 at startup. A bounded pool of 8 keeps that under the 3 s budget on the
+development machine (VS Code spawns the same status command, with `GIT_OPTIONAL_LOCKS=0`, which
+repose copies). If a
 later measurement shows the pool is the limit, the first optimisation is per-repository
 incremental refresh, not a library.
 

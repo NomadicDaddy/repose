@@ -2,8 +2,8 @@
 
 Each task names its feature record. Gates: `cargo fmt --check`, `cargo clippy --all-targets --
 -D warnings`, `cargo test --workspace`, `cargo build --release`, all through `scripts/qc.ps1`
-once it exists. Heavy steps (builds, the spike's measurements, screenshots) take a shared build slot under
-the team's rules; the spec and record edits do not.
+once it exists. Heavy steps (builds, the spike's measurements, screenshots) take a shared build
+slot under the team's rules; the spec and record edits do not.
 
 1. **Toolkit spike** (`ui-toolkit-decision`). Done: ADR-001 accepted eframe/egui on 2026-11-01
    (`decisions.md`). As planned: two throwaway prototypes of the repository list over the real

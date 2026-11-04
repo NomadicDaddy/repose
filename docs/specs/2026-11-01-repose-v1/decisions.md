@@ -22,9 +22,9 @@ the display's own 150% are real, the other two are emulated, and Phillip chose w
 Candidates: eframe/egui 0.37 and Tauri 2.9 (WebView2). Both prototypes list the 72 repositories
 under `D:\applications` and `D:\applications.worktrees` with name, branch, short hash and grouped
 worktrees, scan the roots synchronously before the first frame, and use the same palette and fonts.
-Measured on the development machine (Windows 11, display at 150% scaling, AppliedDPI 144), release builds, each
-start number the median of three consecutive warm starts (the executable and its files were
-already cached) unless stated. Evidence: `.aidd/screenshots/toolkit-spike/`
+Measured on the development machine (Windows 11, display at 150% scaling, AppliedDPI 144),
+release builds, each start number the median of three consecutive warm starts (the executable
+and its files were already cached) unless stated. Evidence: `.aidd/screenshots/toolkit-spike/`
 (captures, measure JSON, prototype sources, scripts, SHA256SUMS).
 
 | Measure                                          | eframe/egui                     | Tauri 2                                   |
