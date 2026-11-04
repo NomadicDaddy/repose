@@ -4,7 +4,7 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-11-02
+## [1.0.0] - 2026-11-04
 
 The first release: a native Windows viewer for every Git repository under your roots, built
 with eframe/egui (ADR-001, chosen from measured prototypes).
@@ -89,3 +89,5 @@ Accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the v1
 - Commits before 16faf64 hold the development machine's host name in three specification files.
   The current tree does not. Before this repository is given any remote,
   public or private, those commits must be rewritten.
+- When Open remote page is disabled because a URL origin has no page (for example
+  `http://localhost?who=a@b`), its tooltip still says the origin is a local path.
