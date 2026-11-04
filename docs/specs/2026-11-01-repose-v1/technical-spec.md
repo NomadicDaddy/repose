@@ -205,7 +205,7 @@ pixels. Phillip chooses from the screenshots and numbers; `decisions.md` records
 
 `scripts/qc.ps1`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`,
 `cargo test --workspace`, `cargo audit` (through `scripts/audit.ps1`), `cargo build --release`,
-staging the release files in `target/dist` (`scripts/stage-release.ps1`), a 300-line file check
+staging the release files in `target/dist` (`scripts/stage-release.ps1`), a 300 physical-line file check (blank lines count)
 over `crates/**/*.rs`, the third-party notices check (`scripts/third-party-notices.ps1 -Check`),
 then the measurements: the executable size and, unless `-SkipMeasure` is given, the median of
 three starts to a painted list and the private working set after 60 s idle

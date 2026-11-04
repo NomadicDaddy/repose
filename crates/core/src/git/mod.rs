@@ -9,6 +9,7 @@ pub mod parse;
 pub mod pool;
 pub mod remote;
 pub mod status;
+mod tail;
 pub mod tree;
 pub mod write;
 

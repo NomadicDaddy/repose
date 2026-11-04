@@ -1,16 +1,18 @@
 //! The Changes view: Merge Changes, Staged Changes and Changes groups with counts, letter badges,
 //! and hover actions that queue writes.
 
-use std::path::Path;
-
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
-use repose_core::model::{ChangeKind, DiffSource, DiscardPlan, FileChange, RepoSummary};
+use repose_core::model::{ChangeKind, DiffSource, FileChange, RepoSummary};
 
 use super::row::frame;
 use super::{a11y, menu};
 use crate::platform::Platform;
-use crate::state::{AppState, OpenDiff, PendingDiscard, WriteKind};
+use crate::state::{AppState, OpenDiff, WriteKind};
 use crate::theme::*;
+
+#[path = "change_actions.rs"]
+mod actions;
+use actions::hover_actions;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -242,65 +244,5 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	}
 	if pointer_in || selected {
 		hover_actions(ui, state, g, file, rect);
-	}
-}
-
-fn hover_actions(
-	ui: &mut Ui,
-	state: &mut AppState,
-	g: &GroupCtx<'_>,
-	file: &FileChange,
-	rect: egui::Rect,
-) {
-	let area = egui::Rect::from_min_max(
-		pos2(rect.right() - 260.0, rect.top()),
-		pos2(rect.right() - 28.0, rect.bottom()),
-	);
-	let mut child = ui.new_child(
-		egui::UiBuilder::new()
-			.max_rect(area)
-			.layout(egui::Layout::right_to_left(egui::Align::Center)),
-	);
-	let ctx = child.ctx().clone();
-	let (action, kind) = match g.which {
-		Group::Staged => ("Unstage", WriteKind::Unstage(vec![file.path.clone()])),
-		Group::Working | Group::Conflicts => ("Stage", WriteKind::Stage(vec![file.path.clone()])),
-	};
-	if child
-		.add_enabled(g.enabled, egui::Button::new(action).small())
-		.clicked()
-	{
-		state.request_write(g.repo.path.clone(), kind, &ctx);
-	}
-	if g.which == Group::Working {
-		let plan = file.discard_plan();
-		let allowed = !matches!(plan, DiscardPlan::Refused(_));
-		let button = child.add_enabled(g.enabled && allowed, egui::Button::new("Discard").small());
-		let button = match plan {
-			DiscardPlan::Refused(reason) => button.on_disabled_hover_text(reason),
-			_ => button,
-		};
-		if button.clicked() {
-			let (tracked, untracked) = match plan {
-				DiscardPlan::Remove => (Vec::new(), vec![file.path.clone()]),
-				DiscardPlan::Restore => (vec![file.path.clone()], Vec::new()),
-				DiscardPlan::Refused(_) => (Vec::new(), Vec::new()),
-			};
-			if !tracked.is_empty() || !untracked.is_empty() {
-				state.pending_discard = Some(PendingDiscard {
-					repo: g.repo.path.clone(),
-					tracked,
-					untracked,
-					// The clicked Discard is the control to come back to, whatever held focus
-					// (stage-and-commit; Roger 5Q-1 on bf3df80).
-					return_focus: Some(button.id),
-					focus_cancel: true,
-				});
-			}
-		}
-	}
-	if child.add(egui::Button::new("Open").small()).clicked() {
-		let full: &Path = &g.repo.path.join(file.path.replace('/', "\\"));
-		let _ = g.platform.reveal_file(full);
 	}
 }

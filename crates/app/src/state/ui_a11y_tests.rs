@@ -5,18 +5,61 @@
 
 use std::time::SystemTime;
 
-use eframe::egui::{self, Role};
+use eframe::egui::{self, Pos2, Rect, Role};
 use repose_core::config::Config;
 use repose_core::git::parse::parse_unified;
 use repose_core::model::{ChangeKind, Commit, DiffSource, FileChange};
 
 use super::diff::hash_bytes;
-use super::ui_harness::{A11yNode, a11y_frame, frame, real_repo, repo, repo_at};
+use super::ui_harness::{Headless, SCREEN, frame, real_repo, repo, repo_at};
 use super::{
 	AppState, DiffContent, DiffState, FileContent, FileRev, FileViewState, HistoryState, OpenDiff,
 	OpenFile, View,
 };
 use crate::diff_rows::build_rows;
+use crate::screens::{detail, repo_list};
+
+/// One node of the AccessKit tree a frame produced: its role, its name (label, or value for a
+/// label node), whether it is selected, and whether keyboard focus can reach it.
+#[derive(Debug)]
+struct A11yNode {
+	role: Role,
+	name: String,
+	selected: Option<bool>,
+	focusable: bool,
+}
+
+/// One frame with AccessKit on, returning every node in the tree update it produced.
+fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
+	use egui::accesskit::{Action, Toggled};
+	ctx.enable_accesskit();
+	let input = egui::RawInput {
+		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+		..Default::default()
+	};
+	let mut out = ctx.run_ui(input, |root| {
+		repo_list::show(root, state, &Headless);
+		detail::show(root, state, &Headless);
+	});
+	out.textures_delta.clear();
+	let Some(update) = out.platform_output.accesskit_update else {
+		panic!("AccessKit was enabled but the frame produced no tree update");
+	};
+	update
+		.nodes
+		.into_iter()
+		.map(|(_, node)| A11yNode {
+			role: node.role(),
+			name: node
+				.label()
+				.or(node.value())
+				.unwrap_or_default()
+				.to_string(),
+			selected: node.toggled().map(|t| t == Toggled::True),
+			focusable: node.supports_action(Action::Focus),
+		})
+		.collect()
+}
 
 fn find<'a>(nodes: &'a [A11yNode], role: Role, starts: &str) -> &'a A11yNode {
 	nodes

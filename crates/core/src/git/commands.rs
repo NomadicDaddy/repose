@@ -105,6 +105,7 @@ impl Cancel {
 pub const READ_TIMEOUT: Duration = Duration::from_secs(10);
 pub use super::pool::POOL_SIZE;
 use super::pool::Permit;
+use super::tail::{tail, tail_lines};
 
 /// A windowed app has no console, so without this flag every child `git.exe` opens its own
 /// terminal window. CREATE_NO_WINDOW keeps the children invisible; pipes still work.
@@ -281,28 +282,4 @@ fn kill_tree(child: &mut std::process::Child) -> bool {
 	let _ = child.kill();
 	let _ = child.wait();
 	tree_killed
-}
-
-fn tail(bytes: &[u8]) -> String {
-	tail_lines(bytes, 3, " | ")
-}
-
-/// The most a kept tail may hold, whatever its line count: one enormous line from a hook is
-/// cut to its last 8 KB rather than copied whole into the error and the window (Roger 5Q-2 on
-/// 9a05e06).
-const TAIL_BYTES: usize = 8 * 1024;
-
-/// The last `n` lines of git's stderr, joined by `sep`, in order, and at most `TAIL_BYTES`.
-fn tail_lines(bytes: &[u8], n: usize, sep: &str) -> String {
-	let text = String::from_utf8_lossy(bytes);
-	let lines: Vec<&str> = text.lines().rev().take(n).collect();
-	let joined = lines.into_iter().rev().collect::<Vec<_>>().join(sep);
-	if joined.len() <= TAIL_BYTES {
-		return joined;
-	}
-	let mut start = joined.len() - TAIL_BYTES;
-	while !joined.is_char_boundary(start) {
-		start += 1;
-	}
-	format!("…{}", &joined[start..])
 }

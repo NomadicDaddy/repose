@@ -27,11 +27,14 @@ Step 'cargo build --release' { cargo build --workspace --release }
 # executable, LICENSE, THIRD-PARTY-NOTICES.md and the toolchain's RUST-STD-COPYRIGHT.html, no
 # runtimes, listed as RELEASE lines in the log.
 Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'stage-release.ps1') }
-Write-Host '== file length (300 lines)'
+# Physical lines, blank ones included, as the fleet's check:max-lines counts them; Measure-Object
+# -Line skipped blanks and let files of 302-308 lines through (Morticia L-1 on 8eebf0e). @()
+# keeps a one-line file a one-element array rather than a string.
+Write-Host '== file length (300 physical lines)'
 $long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
-    Where-Object { (Get-Content $_.FullName | Measure-Object -Line).Lines -gt 300 }
+    Where-Object { @(Get-Content $_.FullName).Count -gt 300 }
 foreach ($f in $long) {
-    Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, (Get-Content $f.FullName | Measure-Object -Line).Lines)
+    Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, @(Get-Content $f.FullName).Count)
     $exit = 1
 }
 Step 'third-party notices current' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Check }
