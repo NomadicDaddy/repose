@@ -4,7 +4,9 @@
 use std::ops::Range;
 
 use eframe::egui::text::{LayoutJob, TextFormat};
-use eframe::egui::{self, Align2, Color32, FontFamily, FontId, Rect, Ui, pos2};
+use eframe::egui::{self, Align2, Color32, FontFamily, FontId, Rect, Role, Ui, pos2};
+
+use super::a11y;
 use repose_core::model::{DiffLine, FileDiff, LineKind};
 
 use crate::diff_rows::{LineRef, Row, line};
@@ -79,6 +81,25 @@ pub(super) fn draw_row(ui: &Ui, rect: Rect, src: &Source<'_>, row: &Row) {
 			text_cell(ui, text_rect, &l.text, marks, mark, src.spans(*r));
 		}
 	}
+}
+
+/// The row's text node for assistive technology: a separator as a heading, a line or a
+/// side-by-side pair as its numbers, kind and text. Never focusable, so the diff adds no Tab
+/// stops (accessible-rendered-content clause 3).
+pub(super) fn describe_row(ui: &Ui, id: egui::Id, rect: Rect, src: &Source<'_>, row: &Row) {
+	let (role, text) = match row {
+		Row::Separator { skipped, heading } => (Role::Heading, a11y::separator(*skipped, heading)),
+		Row::Pair { old, new, .. } => {
+			let sides: Vec<String> = [*old, *new]
+				.into_iter()
+				.flatten()
+				.map(|r| a11y::diff_line(line(src.file, r)))
+				.collect();
+			(Role::Label, sides.join("; "))
+		}
+		Row::Line { line: r, .. } => (Role::Label, a11y::diff_line(line(src.file, *r))),
+	};
+	a11y::text(ui, id, rect, role, &text);
 }
 
 fn colours(kind: LineKind) -> (Color32, Color32) {

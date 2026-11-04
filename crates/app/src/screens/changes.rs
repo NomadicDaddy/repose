@@ -6,8 +6,8 @@ use std::path::Path;
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::{ChangeKind, DiffSource, DiscardPlan, FileChange, RepoSummary};
 
-use super::menu;
 use super::row::frame;
+use super::{a11y, menu};
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff, PendingDiscard, WriteKind};
 use crate::theme::*;
@@ -124,7 +124,9 @@ fn count_pill(ui: &mut Ui, n: usize) {
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
 	let galley = ui.painter().layout_no_wrap(n.to_string(), font, ACCENT);
 	let size = galley.size() + vec2(12.0, 4.0);
-	let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+	let (rect, pill) = ui.allocate_exact_size(size, Sense::hover());
+	let noun = if n == 1 { "file" } else { "files" };
+	a11y::text(ui, pill.id, rect, egui::Role::Label, &format!("{n} {noun}"));
 	ui.painter().rect(
 		rect,
 		9.0,
@@ -200,6 +202,12 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		file.kind.letter(),
 		FontId::new(TEXT_BASE, FontFamily::Monospace),
 		badge_color(file.kind),
+	);
+	a11y::control(
+		&response,
+		egui::Role::Button,
+		Some(selected),
+		&a11y::change_name(file),
 	);
 	if response.clicked() {
 		state.selected_file = Some(file.path.clone());

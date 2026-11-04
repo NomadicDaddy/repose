@@ -3,6 +3,7 @@
 use eframe::egui::{self, FontFamily, FontId, Rect, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::RepoSummary;
 
+use super::a11y;
 use crate::theme::*;
 
 pub struct RowOut {
@@ -72,6 +73,8 @@ pub fn draw(
 		if r.has_focus() {
 			painter.rect_stroke(hit, 3.0, egui::Stroke::new(1.0, ACCENT), StrokeKind::Inside);
 		}
+		let name = a11y::chevron_name(expanded, repo.worktrees.len());
+		a11y::control(&r, egui::Role::DisclosureTriangle, None, &name);
 		chevron_clicked = r.clicked();
 	}
 	let width = (text_right - 8.0 - x).max(0.0);
@@ -93,6 +96,12 @@ pub fn draw(
 	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED);
 	let tooltip = tooltip_text(repo);
 	let response = response.on_hover_text(tooltip);
+	a11y::control(
+		&response,
+		egui::Role::Button,
+		Some(selected),
+		&a11y::repo_name(repo),
+	);
 	RowOut {
 		response,
 		chevron_clicked,

@@ -4,8 +4,8 @@
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{BranchState, ChangeKind, Commit, DiffSource, RepoSummary, relative};
 
-use super::menu;
 use super::row::frame;
+use super::{a11y, menu};
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff};
 use crate::theme::*;
@@ -167,6 +167,8 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	));
 	clipped.galley(pos2(subject_left, rect.center().y - 9.0), subject, TEXT);
 	let response = response.on_hover_text(iso_tooltip(c));
+	let name = a11y::commit_name(c, &relative(c.time, now, &c.date));
+	a11y::control(&response, egui::Role::Button, Some(open), &name);
 	let ctx = ui.ctx().clone();
 	if response.clicked() {
 		state.toggle_commit(&repo.path, &c.hash, &ctx);

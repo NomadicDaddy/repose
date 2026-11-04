@@ -60,6 +60,48 @@ pub(super) fn frame(
 	out.shapes
 }
 
+/// One node of the AccessKit tree a frame produced: its role, its name (label, or value for a
+/// label node), whether it is selected, and whether keyboard focus can reach it.
+#[derive(Debug)]
+pub(super) struct A11yNode {
+	pub role: egui::Role,
+	pub name: String,
+	pub selected: Option<bool>,
+	pub focusable: bool,
+}
+
+/// One frame with AccessKit on, returning every node in the tree update it produced.
+pub(super) fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
+	use egui::accesskit::{Action, Toggled};
+	ctx.enable_accesskit();
+	let input = egui::RawInput {
+		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
+		..Default::default()
+	};
+	let mut out = ctx.run_ui(input, |root| {
+		repo_list::show(root, state, &Headless);
+		detail::show(root, state, &Headless);
+	});
+	out.textures_delta.clear();
+	let Some(update) = out.platform_output.accesskit_update else {
+		panic!("AccessKit was enabled but the frame produced no tree update");
+	};
+	update
+		.nodes
+		.into_iter()
+		.map(|(_, node)| A11yNode {
+			role: node.role(),
+			name: node
+				.label()
+				.or(node.value())
+				.unwrap_or_default()
+				.to_string(),
+			selected: node.toggled().map(|t| t == Toggled::True),
+			focusable: node.supports_action(Action::Focus),
+		})
+		.collect()
+}
+
 /// Every piece of text the frame painted, in paint order, for a test about what a header or a
 /// row says rather than where it sits.
 pub(super) fn texts(shapes: &[ClippedShape]) -> Vec<String> {

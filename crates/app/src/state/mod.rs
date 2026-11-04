@@ -19,6 +19,8 @@ mod select;
 #[cfg(test)]
 mod selection_tests;
 #[cfg(test)]
+mod ui_a11y_tests;
+#[cfg(test)]
 mod ui_discard_tests;
 #[cfg(test)]
 mod ui_filter_tests;

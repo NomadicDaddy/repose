@@ -5,6 +5,7 @@
 use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{Branch, HeadState};
 
+use super::a11y;
 use super::row::{frame, pill};
 use crate::state::AppState;
 use crate::theme::*;
@@ -146,7 +147,14 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 			MUTED,
 		);
 	}
-	// Read-only: the only action is copying the name (clause 3).
+	// Read-only: the only action is copying the name (clause 3), so the row is a list item, not
+	// a button.
+	a11y::control(
+		&response,
+		egui::Role::ListItem,
+		None,
+		&a11y::branch_name(branch),
+	);
 	let name_text = branch.name.clone();
 	response.context_menu(|ui| {
 		if ui.button("Copy branch name").clicked() {

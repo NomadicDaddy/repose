@@ -6,7 +6,7 @@ use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 use repose_core::model::DiffSource;
 
 use super::crumb;
-use super::diff_draw::{ROW_H, Source, draw_row};
+use super::diff_draw::{ROW_H, Source, describe_row, draw_row};
 use crate::diff_rows::Row;
 use crate::platform::Platform;
 use crate::state::{AppState, DiffContent, DiffState};
@@ -175,8 +175,9 @@ fn file_block(ui: &mut Ui, src: &Source<'_>, rows: &[Row]) {
 		.show_rows(ui, ROW_H, rows.len(), |ui, range| {
 			let width = ui.available_width();
 			for row in &rows[range] {
-				let (rect, _) = ui.allocate_exact_size(vec2(width, ROW_H), Sense::hover());
+				let (rect, slot) = ui.allocate_exact_size(vec2(width, ROW_H), Sense::hover());
 				draw_row(ui, rect, src, row);
+				describe_row(ui, slot.id, rect, src, row);
 			}
 		});
 	// Test builds publish the id for the UI test refresh_preserves_selection (live-refresh

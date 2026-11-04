@@ -4,8 +4,8 @@
 
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 
-use super::crumb;
 use super::diff_draw::{GUTTER, LineLook, MONO_ADVANCE, ROW_H, draw_file_line};
+use super::{a11y, crumb};
 use crate::platform::Platform;
 use crate::state::{AppState, FileContent, FileRev, FileViewState};
 use crate::theme::*;
@@ -150,6 +150,12 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 						if response.clicked() {
 							*current_line = Some(i + 1);
 						}
+						a11y::control(
+							&response,
+							egui::Role::Button,
+							Some(*current_line == Some(i + 1)),
+							&format!("Line {}: {}", i + 1, lines[i]),
+						);
 						let spans = colours.get(i).map_or(&[][..], Vec::as_slice);
 						draw_file_line(
 							ui,
