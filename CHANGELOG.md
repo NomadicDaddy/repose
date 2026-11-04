@@ -57,9 +57,10 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   repository's `core.fsmonitor` setting, so reading or changing a repository never starts the
   file-system monitor program that repository's config names. Commit hooks still run, as they
   do in a terminal.
-- repose makes no network calls: in a partial clone, an object missing from the local store is
-  reported as an error instead of being fetched from the remote, and `git remote` runs only as
-  `remote --verbose`.
+- The `git` commands repose runs to read a repository never fetch from a remote: with Git 2.45 or
+  later, an object missing from a partial clone is reported as an error instead of being fetched,
+  and `git remote` runs only as `remote --verbose`. Your own commit hooks still run as written and
+  may use the network.
 - A remote URL shown in the header never paints its userinfo, so a token or password stored in
   a remote URL stays off the screen. Copy still copies the URL exactly as configured. One
   malformed form is a known edge: a dotted username with a raw slash or hash in its password,
