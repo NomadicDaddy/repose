@@ -37,25 +37,8 @@ pub const RADIUS: f32 = 4.0;
 
 #[cfg(test)]
 mod tests {
-	use super::{ACCENT_BG, BG_APP, Color32, INFO};
-
-	/// WCAG 2 relative luminance of an sRGB colour.
-	fn luminance(c: Color32) -> f64 {
-		let lin = |v: u8| {
-			let v = f64::from(v) / 255.0;
-			if v <= 0.04045 {
-				v / 12.92
-			} else {
-				((v + 0.055) / 1.055).powf(2.4)
-			}
-		};
-		0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
-	}
-
-	fn contrast(a: Color32, b: Color32) -> f64 {
-		let (x, y) = (luminance(a), luminance(b));
-		(x.max(y) + 0.05) / (x.min(y) + 0.05)
-	}
+	use super::{ACCENT_BG, BG_APP, INFO};
+	use crate::theme::contrast::contrast;
 
 	#[test]
 	fn info_reads_at_aa_on_the_selected_fill_and_the_app_background() {

@@ -102,6 +102,15 @@ fn a_draft_holds_the_close_until_close_without_committing() {
 	let (_, commands) = run(&ctx, &mut state, false, click(at));
 	assert!(has(&commands, &ViewportCommand::Close), "{commands:?}");
 	assert!(state.close_confirmed);
+
+	// Once confirmed, the close the window then sends goes through without asking again
+	// (Morticia Info on f20a5a4), even though the draft is still in memory.
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		!has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(state.close_prompt.is_none());
 }
 
 #[test]

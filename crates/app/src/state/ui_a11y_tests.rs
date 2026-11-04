@@ -27,6 +27,8 @@ struct A11yNode {
 	name: String,
 	selected: Option<bool>,
 	focusable: bool,
+	/// The node announces changes politely (a status line).
+	polite: bool,
 }
 
 /// One frame with AccessKit on, returning every node in the tree update it produced.
@@ -57,6 +59,7 @@ fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
 				.to_string(),
 			selected: node.toggled().map(|t| t == Toggled::True),
 			focusable: node.supports_action(Action::Focus),
+			polite: node.live() == Some(egui::accesskit::Live::Polite),
 		})
 		.collect()
 }
@@ -236,4 +239,26 @@ fn diff_lines_and_separators_are_text_and_never_tab_stops() {
 	for n in [first, tenth, gap] {
 		assert!(!n.focusable, "diff text is never a Tab stop: {n:?}");
 	}
+}
+
+#[test]
+fn status_lines_are_polite_live_regions() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let mut row = repo("pending", SystemTime::now());
+	row.status = None;
+	state.merge_discovered(vec![row]);
+	frame(&ctx, &mut state, Vec::new());
+	let nodes = a11y_frame(&ctx, &mut state);
+	let list = find(&nodes, Role::Status, "1 repositor");
+	assert!(
+		list.polite,
+		"the scan and checked line is a polite live region: {list:?}"
+	);
+	let reading = find(&nodes, Role::Status, "Reading status…");
+	assert!(reading.polite, "{reading:?}");
+	assert!(
+		!list.focusable && !reading.focusable,
+		"status lines are not Tab stops"
+	);
 }

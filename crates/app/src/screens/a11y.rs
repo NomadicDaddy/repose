@@ -18,6 +18,17 @@ pub(super) fn control(response: &Response, role: Role, selected: Option<bool>, n
 	});
 }
 
+/// A label whose text reports progress or an outcome (scanning, reading status, a commit's
+/// result): its node becomes a polite live region named by the text, so assistive technology
+/// announces a change without the user moving to it (audit-web-design-guidelines-1793709090).
+pub(super) fn live(response: &Response, text: &str) {
+	response.ctx.accesskit_node_builder(response.id, |node| {
+		node.set_role(Role::Status);
+		node.set_live(accesskit::Live::Polite);
+		node.set_label(text);
+	});
+}
+
 /// Read-only painted text: a node with the text and where it sits, and no actions.
 pub(super) fn text(ui: &Ui, id: Id, rect: Rect, role: Role, text: &str) {
 	ui.ctx().accesskit_node_builder(id, |node| {

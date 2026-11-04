@@ -28,6 +28,12 @@ All notable changes to repose are recorded here. The format follows
 - Closing the window with an unsaved commit message asks first. It names the repositories, with
   Keep editing (the default, also Escape) or Close without committing; drafts live only in
   memory, so the close used to drop them silently.
+- Syntax colours read at 4.5:1 or better on every background they're drawn over, including
+  added and removed lines and their word marks. A colour that falls short is lightened toward
+  the text colour just enough. Comments, which fell to 1.83:1 on an added word mark, now read
+  as a lighter grey.
+- Screen readers announce the repository scan and status line, the commit box's progress and
+  outcome ("Committed.", "Commit failed" and the like), and "Reading status…" as they change.
 
 ### Changed
 

@@ -5,10 +5,13 @@
 //! Computed on the reader thread alongside the rows, never while drawing; lines over
 //! MAX_COLOUR_BYTES are left plain.
 
+use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::OnceLock;
 
 use eframe::egui::Color32;
+
+use crate::theme::contrast::readable;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Theme;
 use syntect::parsing::{SyntaxDefinition, SyntaxReference, SyntaxSet};
@@ -88,6 +91,9 @@ pub fn colour_lines(path: &str, lines: &[&str]) -> Vec<Vec<Span>> {
 	let e = engine();
 	let mut h = HighlightLines::new(syntax, &e.theme);
 	let plain = e.theme.settings.foreground;
+	// The theme's colours are lifted to AA on every span background (theme/contrast.rs). A theme
+	// has a handful of colours, so each is worked out once per call, not once per span.
+	let mut fixed: HashMap<(u8, u8, u8), Color32> = HashMap::new();
 	lines
 		.iter()
 		.map(|line| {
@@ -107,9 +113,12 @@ pub fn colour_lines(path: &str, lines: &[&str]) -> Vec<Vec<Span>> {
 				let end = (pos + text.len()).min(line.len());
 				if end > pos && Some(style.foreground) != plain {
 					let c = style.foreground;
+					let color = *fixed
+						.entry((c.r, c.g, c.b))
+						.or_insert_with(|| readable(Color32::from_rgb(c.r, c.g, c.b)));
 					spans.push(Span {
 						range: pos..end,
-						color: Color32::from_rgb(c.r, c.g, c.b),
+						color,
 					});
 				}
 				pos = end;

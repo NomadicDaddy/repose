@@ -5,7 +5,9 @@
 use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::git::remote::display_url;
 
-use super::{branches, changes, close_guard, commit_box, confirm, diff, file_view, files, history};
+use super::{
+	a11y, branches, changes, close_guard, commit_box, confirm, diff, file_view, files, history,
+};
 use crate::platform::Platform;
 use crate::state::{AppState, Remote, View};
 use crate::theme::*;
@@ -74,7 +76,8 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			ui.add_space(8.0);
 			match (&repo.status, &repo.error) {
 				(_, Some(e)) => {
-					ui.label(RichText::new("Status unavailable").color(DANGER));
+					let shown = ui.label(RichText::new("Status unavailable").color(DANGER));
+					a11y::live(&shown, "Status unavailable");
 					ui.label(RichText::new(e).size(TEXT_SMALL).color(MUTED));
 					return;
 				}
@@ -91,7 +94,8 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					ui.label(RichText::new(upstream).size(12.0).color(MUTED));
 				}
 				(None, None) => {
-					ui.label(RichText::new("Reading status…").color(MUTED));
+					let shown = ui.label(RichText::new("Reading status…").color(MUTED));
+					a11y::live(&shown, "Reading status…");
 					return;
 				}
 			}

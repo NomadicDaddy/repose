@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Key, RichText, Ui};
 
-use super::{menu, row};
+use super::{a11y, menu, row};
 use crate::platform::Platform;
 use crate::state::{AppState, find};
 use crate::theme::*;
@@ -19,12 +19,9 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		.show(root, |ui| {
 			header(ui, state);
 			ui.add_space(4.0);
-			let count = state.repos.len();
-			ui.label(
-				RichText::new(status_line(state, count))
-					.size(TEXT_SMALL)
-					.color(MUTED),
-			);
+			let line = status_line(state, state.repos.len());
+			let shown = ui.label(RichText::new(&line).size(TEXT_SMALL).color(MUTED));
+			a11y::live(&shown, &line);
 			ui.add_space(6.0);
 			list(ui, state, platform);
 		});

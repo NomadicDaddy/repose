@@ -1,6 +1,7 @@
 //! The dark theme: tokens from look.jpg and the two fonts. Screens use these names and never a
 //! colour literal.
 
+pub mod contrast;
 pub mod fonts;
 pub mod tokens;
 

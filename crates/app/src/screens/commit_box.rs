@@ -3,6 +3,7 @@
 use eframe::egui::{self, Key, RichText, Ui};
 use repose_core::model::BranchState;
 
+use super::a11y;
 use crate::state::{AppState, WriteKind};
 use crate::theme::*;
 
@@ -64,7 +65,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 			String::new()
 		};
 		if !reason.is_empty() {
-			ui.label(RichText::new(reason).size(TEXT_SMALL).color(MUTED));
+			let shown = ui.label(RichText::new(&reason).size(TEXT_SMALL).color(MUTED));
+			if busy.is_some() {
+				a11y::live(&shown, &reason);
+			}
 		}
 		if (button.clicked() || submit) && can_commit {
 			let ctx = ui.ctx().clone();
@@ -81,7 +85,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 					WriteKind::Discard { .. } => "Discard failed",
 					_ => "Change failed",
 				};
-				ui.label(RichText::new(what).color(DANGER).strong());
+				let shown = ui.label(RichText::new(what).color(DANGER).strong());
+				a11y::live(&shown, what);
 				// A hook's output is kept whole (up to 40 lines) and scrolls in place.
 				egui::ScrollArea::vertical()
 					.id_salt(("write-error", &repo.path))
@@ -108,7 +113,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 			}
 			None => {
 				if let WriteKind::Commit(_) = last.kind {
-					ui.label(RichText::new("Committed.").size(TEXT_SMALL).color(ACCENT));
+					let shown =
+						ui.label(RichText::new("Committed.").size(TEXT_SMALL).color(ACCENT));
+					a11y::live(&shown, "Committed.");
 					if let Some(n) = &last.notice {
 						ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
 					}
