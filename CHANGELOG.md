@@ -11,10 +11,12 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 
 ### Added
 
-- Repository list: every repository and worktree within the configured depth under the roots
-  (3 folders by default), with branch, short hash and state badges, worktrees grouped under their
-  main repository and submodules counted on their parent rather than listed as rows, a Find box
-  that filters as you type (Escape clears it), type-ahead selection and a Refresh button. The
+- Repository list: the repositories and worktrees under the roots, within the configured depth
+  (3 folders by default) and skipping the configured exclude folders, with branch, short hash and
+  state badges. A worktree is grouped under its main repository when that main is also found, and
+  otherwise is its own row; submodules are counted on their parent rather than listed. The list
+  has a Find box that filters as you type (Escape clears it), type-ahead selection and a Refresh
+  button. The
   header lists the selected repository's configured remotes under its path, and shows ahead and
   behind against the upstream, or names an upstream that is gone.
 - Changes tab: Staged Changes and Changes groups with counts, folder paths and letter badges, as
