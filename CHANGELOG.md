@@ -78,7 +78,8 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
 
 ### Known limitations
 
-Accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the v1.1 roadmap.
+The first six were accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the
+v1.1 roadmap.
 
 - Changes, History and file-view rows show no keyboard focus outline.
 - Painted rows and diff lines have no accessible names, so a screen reader cannot read them.
@@ -89,5 +90,9 @@ Accepted for 1.0.0 by the owner (Phillip, #32993); the first three are on the v1
 - Commits before 16faf64 hold the development machine's host name in three specification files.
   The current tree does not. Before this repository is given any remote,
   public or private, those commits must be rewritten.
+
+Found later by the release's native check, and accepted for 1.0.0 by the owner (Phillip, in
+session, recorded at #33446); the fix is on the v1.1 roadmap:
+
 - When Open remote page is disabled because a URL origin has no page (for example
   `http://localhost?who=a@b`), its tooltip still says the origin is a local path.
