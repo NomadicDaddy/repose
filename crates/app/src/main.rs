@@ -139,7 +139,9 @@ fn main() -> eframe::Result {
 		.iter()
 		.position(|a| a == "--select")
 		.and_then(|i| args.get(i + 1))
-		.map(PathBuf::from)
+		// `.` and relative paths resolve against the current folder; the raw value is kept if
+		// that fails.
+		.map(|s| std::path::absolute(s).unwrap_or_else(|_| PathBuf::from(s)))
 		.or_else(repo_at_cwd);
 	let view = match args
 		.iter()

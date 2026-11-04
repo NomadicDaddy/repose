@@ -6,8 +6,17 @@ mod commit;
 mod diff;
 mod tree;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+
+/// The one rule for whether two paths name the same repository: forward slashes, no trailing
+/// separator, lower case, as Windows treats names (audit-architecture path identity).
+pub fn path_key(path: &Path) -> String {
+	path.to_string_lossy()
+		.replace('\\', "/")
+		.trim_end_matches('/')
+		.to_lowercase()
+}
 
 pub use branch::{Branch, Branches, HeadState};
 pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange};

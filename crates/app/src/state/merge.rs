@@ -64,7 +64,7 @@ impl AppState {
 		self.repos = fresh;
 		let mut landed = true;
 		if let Some(wanted) = self.requested_selection.take() {
-			let key = |p: &Path| p.to_string_lossy().to_lowercase().replace('\\', "/");
+			let key = repose_core::model::path_key;
 			let hit = self.repos.iter().find_map(|r| {
 				if key(&r.path) == key(&wanted) {
 					return Some((r.path.clone(), None));

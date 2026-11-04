@@ -1,16 +1,7 @@
 //! Attaches worktrees to their main repository and sorts the result by name.
 
-use std::path::Path;
-
 use super::classify::Found;
-use crate::model::RepoSummary;
-
-fn key(path: &Path) -> String {
-	path.to_string_lossy()
-		.replace('\\', "/")
-		.trim_end_matches('/')
-		.to_lowercase()
-}
+use crate::model::{RepoSummary, path_key as key};
 
 pub fn group(found: Vec<Found>) -> Vec<RepoSummary> {
 	let mut repos: Vec<RepoSummary> = Vec::new();
