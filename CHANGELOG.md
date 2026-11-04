@@ -4,6 +4,32 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - Unreleased
+
+### Added
+
+- Screen readers can read the painted rows. Repository, change and commit rows and file-view
+  lines are buttons named from what they show, with their selected, open or current state. The
+  worktree chevron is named by its action ("Expand 1 worktree"), and branch rows are list items.
+- Diff lines, side-by-side pairs, hunk separators and group counts are readable text for
+  assistive technology, without becoming Tab stops.
+
+### Fixed
+
+- Change rows, commit rows and file-view lines show the one-pixel accent outline when they
+  hold keyboard focus, over their selected, open or current fill, like repository and branch
+  rows. This resolves the first 1.0.0 known limitation.
+- The 1.0.0 limitation that painted rows and diff lines had no accessible names is resolved by
+  the additions above.
+
+### Changed
+
+- The gate's 300-line check counts every line, blank ones included, as the fleet's check does.
+  Six files over that limit were split along existing seams, with no change in behaviour.
+- The README and technical spec describe every gate step: the measurements are reported
+  against targets and never fail the gate, `-SkipMeasure` skips the startup and memory runs,
+  and a green run on a clean `main` refreshes an existing per-user install.
+
 ## [1.0.0] - 2026-11-04
 
 The first release: a native Windows viewer for every Git repository under your roots, built
