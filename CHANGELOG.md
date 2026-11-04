@@ -72,8 +72,9 @@ with eframe/egui (ADR-001, chosen from measured prototypes).
   digits followed by a slash.
 - For ordinary remote URL forms, Open remote page hands the browser the remote's host and path
   only: the userinfo, any query and any fragment are left out, for scheme URLs and the
-  `host:path` form alike. Token-only userinfo with a raw question mark or hash gets no page. The
-  other malformed forms listed above can still pass part of their userinfo through.
+  `host:path` form alike. A URL with an at-sign after a raw question mark or hash, before its
+  path begins, gets no page. The malformed forms with a raw slash in the userinfo can still pass
+  part of it through.
 
 ### Known limitations
 

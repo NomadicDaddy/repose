@@ -244,12 +244,19 @@ fn remote_urls_become_pages() {
 			"git@host.example:org/repo.git#frag",
 			Some("https://host.example/org/repo"),
 		),
-		// Malformed token-only userinfo with a raw ? has no page, rather than a page on its
-		// first piece (Morticia L-1 on baf23c8); a dotted host with a query keeps its page.
+		// Malformed userinfo with a raw ? or # has no page, rather than a page on its first piece,
+		// dotted or not (Morticia L-1 on baf23c8 and 6096728); a pathless host whose query holds
+		// an at-sign has none either, since raw text cannot tell it from a dotted name.
 		("https://tok?en@host.invalid/x", None),
+		("https://tok#en@host.invalid/x", None),
+		("https://user:p?w@host.invalid/x", None),
+		("https://first.last:p?w@host.invalid/x", None),
+		("https://first.last:p#w@host.invalid/x", None),
+		("https://to.k?en@host.invalid/x", None),
+		("https://host.invalid?access_token=abc@secret", None),
 		(
-			"https://host.invalid?access_token=abc@secret",
-			Some("https://host.invalid/"),
+			"https://host.invalid/x?who=a@b",
+			Some("https://host.invalid/x"),
 		),
 		("svn://host.example/x", None),
 		("../relative/repo", None),
