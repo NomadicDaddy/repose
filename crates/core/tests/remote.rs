@@ -244,6 +244,13 @@ fn remote_urls_become_pages() {
 			"git@host.example:org/repo.git#frag",
 			Some("https://host.example/org/repo"),
 		),
+		// Malformed token-only userinfo with a raw ? has no page, rather than a page on its
+		// first piece (Morticia L-1 on baf23c8); a dotted host with a query keeps its page.
+		("https://tok?en@host.invalid/x", None),
+		(
+			"https://host.invalid?access_token=abc@secret",
+			Some("https://host.invalid/"),
+		),
 		("svn://host.example/x", None),
 		("../relative/repo", None),
 		("D:\\applications\\thing", None),

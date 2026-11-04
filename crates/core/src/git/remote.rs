@@ -113,6 +113,19 @@ pub fn display_url(url: &str) -> String {
 /// (remote-page-sanitization). Copy remote URL stays the verbatim action.
 pub fn https_page(url: &str) -> Option<String> {
 	let url = url.trim();
+	// Token-only userinfo with a raw ? or # (tok?en@host) is malformed, and display_url keeps
+	// only its first piece; opening that as a host would send the browser to it (Morticia L-1 on
+	// baf23c8). A dotted name before the ? is a host with a query, which display_url already
+	// shows correctly; an undotted one with an at-sign after it has no page.
+	if let Some((_, rest)) = url.split_once("://") {
+		let raw_authority = rest.split('/').next().unwrap_or(rest);
+		if let Some(cut) = raw_authority.find(['?', '#'])
+			&& raw_authority[cut..].contains('@')
+			&& !raw_authority[..cut].contains('.')
+		{
+			return None;
+		}
+	}
 	let shown = display_url(url);
 	if let Some((scheme, rest)) = shown.split_once("://") {
 		let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
