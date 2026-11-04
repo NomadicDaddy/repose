@@ -91,8 +91,9 @@ and `git restore -- '[1].txt'` also restores `1.txt` (Morticia, 2026-11-01). Rea
 timeout, after which the row shows an error badge with the stderr tail. Writes (`add`, `restore`,
 `clean`, `commit`) have no timeout, because a hooked commit in this fleet can run format, leak
 guard and tests for minutes; the row shows a running state with a Cancel that kills the process
-only when the user asks. Cancel kills the whole process tree with `taskkill /PID <git> /T /F`, so
-a hook's children do not outlive it; a tree kill that fails is reported as such. If an
+only when the user asks. Cancel kills the whole process tree with `taskkill /PID <git> /T /F`.
+When that succeeds a hook's children do not outlive it; when it fails the app says so, and the
+hook's children may still be running. If an
 index lock remains afterwards the app reports it with its path and never deletes it. The path
 comes from `git rev-parse --git-path index.lock`, because a worktree's lock lives under the main
 repository's `.git/worktrees/<name>/`, not under the worktree's own folder. Writes
