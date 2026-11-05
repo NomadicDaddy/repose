@@ -227,7 +227,7 @@ pub fn run_cancellable(
 			"git fetch takes no extra arguments in repose".into(),
 		));
 	}
-	let _permit = Permit::acquire();
+	let _permit = Permit::acquire(verb.is_write());
 	// A Cancel clicked while this request waited for the pool must not start git at all (Roger
 	// 5Q-1 on a31e63b); nothing ran, so nothing needs killing.
 	if cancel.is_some_and(Cancel::is_cancelled) {
