@@ -78,11 +78,19 @@ mod tests {
 
 	#[test]
 	fn a_git_path_joins_the_repository_with_backslashes_only() {
+		// Compared as strings: PathBuf equality on Windows treats / and \ as the same separator,
+		// so it could not see a slash left in (Roger Info on 4a95181).
 		let full = git_worktree_path(Path::new("C:/roots/x\\repo"), "src/a b/c.rs");
-		assert_eq!(full, PathBuf::from("C:/roots/x\\repo\\src\\a b\\c.rs"));
+		assert_eq!(full.to_str(), Some("C:/roots/x\\repo\\src\\a b\\c.rs"));
+		let top = git_worktree_path(Path::new("C:\\r"), "top.txt");
+		assert_eq!(top.to_str(), Some("C:\\r\\top.txt"));
+		// Control: a plain join keeps the slash, and this comparison sees it.
+		let plain = Path::new("C:\\r").join("a/b.txt");
+		assert_ne!(plain.to_str(), Some("C:\\r\\a\\b.txt"));
 		assert_eq!(
-			git_worktree_path(Path::new("C:\\r"), "top.txt"),
-			PathBuf::from("C:\\r\\top.txt")
+			plain,
+			PathBuf::from("C:\\r\\a\\b.txt"),
+			"PathBuf equality cannot tell"
 		);
 	}
 }
