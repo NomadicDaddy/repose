@@ -1,6 +1,6 @@
 //! The commit box's last-write outcome (screens/commit_box.rs show_outcome), drawn through the
-//! real frame: each failure heading with git's message and a leftover lock, Committed. with its
-//! notice, and a fetch's outcome left to the repository header.
+//! real frame: all five failure headings with git's message and a leftover lock, Committed. with
+//! its notice, and a fetch's outcome left to the repository header.
 
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -66,6 +66,22 @@ fn each_failure_names_itself_and_shows_gits_message() {
 			.any(|t| t.starts_with("A lock file remains at C:\\r\\.git\\index.lock.")),
 		"{locked:?}"
 	);
+}
+
+/// The two headings that are not a commit's (Roger Info on 8ca1768): a discard, and any other
+/// write, here a stage.
+#[test]
+fn a_discard_or_other_write_failure_has_its_own_heading() {
+	let discard = WriteKind::Discard {
+		tracked: vec!["a.txt".into()],
+		untracked: Vec::new(),
+	};
+	let shown = shown_after(discard, Some("permission denied"), |_| {});
+	assert!(shown.iter().any(|t| t == "Discard failed"), "{shown:?}");
+	assert!(shown.iter().any(|t| t == "permission denied"), "{shown:?}");
+	let shown = shown_after(WriteKind::StageAll, Some("index locked"), |_| {});
+	assert!(shown.iter().any(|t| t == "Change failed"), "{shown:?}");
+	assert!(shown.iter().any(|t| t == "index locked"), "{shown:?}");
 }
 
 #[test]
