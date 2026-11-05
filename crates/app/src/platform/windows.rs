@@ -54,8 +54,6 @@ impl Platform for Windows {
 		target: &Path,
 		line: Option<usize>,
 	) -> Result<(), String> {
-		// Through backslashed too, so a forward-slash path from a caller that skipped
-		// git_worktree_path still reaches the editor in one form.
 		let target = backslashed(target);
 		let args: Vec<String> = match line {
 			Some(n) => vec!["--goto".into(), format!("{target}:{n}")],
