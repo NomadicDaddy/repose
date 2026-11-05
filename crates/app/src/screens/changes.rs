@@ -140,16 +140,6 @@ fn count_pill(ui: &mut Ui, n: usize) {
 		.galley(pos2(rect.left() + 6.0, rect.top() + 2.0), galley, ACCENT);
 }
 
-fn badge_color(kind: ChangeKind) -> egui::Color32 {
-	match kind {
-		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
-		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,
-		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
-		ChangeKind::Renamed => INFO,
-		ChangeKind::Untracked => MUTED,
-	}
-}
-
 fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChange) {
 	let selected = state.selected_file.as_deref() == Some(file.path.as_str());
 	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
@@ -203,7 +193,7 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		Align2::RIGHT_CENTER,
 		file.kind.letter(),
 		FontId::new(TEXT_BASE, FontFamily::Monospace),
-		badge_color(file.kind),
+		super::change_kind_colour(file.kind),
 	);
 	a11y::control(
 		&response,

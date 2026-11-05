@@ -68,7 +68,7 @@ pub(super) fn expanded_block(
 							ui.label(
 								RichText::new(f.kind.letter())
 									.family(FontFamily::Monospace)
-									.color(letter_color(f.kind)),
+									.color(crate::screens::change_kind_colour(f.kind)),
 							);
 							let text = match &f.from {
 								Some(from) => format!("{}  ←  {from}", f.path),
@@ -105,15 +105,5 @@ pub(super) fn expanded_block(
 	if let Some(a) = action {
 		let ctx = ui.ctx().clone();
 		menu::perform(a, state, platform, &ctx);
-	}
-}
-
-fn letter_color(kind: ChangeKind) -> egui::Color32 {
-	match kind {
-		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
-		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,
-		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
-		ChangeKind::Renamed => INFO,
-		ChangeKind::Untracked => MUTED,
 	}
 }

@@ -19,3 +19,19 @@ mod menu;
 pub mod repo_list;
 mod row;
 mod status_line;
+
+use repose_core::model::ChangeKind;
+
+use crate::theme::{ACCENT, DANGER, INFO, MUTED, WARN};
+
+/// The colour of a change's kind letter, shared by the Changes badge and the History file rows so
+/// a colour is changed in one place.
+fn change_kind_colour(kind: ChangeKind) -> eframe::egui::Color32 {
+	match kind {
+		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
+		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,
+		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
+		ChangeKind::Renamed => INFO,
+		ChangeKind::Untracked => MUTED,
+	}
+}
