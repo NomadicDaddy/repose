@@ -9,7 +9,8 @@ pub struct Windows;
 
 /// Explorer wants backslashes: given `C:/roots/x\repo` (a config root written with forward
 /// slashes, joined by the scanner) it opens Documents instead of the folder, silently. Seen on
-/// screen 2026-11-02 with a fixture root; every path handed to explorer.exe goes through here.
+/// screen 2026-11-02 with a fixture root; every path handed to explorer.exe or the editor goes
+/// through here. Git paths inside a repository are joined by `git_worktree_path`.
 fn backslashed(path: &Path) -> String {
 	path.display().to_string().replace('/', "\\")
 }
@@ -53,9 +54,12 @@ impl Platform for Windows {
 		target: &Path,
 		line: Option<usize>,
 	) -> Result<(), String> {
+		// Through backslashed too, so a forward-slash path from a caller that skipped
+		// git_worktree_path still reaches the editor in one form.
+		let target = backslashed(target);
 		let args: Vec<String> = match line {
-			Some(n) => vec!["--goto".into(), format!("{}:{n}", target.display())],
-			None => vec![target.display().to_string()],
+			Some(n) => vec!["--goto".into(), format!("{target}:{n}")],
+			None => vec![target],
 		};
 		start_detached(command, &args, Console::Hidden)
 	}

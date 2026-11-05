@@ -64,7 +64,7 @@ pub(super) fn hover_actions(
 		}
 	}
 	if child.add(egui::Button::new("Open").small()).clicked() {
-		let full: &Path = &g.repo.path.join(file.path.replace('/', "\\"));
+		let full: &Path = &crate::platform::git_worktree_path(&g.repo.path, &file.path);
 		let _ = g.platform.reveal_file(full);
 	}
 }

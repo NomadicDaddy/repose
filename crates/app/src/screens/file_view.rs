@@ -60,7 +60,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		return;
 	}
 	if open_editor {
-		let full = v.open.repo.join(v.open.path.replace('/', "\\"));
+		let full = crate::platform::git_worktree_path(&v.open.repo, &v.open.path);
 		let line = v.current_line.unwrap_or(1);
 		v.notice = platform.open_in_editor(&editor, &full, Some(line)).err();
 	}
@@ -104,7 +104,7 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 			};
 			if button.clicked() {
 				*notice = platform
-					.reveal_file(&open.repo.join(open.path.replace('/', "\\")))
+					.reveal_file(&crate::platform::git_worktree_path(&open.repo, &open.path))
 					.err();
 			}
 		}

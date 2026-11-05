@@ -59,7 +59,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				.color(WARN),
 			);
 			if ui.button("Reveal in Explorer").clicked() {
-				let _ = platform.reveal_file(&open.repo.join(open.display.replace('/', "\\")));
+				let _ = platform.reveal_file(&crate::platform::git_worktree_path(
+					&open.repo,
+					&open.display,
+				));
 			}
 		}
 		DiffContent::Error(e) => {

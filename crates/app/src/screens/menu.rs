@@ -179,7 +179,7 @@ pub(super) fn file_items(
 	line: Option<usize>,
 	absent: Option<&str>,
 ) -> Option<Action> {
-	let full = repo.join(path.replace('/', "\\"));
+	let full = crate::platform::git_worktree_path(repo, path);
 	match absent {
 		Some(why) => {
 			disabled(ui, "Open in VS Code", why);

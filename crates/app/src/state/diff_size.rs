@@ -48,7 +48,7 @@ pub(super) fn largest_side(open: &OpenDiff) -> Result<u64, String> {
 		.map_or(new_path, String::as_str);
 	let sides = match &open.source {
 		DiffSource::Working => [
-			fs_side(&open.repo.join(new_path.replace('/', "\\"))),
+			fs_side(&crate::platform::git_worktree_path(&open.repo, new_path)),
 			blob_side(&open.repo, ":0", old_path),
 		],
 		DiffSource::Staged => [

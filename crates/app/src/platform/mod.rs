@@ -1,9 +1,23 @@
 //! OS-specific actions behind one trait, so a port is a module.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 mod windows;
+
+/// The working-tree file Git names `git_path` (always forward slashes) inside `repo`. On Windows
+/// the slashes become backslashes, so Explorer, the editor and the file system all get one form;
+/// every screen that turns a Git path into a file goes through here.
+pub fn git_worktree_path(repo: &Path, git_path: &str) -> PathBuf {
+	#[cfg(windows)]
+	{
+		repo.join(git_path.replace('/', "\\"))
+	}
+	#[cfg(not(windows))]
+	{
+		repo.join(git_path)
+	}
+}
 
 pub trait Platform {
 	fn open_folder(&self, dir: &Path) -> Result<(), String>;
@@ -55,6 +69,21 @@ impl Platform for Unsupported {
 	}
 	fn open_terminal(&self, _command: &str, _dir: &Path) -> Result<(), String> {
 		Err("opening a terminal is implemented on Windows only".into())
+	}
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn a_git_path_joins_the_repository_with_backslashes_only() {
+		let full = git_worktree_path(Path::new("C:/roots/x\\repo"), "src/a b/c.rs");
+		assert_eq!(full, PathBuf::from("C:/roots/x\\repo\\src\\a b\\c.rs"));
+		assert_eq!(
+			git_worktree_path(Path::new("C:\\r"), "top.txt"),
+			PathBuf::from("C:\\r\\top.txt")
+		);
 	}
 }
 
