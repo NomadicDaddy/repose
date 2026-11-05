@@ -38,3 +38,50 @@ pub fn apply(ctx: &egui::Context) {
 		style.spacing.button_padding = egui::vec2(10.0, 5.0);
 	});
 }
+
+/// Reads the desktop's animation setting once, off the UI thread, and turns egui's fades and
+/// smooth scrolling off when the user has turned animation effects off. Until the answer lands,
+/// and when it cannot be read, egui's defaults stand. There is no setting of repose's own.
+pub fn follow_reduced_motion(ctx: &egui::Context) {
+	let ctx = ctx.clone();
+	let _ = std::thread::Builder::new()
+		.name("reduced-motion".into())
+		.spawn(move || {
+			if crate::platform::animations_enabled() == Some(false) {
+				ctx.all_styles_mut(|style| set_motion(style, false));
+				ctx.request_repaint();
+			}
+		});
+}
+
+/// With animations off: no fade (animation_time 0) and scrolling that jumps instead of gliding.
+/// With them on the style is left as it is.
+pub fn set_motion(style: &mut egui::Style, animations: bool) {
+	if !animations {
+		style.animation_time = 0.0;
+		style.scroll_animation = egui::style::ScrollAnimation::none();
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use eframe::egui::{self, style::ScrollAnimation};
+
+	use super::set_motion;
+
+	#[test]
+	fn animation_effects_off_stops_fades_and_smooth_scrolling_and_on_leaves_the_defaults() {
+		let mut on = egui::Style::default();
+		set_motion(&mut on, true);
+		assert!(on.animation_time > 0.0, "egui's default fade stays");
+		assert_eq!(on.scroll_animation, ScrollAnimation::default());
+		let mut off = egui::Style::default();
+		set_motion(&mut off, false);
+		assert!(
+			off.animation_time.abs() < f32::EPSILON,
+			"{}",
+			off.animation_time
+		);
+		assert_eq!(off.scroll_animation, ScrollAnimation::none());
+	}
+}

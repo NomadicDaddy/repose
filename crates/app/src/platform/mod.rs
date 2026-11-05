@@ -3,6 +3,8 @@
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
+mod motion;
+#[cfg(windows)]
 mod windows;
 
 /// The working-tree file Git names `git_path` (always forward slashes) inside `repo`. On Windows
@@ -101,6 +103,19 @@ pub fn utc_offset_minutes() -> Option<i32> {
 	#[cfg(windows)]
 	{
 		windows::utc_offset_minutes()
+	}
+	#[cfg(not(windows))]
+	{
+		None
+	}
+}
+
+/// Whether the desktop leaves animation effects on (Windows' reduced-motion setting), or None
+/// when it cannot be read; other platforms keep egui's defaults. Slow, so run it off the UI thread.
+pub fn animations_enabled() -> Option<bool> {
+	#[cfg(windows)]
+	{
+		motion::animations_enabled()
 	}
 	#[cfg(not(windows))]
 	{

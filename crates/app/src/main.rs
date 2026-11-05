@@ -51,6 +51,7 @@ impl App {
 		cfg: config::Config,
 	) -> Self {
 		theme::apply(&cc.egui_ctx);
+		theme::follow_reduced_motion(&cc.egui_ctx);
 		let mut state = state::AppState::new(cfg);
 		state.start_scan(&cc.egui_ctx);
 		Self {
