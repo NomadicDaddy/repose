@@ -30,9 +30,9 @@ pub enum Verb {
 	RemoteList,
 	/// `git for-each-ref`: the local branches with their saved upstream counts, read-only.
 	ForEachRef,
-	/// `git fetch --quiet`, with no other argument: the repository's configured remote, on the
-	/// user's click only. No terminal prompt and no Git Credential Manager window: a sign-in
-	/// request fails with git's message instead (Steward #35492).
+	/// `git fetch --quiet --no-recurse-submodules --no-auto-maintenance` and nothing more: the
+	/// configured remote only, on the user's click. No prompt and no Git Credential Manager window:
+	/// a sign-in request fails with git's message instead (Steward #35492).
 	Fetch,
 }
 

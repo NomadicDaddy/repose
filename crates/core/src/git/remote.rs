@@ -20,9 +20,10 @@ pub fn read_remotes(repo: &Path) -> Result<Vec<RemoteEntry>, GitError> {
 	Ok(parse_remotes(&run(repo, Verb::RemoteList, &[])?))
 }
 
-/// `git fetch --quiet` from the repository's configured remote, on the user's Fetch only (A1). A
-/// sign-in request or a network failure comes back as the error with git's own message; the
-/// repository's refs are left as they were. Cancel stops git and anything it started.
+/// `git fetch --quiet --no-recurse-submodules --no-auto-maintenance` from the repository's
+/// configured remote, on the user's Fetch only (A1). A sign-in request or a network failure comes
+/// back as the error with git's own message; the repository's refs are left as they were. Cancel
+/// stops git and anything it started.
 pub fn fetch(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
 	run_cancellable(repo, Verb::Fetch, &[], cancel).map(|_| ())
 }
