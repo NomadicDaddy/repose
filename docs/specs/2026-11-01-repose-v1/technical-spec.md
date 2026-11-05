@@ -163,11 +163,25 @@ captured and compared with `look.jpg` before the tokens are called done.
 
 ### Platform module
 
-A `Platform` trait with one Windows implementation: `open_folder` (`explorer.exe /select,<path>`
-for files, `explorer.exe <dir>` for folders), `open_in_editor` (`code.cmd --goto <file>:<line>`,
-located on PATH, else a notice), `open_terminal` (`wt.exe -d <dir> pwsh`, else
-`pwsh -NoExit -WorkingDirectory <dir>`), `copy_text`, `open_url` (`ShellExecuteW` open), and
-`config_dir` (`%APPDATA%\repose`). Commands are configurable in `config.toml`.
+`crates/app/src/platform/mod.rs` defines a `Platform` trait with one Windows implementation
+(`platform/windows.rs`, chosen by `cfg(windows)`; other targets get one that returns an error for
+each action):
+
+- `open_folder(dir)`: `explorer.exe <dir>`.
+- `reveal_file(file)`: `explorer.exe /select,"<file>"`, or the folder when the file is gone.
+- `open_in_editor(command, target, line: Option<usize>)`: `<command> --goto <file>:<line>` for a
+  file, `<command> <dir>` for a folder; a command with no extension that is not found is retried
+  as its `.cmd`, and a missing editor is a notice naming the command.
+- `open_terminal(command, dir)`: `<command> -d <dir> pwsh -NoLogo` (default `wt`), else an
+  interactive pwsh in `<dir>`, started by a hidden pwsh through `Start-Process` so the new console
+  gets its own input.
+
+Every path handed to Explorer or the editor has its slashes turned to backslashes. Beside the
+trait, the module has two free functions: `utc_offset_minutes()`, read once from `w32tm /tz`, and
+`git_worktree_path(repo, git_path)`, which turns a Git path into the working-tree file. The
+clipboard and the browser go through egui's context (`copy_text`, `open_url`), not the trait. The
+config file's location is not a platform method: core's `config::default_path` chooses it (see
+Config). The editor and terminal commands are configurable in `config.toml`.
 
 ### Config
 
