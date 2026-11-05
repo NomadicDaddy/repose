@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use eframe::egui::{self, Key, RichText, Ui};
+use repose_core::model::RepoSummary;
 
 use super::status_line::status_line;
 use super::{a11y, menu, row};
@@ -90,12 +91,7 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		);
 		return;
 	}
-	let selected = state.selected.clone();
-	let mut clicked: Option<PathBuf> = None;
-	let mut toggled: Option<PathBuf> = None;
-	let mut action: Option<menu::Action> = None;
-	// A menu opening on a row asks for that repository's origin URL; it lands a frame later.
-	let mut wants_remote: Option<PathBuf> = None;
+	let mut ev = RowEvents::default();
 	// The same eligibility as row_menu's, so a Menu press behind the discard modal starts no
 	// origin read when the menu it would feed cannot open (Roger 5Q-1 on 8791260).
 	let menu_key = ui.memory(|m| m.allows_interaction(ui.layer_id()))
@@ -103,52 +99,15 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let rows = egui::ScrollArea::vertical()
 		.auto_shrink([false, false])
 		.show(ui, |ui| {
-			for repo in &state.repos {
-				if !paths.contains(&repo.path) {
-					continue;
-				}
+			for repo in state.repos.iter().filter(|r| paths.contains(&r.path)) {
 				// The chevron reads open whenever worktree rows are showing, whether the user
 				// opened the row or the filter opened it to the matching ones; a click then
 				// opens it fully or closes it (Phillip #31154).
 				let expanded = repo.worktrees.iter().any(|w| paths.contains(&w.path));
-				let is_selected = selected.as_deref() == Some(repo.path.as_path());
-				let out = row::draw(ui, state, repo, is_selected, 0.0, expanded);
-				if is_selected && state.reveal_selected {
-					out.response.scroll_to_me(Some(egui::Align::Center));
-				}
-				if out.chevron_clicked {
-					toggled = Some(repo.path.clone());
-				} else if out.response.clicked() {
-					clicked = Some(repo.path.clone());
-				}
-				if out.response.secondary_clicked()
-					|| ((is_selected || out.response.has_focus()) && menu_key)
-				{
-					wants_remote = Some(repo.path.clone());
-				}
-				menu::row_menu(ui, &out.response, is_selected, |ui| {
-					action = menu::repo_items(ui, &repo.path, state);
-				});
-				for wt in &repo.worktrees {
-					if !paths.contains(&wt.path) {
-						continue;
-					}
-					let is_selected = selected.as_deref() == Some(wt.path.as_path());
-					let out = row::draw(ui, state, wt, is_selected, 16.0, false);
-					if is_selected && state.reveal_selected {
-						out.response.scroll_to_me(Some(egui::Align::Center));
-					}
-					if out.response.clicked() {
-						clicked = Some(wt.path.clone());
-					}
-					if out.response.secondary_clicked()
-						|| ((is_selected || out.response.has_focus()) && menu_key)
-					{
-						wants_remote = Some(wt.path.clone());
-					}
-					menu::row_menu(ui, &out.response, is_selected, |ui| {
-						action = menu::repo_items(ui, &wt.path, state);
-					});
+				let parent = RowKind::Parent { expanded };
+				row_events(ui, state, repo, parent, menu_key, &mut ev);
+				for wt in repo.worktrees.iter().filter(|w| paths.contains(&w.path)) {
+					row_events(ui, state, wt, RowKind::Worktree, menu_key, &mut ev);
 				}
 			}
 		});
@@ -158,6 +117,24 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	ui.data_mut(|d| d.insert_temp(scroll_key(), rows.id));
 	#[cfg(not(test))]
 	let _ = rows;
+	apply_events(ui, state, platform, &paths, ev);
+}
+
+/// After the rows are drawn: the selection's reveal is spent, then the chevron, click, origin
+/// read and menu action the rows recorded are applied.
+fn apply_events(
+	ui: &Ui,
+	state: &mut AppState,
+	platform: &dyn Platform,
+	paths: &[PathBuf],
+	ev: RowEvents,
+) {
+	let RowEvents {
+		clicked,
+		toggled,
+		wants_remote,
+		action,
+	} = ev;
 	// The selected row was scrolled to this frame if it asked; the next move asks again.
 	state.reveal_selected = false;
 	// A click on the chevron closes a row whose worktrees are showing, whether the user or the
@@ -179,6 +156,55 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	if let Some(a) = action {
 		menu::perform(a, state, platform, &ctx);
 	}
+}
+
+/// What the rows asked for this frame, applied after the list is drawn.
+#[derive(Default)]
+struct RowEvents {
+	clicked: Option<PathBuf>,
+	toggled: Option<PathBuf>,
+	/// A menu opening on a row asks for that repository's origin URL; it lands a frame later.
+	wants_remote: Option<PathBuf>,
+	action: Option<menu::Action>,
+}
+
+/// A parent row, whose chevron shows its worktrees, or a worktree row indented under it.
+#[derive(Clone, Copy)]
+enum RowKind {
+	Parent { expanded: bool },
+	Worktree,
+}
+
+/// One row, parent or worktree: drawn, scrolled to when the selection asks, and its click,
+/// chevron, menu key and menu recorded in `ev`.
+fn row_events(
+	ui: &mut Ui,
+	state: &AppState,
+	repo: &RepoSummary,
+	kind: RowKind,
+	menu_key: bool,
+	ev: &mut RowEvents,
+) {
+	let is_selected = state.selected.as_deref() == Some(repo.path.as_path());
+	let (indent, expanded) = match kind {
+		RowKind::Parent { expanded } => (0.0, expanded),
+		RowKind::Worktree => (16.0, false),
+	};
+	let out = row::draw(ui, state, repo, is_selected, indent, expanded);
+	if is_selected && state.reveal_selected {
+		out.response.scroll_to_me(Some(egui::Align::Center));
+	}
+	if matches!(kind, RowKind::Parent { .. }) && out.chevron_clicked {
+		ev.toggled = Some(repo.path.clone());
+	} else if out.response.clicked() {
+		ev.clicked = Some(repo.path.clone());
+	}
+	if out.response.secondary_clicked() || ((is_selected || out.response.has_focus()) && menu_key) {
+		ev.wants_remote = Some(repo.path.clone());
+	}
+	menu::row_menu(ui, &out.response, is_selected, |ui| {
+		ev.action = menu::repo_items(ui, &repo.path, state);
+	});
 }
 
 fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) {
