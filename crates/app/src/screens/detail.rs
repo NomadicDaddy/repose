@@ -3,7 +3,7 @@
 //! chosen. Diffs and files arrive with their own records.
 
 use eframe::egui::{self, FontFamily, RichText, Ui};
-use repose_core::git::remote::display_url;
+use repose_core::git::remote::{display_url, https_page};
 
 use super::{
 	a11y, branches, changes, close_guard, commit_box, confirm, diff, file_view, files, history,
@@ -14,7 +14,10 @@ use crate::theme::*;
 
 /// One line per configured remote, `<name> · <url>`, with the push URL in parentheses when it
 /// differs; nothing while the list is being read or when no remote is configured (Phillip
-/// #31822: show remotes if configured), and the failure when git could not list them.
+/// #31822: show remotes if configured), and the failure when git could not list them. The
+/// origin line is a link to the page Open remote page opens, when https_page gives one, with
+/// that page as its tooltip; every other line, and an origin with no page, is plain text
+/// (header-origin-link, Phillip #33224 and #33453).
 fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 	match remote {
 		None => {}
@@ -24,12 +27,23 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 				if let Some(push) = &entry.push_url {
 					line.push_str(&format!(" (push {})", display_url(push)));
 				}
-				ui.label(
-					RichText::new(line)
-						.size(TEXT_SMALL)
-						.color(MUTED)
-						.family(FontFamily::Monospace),
-				);
+				let text = RichText::new(line)
+					.size(TEXT_SMALL)
+					.family(FontFamily::Monospace);
+				let page = (entry.name == "origin")
+					.then(|| https_page(&entry.url))
+					.flatten();
+				match page {
+					Some(page) => {
+						let tip = format!("Open {page}");
+						if ui.link(text.color(ACCENT)).on_hover_text(tip).clicked() {
+							ui.ctx().open_url(egui::OpenUrl::new_tab(page));
+						}
+					}
+					None => {
+						ui.label(text.color(MUTED));
+					}
+				}
 			}
 		}
 		Some(Err(e)) => {

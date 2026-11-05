@@ -13,6 +13,10 @@ All notable changes to repose are recorded here. The format follows
   worktree chevron is named by its action ("Expand 1 worktree"), and branch rows are list items.
 - Diff lines, side-by-side pairs, hunk separators and group counts are readable text for
   assistive technology, without becoming Tab stops.
+- The origin line in the repository header is a link to the repository's web page, the same
+  page Open remote page opens. It shows the page as its tooltip and opens it with a click, or
+  with Enter once Tab reaches it. Other remotes, and an origin with no web page, stay plain
+  text.
 
 ### Fixed
 
