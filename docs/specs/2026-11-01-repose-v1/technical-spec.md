@@ -161,6 +161,16 @@ Fonts: Segoe UI (UI), Cascadia Code with Consolas fallback (names, hashes, code)
 at 100% scaling; the smallest text is 11 px. These are the starting values; the first screen is
 captured and compared with `look.jpg` before the tokens are called done.
 
+Sizes are tokens too, in `crates/app/src/theme/tokens.rs`, and no screen draws a size literal:
+text 13 base, 11 small, 17 for the sidebar and dialog titles, 18 detail title, 12 metadata,
+12 monospace, and 14 and 11.5 for a repository row's name and branch line; rows 46 for a
+repository, 32 for a commit, 32 for a branch, 30 for a changed file and 20 for a diff or file line,
+each its own token.
+
+Motion follows Windows' Animation effects setting (Settings > Accessibility > Visual effects),
+read once at launch off the UI thread. When it is off, egui's fades stop (`animation_time` 0) and
+scrolling jumps instead of gliding. There is no repose setting for it.
+
 ### Platform module
 
 `crates/app/src/platform/mod.rs` defines a `Platform` trait with one Windows implementation
