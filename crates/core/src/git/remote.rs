@@ -139,10 +139,7 @@ pub fn https_page(url: &str) -> Option<String> {
 		}
 		let (page_scheme, host) = match scheme {
 			"https" | "http" => (scheme, authority),
-			"ssh" | "git+ssh" | "git" => (
-				"https",
-				authority.split_once(':').map_or(authority, |(h, _)| h),
-			),
+			"ssh" | "git+ssh" | "git" => ("https", ssh_host(authority)?),
 			_ => return None,
 		};
 		return Some(format!("{page_scheme}://{host}/{}", strip_git(path)));
@@ -162,6 +159,17 @@ pub fn https_page(url: &str) -> Option<String> {
 		"https://{host}/{}",
 		strip_git(path.trim_start_matches('/'))
 	))
+}
+
+/// The host of an ssh-style authority without its port. A bracketed IPv6 address keeps its
+/// colons through the closing `]` (`[2001:db8::1]:2222` is `[2001:db8::1]`); an unclosed bracket
+/// has no host. Any other authority drops everything from its first colon.
+fn ssh_host(authority: &str) -> Option<&str> {
+	if authority.starts_with('[') {
+		let close = authority.find(']')?;
+		return Some(&authority[..=close]);
+	}
+	Some(authority.split_once(':').map_or(authority, |(h, _)| h))
 }
 
 fn strip_git(path: &str) -> &str {
