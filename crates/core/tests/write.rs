@@ -1,5 +1,5 @@
 //! Assertions A2 and A3 for the write verbs: literal pathspecs (Morticia's [1].txt pair), hooks
-//! that run, fail, print a lot or take longer than the read timeout, and the lock path.
+//! that run, fail, print a lot, read stdin or take longer than the read timeout, and the lock path.
 #![allow(clippy::expect_used)]
 
 mod support;
@@ -210,6 +210,36 @@ fn slow_hook_is_not_timed_out() {
 	commit(&repo.path, "slow but fine").expect("commit after a 12 s hook");
 	assert!(started.elapsed() >= Duration::from_secs(11));
 	assert!(repo.git(&["log", "--oneline"]).contains("slow but fine"));
+}
+
+/// A hook that reads stdin sees EOF at once and its refusal reaches the user with the index kept.
+/// Git (2.56) gives a pre-commit hook a null stdin itself, so this pins the outcome; that repose's
+/// own spawn has a null stdin is pinned in tests/commands.rs. The commit runs behind a watchdog,
+/// so a hook that blocked would fail this test instead of hanging the suite.
+#[test]
+fn hook_reading_stdin_sees_eof_and_blocks_the_commit() {
+	let repo = TempRepo::new("hook-stdin");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("base");
+	repo.write("a.txt", "a2\n");
+	repo.git(&["add", "a.txt"]);
+	repo.write(
+		".githooks/pre-commit",
+		"#!/bin/sh\nif read line; then echo \"hook read a line: $line\" >&2; exit 1; fi\necho 'hook saw EOF on stdin' >&2\nexit 1\n",
+	);
+	repo.git(&["config", "core.hooksPath", ".githooks"]);
+	let path = repo.path.clone();
+	let (tx, rx) = std::sync::mpsc::channel();
+	std::thread::spawn(move || {
+		let _ = tx.send(commit(&path, "reads stdin"));
+	});
+	let outcome = rx
+		.recv_timeout(Duration::from_secs(60))
+		.expect("the hook got EOF within 60 s; an open stdin would block it here");
+	let err = outcome.expect_err("the hook blocks the commit");
+	assert!(err.to_string().contains("hook saw EOF on stdin"), "{err}");
+	assert!(status(&repo).starts_with("M  a.txt"), "index unchanged");
+	assert!(!repo.git(&["log", "--oneline"]).contains("reads stdin"));
 }
 
 #[test]

@@ -1,6 +1,7 @@
 //! Assertions A1 and A3: no remote verb exists, every spawn carries the shared environment, and a
 //! commit never passes --no-verify. Plus the pipe-capacity cases Morticia found on cdfc251: output
-//! larger than the pipe buffer on a read and on a hook must not deadlock.
+//! larger than the pipe buffer on a read and on a hook must not deadlock, and a spawn reads EOF
+//! from its null stdin.
 #![allow(clippy::expect_used)]
 
 mod support;
@@ -140,4 +141,28 @@ fn no_verify_is_never_passed() {
 		.collect();
 	assert!(!args.iter().any(|a| a == "--no-verify" || a == "--amend"));
 	assert!(Verb::Commit.is_write() && !Verb::Status.is_write());
+}
+
+/// Every spawn gets a null stdin, so git never waits on input the app cannot give it.
+/// `cat-file --batch` reads object names until EOF: with a null stdin it ends at once with no
+/// output, while an open stdin would hold it until the read timeout. The watchdog keeps a
+/// regression from hanging the suite.
+#[test]
+fn a_spawned_git_reads_eof_from_a_null_stdin() {
+	let repo = TempRepo::new("null-stdin");
+	let path = repo.path.clone();
+	let (tx, rx) = std::sync::mpsc::channel();
+	std::thread::spawn(move || {
+		let started = Instant::now();
+		let out = run(&path, Verb::CatFile, &["--batch"]);
+		let _ = tx.send((out, started.elapsed()));
+	});
+	let (out, elapsed) = rx
+		.recv_timeout(Duration::from_secs(60))
+		.expect("cat-file --batch returned within 60 s");
+	assert_eq!(out.expect("EOF ends the batch cleanly"), Vec::<u8>::new());
+	assert!(
+		elapsed < Duration::from_secs(5),
+		"EOF at once, not after a wait: {elapsed:?}"
+	);
 }
