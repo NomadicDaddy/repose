@@ -41,8 +41,10 @@ Decision: every git read and write goes through the installed `git` executable, 
 (`core::git::commands`) with an allowed-verb list: status, rev-parse, log, show, diff, ls-tree,
 cat-file, add, restore, clean, commit, rm --cached, symbolic-ref, remote (only as
 `remote --verbose`; extra arguments are refused), for-each-ref, and fetch (only as
-`fetch --quiet`, on the user's Fetch, with `GCM_INTERACTIVE=never` and
-`-c credential.interactive=false` beside `GIT_TERMINAL_PROMPT=0`; extra arguments are refused).
+`fetch --quiet --no-recurse-submodules --no-auto-maintenance`, on the user's Fetch, with
+`GCM_INTERACTIVE=never`, `-c credential.interactive=false`, `-c protocol.ext.allow=never`,
+`-c core.askPass=` and no askpass variables, beside `GIT_TERMINAL_PROMPT=0`; extra arguments are
+refused).
 Fetch runs in the per-repository write queue, so it never overlaps a stage or commit there. Every call runs with
 `-c core.fsmonitor=false`, writes included, so a repository's own config cannot name a program for
 repose to run, and with `GIT_NO_LAZY_FETCH=1`, so a partial clone's missing object is an error and

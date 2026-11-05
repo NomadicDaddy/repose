@@ -70,7 +70,15 @@ fn fetch_is_the_only_remote_verb() {
 			}
 		}
 	}
-	assert_eq!(Verb::Fetch.args(), ["fetch", "--quiet"]);
+	assert_eq!(
+		Verb::Fetch.args(),
+		[
+			"fetch",
+			"--quiet",
+			"--no-recurse-submodules",
+			"--no-auto-maintenance"
+		]
+	);
 	assert_eq!(Verb::ALL.len(), 16);
 }
 
@@ -94,10 +102,25 @@ fn fetch_cannot_prompt_for_a_sign_in() {
 		.position(|a| a == "credential.interactive=false")
 		.expect("credential.interactive=false is set");
 	assert_eq!(args[at - 1], "-c");
-	assert!(
-		at < args.iter().position(|a| a == "fetch").expect("fetch"),
-		"the setting comes before the verb: {args:?}"
-	);
+	let verb_at = args.iter().position(|a| a == "fetch").expect("fetch");
+	assert!(at < verb_at, "the setting comes before the verb: {args:?}");
+	// No program from a repository's config or the environment can be started to ask for one.
+	for setting in ["protocol.ext.allow=never", "core.askPass="] {
+		let i = args
+			.iter()
+			.position(|a| a == setting)
+			.unwrap_or_else(|| panic!("{setting} is set: {args:?}"));
+		assert!(
+			i < verb_at && args[i - 1] == "-c",
+			"{setting} before the verb"
+		);
+	}
+	for removed in ["GIT_ASKPASS", "SSH_ASKPASS"] {
+		assert!(
+			cmd.get_envs().any(|(k, v)| k == removed && v.is_none()),
+			"{removed} is removed from the fetch's environment"
+		);
+	}
 	assert!(
 		commands::run(
 			&std::env::temp_dir(),

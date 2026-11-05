@@ -1,7 +1,8 @@
 //! remote-sync: Fetch, the one network verb (A1 as revised, Phillip #35530). It brings the
 //! remote's commits in, reports a failure with git's own message and leaves the refs alone, and a
 //! sign-in request fails instead of prompting: no terminal prompt and no Git Credential Manager
-//! window (Steward #35492). The remotes are a local bare repository and a 127.0.0.1 listener, so
+//! window (Steward #35492), and over SSH no askpass program and no terminal (Roger M-1 on c84df39).
+//! The remotes are a local bare repository, a 127.0.0.1 listener and a stand-in ssh command, so
 //! nothing leaves the machine.
 #![allow(clippy::expect_used)]
 
@@ -134,5 +135,62 @@ fn a_sign_in_request_fails_without_a_prompt_or_window() {
 	assert!(
 		git_in(&repo.path, &["for-each-ref", "refs/remotes"]).is_empty(),
 		"nothing was fetched"
+	);
+}
+
+/// Over SSH, git hands the connection to ssh, which GCM and git's prompt setting do not govern.
+/// A stand-in ssh (the repository's core.sshCommand) records what a real one would get: no
+/// askpass program, SSH_ASKPASS_REQUIRE=never so OpenSSH may not start one, and no terminal on
+/// stdin to prompt on. It then fails as an unreachable host would, so nothing is contacted.
+#[test]
+fn an_ssh_remote_gets_no_askpass_and_no_terminal_to_prompt_on() {
+	let repo = TempRepo::new("fetch-ssh");
+	repo.write("a.txt", "a\n");
+	repo.commit_all("one");
+	let record = repo.path.join("ssh-saw.txt");
+	let record_sh = record.to_string_lossy().replace('\\', "/");
+	repo.write(
+		"fake-ssh.sh",
+		&format!(
+			"#!/bin/sh\nenv > '{record_sh}'\nif [ -t 0 ]; then echo STDIN_TTY=yes; else echo STDIN_TTY=no; fi >> '{record_sh}'\necho 'fake ssh: host unreachable' >&2\nexit 255\n"
+		),
+	);
+	let script = repo
+		.path
+		.join("fake-ssh.sh")
+		.to_string_lossy()
+		.replace('\\', "/");
+	repo.git(&["config", "core.sshCommand", &format!("sh '{script}'")]);
+	repo.git(&[
+		"remote",
+		"add",
+		"origin",
+		"ssh://git@example.invalid/team/thing.git",
+	]);
+	let (cancel, done) = watchdog(Duration::from_secs(60));
+	let result = fetch(&repo.path, Some(&cancel));
+	done.store(true, Ordering::SeqCst);
+	match result {
+		Err(GitError::Failed { stderr_tail, .. }) => assert!(
+			stderr_tail.contains("fake ssh: host unreachable"),
+			"git ran the configured ssh and reported its failure: {stderr_tail:?}"
+		),
+		other => panic!("the stand-in ssh fails, so the fetch must: {other:?}"),
+	}
+	let saw = std::fs::read_to_string(&record).expect("the stand-in ssh ran and recorded");
+	let lines: Vec<&str> = saw.lines().collect();
+	assert!(lines.contains(&"SSH_ASKPASS_REQUIRE=never"), "{saw}");
+	assert!(
+		!lines.iter().any(|l| l.starts_with("SSH_ASKPASS=")),
+		"no ssh askpass: {saw}"
+	);
+	assert!(
+		!lines.iter().any(|l| l.starts_with("GIT_ASKPASS=")),
+		"no git askpass: {saw}"
+	);
+	assert!(lines.contains(&"GIT_TERMINAL_PROMPT=0"), "{saw}");
+	assert!(
+		lines.contains(&"STDIN_TTY=no"),
+		"ssh has no terminal to prompt on: {saw}"
 	);
 }

@@ -75,7 +75,14 @@ impl Verb {
 			Verb::SymbolicRef => &["symbolic-ref", "--quiet"],
 			Verb::RemoteList => &["remote", "--verbose"],
 			Verb::ForEachRef => &["for-each-ref"],
-			Verb::Fetch => &["fetch", "--quiet"],
+			// Only the configured remote: no submodule remotes, and no maintenance or gc left
+			// running after it (Morticia L-1 on c84df39).
+			Verb::Fetch => &[
+				"fetch",
+				"--quiet",
+				"--no-recurse-submodules",
+				"--no-auto-maintenance",
+			],
 		}
 	}
 
@@ -155,10 +162,19 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 	}
 	if verb == Verb::Fetch {
 		// GIT_TERMINAL_PROMPT=0 stops git's own prompt but not Git Credential Manager, which can
-		// still open a sign-in window or a browser; both of these keep it non-interactive.
+		// still open a sign-in window or a browser; GCM_INTERACTIVE and credential.interactive
+		// keep it non-interactive. No askpass program and no ext:: transport either (Morticia
+		// L-2 on c84df39), and OpenSSH may not ask through one even when it has no terminal
+		// (SSH_ASKPASS_REQUIRE=never, Roger M-1). With no console and a null stdin, ssh has no
+		// terminal to prompt on, so a passphrase or host-key question fails instead of waiting.
+		// core.sshCommand and credential helpers are the user's own, as hooks are for a commit.
 		cmd.env("GCM_INTERACTIVE", "never")
-			.arg("-c")
-			.arg("credential.interactive=false");
+			.env("SSH_ASKPASS_REQUIRE", "never")
+			.env_remove("GIT_ASKPASS")
+			.env_remove("SSH_ASKPASS")
+			.args(["-c", "credential.interactive=false"])
+			.args(["-c", "protocol.ext.allow=never"])
+			.args(["-c", "core.askPass="]);
 	}
 	cmd.args(verb.args()).args(extra);
 	cmd
