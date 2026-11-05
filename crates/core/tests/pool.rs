@@ -55,21 +55,26 @@ fn reads_answer_while_every_write_permit_is_held_by_a_hook() {
 	// Every hook is running, so every commit holds its permit, before the read starts (Roger and
 	// Morticia on 5556e97: a fixed sleep could let the read in early and pass falsely).
 	let deadline = Instant::now() + Duration::from_secs(60);
-	while !ready.iter().all(|p| p.exists()) {
-		assert!(
-			Instant::now() < deadline,
-			"not every hook started within 60 s"
-		);
+	let mut started = false;
+	while Instant::now() < deadline {
+		if ready.iter().all(|p| p.exists()) {
+			started = true;
+			break;
+		}
 		std::thread::sleep(Duration::from_millis(100));
 	}
 	let reader = TempRepo::new("pool-reader");
 	reader.write("r.txt", "r\n");
-	let (tx, rx) = mpsc::channel();
-	let dir = reader.path.clone();
-	std::thread::spawn(move || {
-		let _ = tx.send(read_status(&dir).is_ok());
+	let answered = started.then(|| {
+		let (tx, rx) = mpsc::channel();
+		let dir = reader.path.clone();
+		std::thread::spawn(move || {
+			let _ = tx.send(read_status(&dir).is_ok());
+		});
+		rx.recv_timeout(Duration::from_secs(5))
 	});
-	let answered = rx.recv_timeout(Duration::from_secs(5));
+	// Every hook is released and every commit joined before any assert, so a failure leaves no
+	// hook looping on its go marker after the test (Morticia L-1 on 4d69b2c).
 	for marker in &release {
 		std::fs::write(marker, "go").expect("marker");
 	}
@@ -78,9 +83,10 @@ fn reads_answer_while_every_write_permit_is_held_by_a_hook() {
 			.expect("commit thread")
 			.expect("the held commit lands once released");
 	}
+	assert!(started, "not every hook started within 60 s");
 	assert_eq!(
 		answered,
-		Ok(true),
+		Some(Ok(true)),
 		"a status read waited behind {POOL_SIZE} commits held by their hooks"
 	);
 	drop(repos);
