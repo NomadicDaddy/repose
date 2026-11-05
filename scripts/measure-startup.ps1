@@ -53,7 +53,11 @@ while (-not (Test-Path $marker) -and -not $p.HasExited -and (Get-Date) -lt $dead
 $loaded = if (Test-Path $marker) { (Get-Content $marker | Select-Object -First 1) -split "`t" } else { $null }
 if ($loaded -and -not $p.HasExited) {
     Start-Sleep -Seconds $IdleSeconds
-    $counter = Get-Counter "\Process($($p.ProcessName))\Working Set - Private" -ErrorAction SilentlyContinue
+    # The counter instance is matched by its ID Process, not its name: with another repose open,
+    # the instance named repose may be that one (repose#1 is then ours).
+    $ids = Get-Counter "\Process($($p.ProcessName)*)\ID Process" -ErrorAction SilentlyContinue
+    $mine = $ids.CounterSamples | Where-Object { [int]$_.CookedValue -eq $p.Id } | Select-Object -First 1
+    $counter = if ($mine) { Get-Counter ($mine.Path -replace '\\id process$', '\working set - private') -ErrorAction SilentlyContinue }
     $private = if ($counter) { [math]::Round($counter.CounterSamples[0].CookedValue / 1MB, 1) } else { 'unavailable' }
     $ws = [math]::Round((Get-Process -Id $p.Id).WorkingSet64 / 1MB, 1)
     Write-Host "MEASURE idle-private-working-set-mb $private (working set $ws; target about 150; diff open: $($loaded[2]) in the fixture repository, $($loaded[3]) hunks, loaded at $($loaded[4]) ms)"
