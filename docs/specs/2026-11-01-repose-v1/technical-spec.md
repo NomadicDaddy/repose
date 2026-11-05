@@ -178,11 +178,12 @@ each action):
   gets its own input.
 
 Every path handed to Explorer or the editor has its slashes turned to backslashes. Beside the
-trait, the module has two free functions: `utc_offset_minutes()`, read from `w32tm /tz` and re-read at most once a minute, and
-`git_worktree_path(repo, git_path)`, which turns a Git path into the working-tree file. The
-clipboard and the browser go through egui's context (`copy_text`, `open_url`), not the trait. The
-config file's location is not a platform method: core's `config::default_path` chooses it (see
-Config). The editor and terminal commands are configurable in `config.toml`.
+trait, the module has two free functions: `utc_offset_minutes()`, read from `w32tm /tz` and
+re-read at most once a minute, and `git_worktree_path(repo, git_path)`, which turns a Git path
+into the working-tree file. The clipboard and the browser go through egui's context
+(`copy_text`, `open_url`), not the trait. The config file's location is not a platform method:
+core's `config::default_path` chooses it (see Config). The editor and terminal commands are
+configurable in `config.toml`.
 
 ### Config
 
