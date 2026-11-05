@@ -180,11 +180,11 @@ pub(super) fn fit(
 	if whole.size().x <= width {
 		return whole;
 	}
-	// Both row fonts are monospace, so the mean advance says about how many characters fit
-	// beside the ellipsis; the loop steps down from that guess, a few layouts for a uniform face
-	// and never one per character of the whole text (Roger Low on cd6c406). When even the
-	// ellipsis does not fit, nothing is drawn rather than something that overlaps the pills
-	// (Roger on 881f590).
+	// The mean advance says about how many characters fit beside the ellipsis (closely for the
+	// repository rows' monospace face, roughly for History's proportional subjects); the loop
+	// steps down from that guess, a few layouts and never one per character of the whole text
+	// (Roger Low on cd6c406). When even the ellipsis does not fit, nothing is drawn rather than
+	// something that overlaps the pills (Roger on 881f590).
 	let ellipsis = painter.layout_no_wrap("…".to_string(), font.clone(), color);
 	if ellipsis.size().x > width {
 		return painter.layout_no_wrap(String::new(), font, color);
