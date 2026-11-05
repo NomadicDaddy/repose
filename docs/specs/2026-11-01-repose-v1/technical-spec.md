@@ -213,8 +213,18 @@ a disposable fixture repository the script creates and removes, sampled once `--
 reports the diff loaded (`scripts/measure-startup.ps1`). They are printed as `MEASURE` lines and never change `QC_EXIT`
 (assertions A8 and A9; Phillip, 2026-11-01). Last, when every step passed and a per-user copy
 exists, the gate refreshes that copy from `target/dist`, but only for a clean tree on `main`;
-otherwise it prints why the copy was kept. That refresh never changes the exit code either. The
-release table cites its log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
+otherwise it prints why the copy was kept. That refresh never changes the exit code either.
+
+The gate caches passes only, never failures (`scripts/gate-cache.ps1`, records in
+`target/gate-cache`). The format, clippy, test, release-build, file-length and notices steps
+are skipped as `CACHED` when the key of their complete inputs matches an earlier pass. That key
+covers each input file's path and SHA-256, plus the tool versions and cargo environment, the Git
+version for the tests, and the licence inputs and standard-library notice hash for the notices.
+A cached release build also requires the executable it produced to be unchanged. The startup and
+idle measurements are reused only for the same executable, measurement script and conditions,
+only when both were measured, and with their original time stated. `cargo audit` and the
+staging always run, `-NoCache` forces every step, and `scripts/gate-cache-test.ps1` runs first
+in every gate. The release table cites its log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
 of running repose. Hooks are a smokestack delivery and
 Alice's; until one exists for a Rust repository, commits of source wait for it or run the gate by
 hand and say so.

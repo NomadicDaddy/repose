@@ -2,27 +2,53 @@
 # 300-line file limit and the notices check; then the measurements (reported, never failed:
 # Phillip, 2026-11-01) and, after a green run on a clean main, the per-user copy refresh, which
 # never changes the exit code. Prints QC_EXIT=<code> last.
+#
+# Steps that passed before with exactly the same inputs are not rerun (quality-gate-cache; see
+# scripts/gate-cache.ps1): format, clippy, tests, the release build, the 300-line check, the
+# notices check and the startup and idle measurements. A hit prints CACHED with the time of the
+# original pass. The advisory audit and release staging always run, and a failure is never cached.
+# -NoCache runs every step regardless, and still records passes.
 param(
-    [switch] $SkipMeasure
+    [switch] $SkipMeasure,
+    [switch] $NoCache
 )
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+$GateRoot = $root
+. (Join-Path $PSScriptRoot 'gate-cache.ps1')
 $exit = 0
 function Step($name, [scriptblock] $body) {
     Write-Host "== $name"
     & $body
     if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: $name"; $script:exit = 1 }
 }
-Step 'cargo fmt --check' { cargo fmt --all -- --check }
-Step 'cargo clippy' { cargo clippy --workspace --all-targets -- -D warnings }
-Step 'cargo test' { cargo test --workspace }
+# What every Rust step's result depends on: the sources, assets, manifests, lockfile and tool
+# configuration; the gate scripts themselves; and the toolchain and environment cargo reads.
+$gateScripts = @('scripts/qc.ps1', 'scripts/gate-cache.ps1')
+$rustInputs = @('crates', 'Cargo.toml', 'Cargo.lock', 'clippy.toml', 'rustfmt.toml', 'rust-toolchain.toml') + $gateScripts
+$rustFacts = @(
+    "rustc $(rustc -vV 2>&1)", "cargo $(cargo -V 2>&1)", "rustfmt $(cargo fmt --version 2>&1)",
+    "clippy $(cargo clippy --version 2>&1)"
+)
+foreach ($var in @('RUSTFLAGS', 'RUSTDOCFLAGS', 'CARGO_ENCODED_RUSTFLAGS', 'CARGO_BUILD_TARGET', 'CARGO_TARGET_DIR')) {
+    $rustFacts += "env $var=$([Environment]::GetEnvironmentVariable($var))"
+}
+function CachedStep($name, [string[]] $paths, [string[]] $facts, [scriptblock] $body, [string] $artifact = '') {
+    if (-not (Invoke-GateStep -Name $name -Paths $paths -Facts $facts -Body $body -Artifact $artifact -NoCache:$NoCache)) { $script:exit = 1 }
+}
+Step 'gate cache self-test' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'gate-cache-test.ps1') }
+CachedStep 'cargo fmt --check' $rustInputs $rustFacts { cargo fmt --all -- --check }
+CachedStep 'cargo clippy' $rustInputs $rustFacts { cargo clippy --workspace --all-targets -- -D warnings }
+# The tests drive the installed Git, so its version is part of their inputs.
+CachedStep 'cargo test' $rustInputs ($rustFacts + "git $(git --version 2>&1)") { cargo test --workspace }
 # Advisories (quality-gate clause 8, Phillip Yes #31026): cargo-audit is installed per user with
 # `cargo install cargo-audit`. scripts/audit.ps1 runs plain cargo audit (fetch and scan), falls
 # back to the database on disk only when the fetch itself failed, says how old that database is,
 # and holds the list of accepted advisory ids. Unmaintained-crate warnings are printed, not failed.
 Step 'cargo audit' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'audit.ps1') }
-Step 'cargo build --release' { cargo build --workspace --release }
+# A hit also needs target\release\repose.exe to be the executable that pass produced.
+CachedStep 'cargo build --release' $rustInputs $rustFacts { cargo build --workspace --release } 'target/release/repose.exe'
 # What a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9): the
 # executable, LICENSE, THIRD-PARTY-NOTICES.md and the toolchain's RUST-STD-COPYRIGHT.html, no
 # runtimes, listed as RELEASE lines in the log.
@@ -30,20 +56,45 @@ Step 'release pair staged' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'sta
 # Physical lines, blank ones included, as the fleet's check:max-lines counts them; Measure-Object
 # -Line skipped blanks and let files of 302-308 lines through (Morticia L-1 on 8eebf0e). @()
 # keeps a one-line file a one-element array rather than a string.
-Write-Host '== file length (300 physical lines)'
-$long = Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
-    Where-Object { @(Get-Content $_.FullName).Count -gt 300 }
-foreach ($f in $long) {
-    Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, @(Get-Content $f.FullName).Count)
-    $exit = 1
+CachedStep 'file length (300 physical lines)' (@('crates') + $gateScripts) @() {
+    $long = @(Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter *.rs |
+        Where-Object { @(Get-Content $_.FullName).Count -gt 300 })
+    foreach ($f in $long) { Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, @(Get-Content $f.FullName).Count) }
+    $global:LASTEXITCODE = [int] ($long.Count -gt 0)
 }
-Step 'third-party notices current' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Check }
+# The notices depend on the manifests, lockfile, licence folder, the notices file and script, and
+# the toolchain, whose standard-library notice the file records by hash.
+$sysroot = "$(rustc --print sysroot 2>$null)".Trim()
+$stdNotice = Join-Path $sysroot 'share\doc\rust\COPYRIGHT-library.html'
+$stdHash = if (Test-Path -LiteralPath $stdNotice) { (Get-FileHash -LiteralPath $stdNotice -Algorithm SHA256).Hash } else { 'missing' }
+$manifests = @(Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter Cargo.toml | ForEach-Object { $_.FullName.Substring($root.Length + 1) })
+$noticeInputs = @('Cargo.toml', 'Cargo.lock', 'licenses', 'THIRD-PARTY-NOTICES.md', 'scripts/third-party-notices.ps1') + $manifests + $gateScripts
+CachedStep 'third-party notices current' $noticeInputs ($rustFacts + "rust-std notice $stdHash") {
+    pwsh -NoProfile -File (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Check
+}
 $exe = Join-Path $root 'target\release\repose.exe'
 if (Test-Path $exe) {
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 2)
     Write-Host "MEASURE exe-size-mb $size (target about 25)"
     if (-not $SkipMeasure) {
-        & (Join-Path $PSScriptRoot 'measure-startup.ps1') -Exe $exe
+        # The startup and idle samples are reused only for the same executable bytes, measurement
+        # script and conditions, and only when both were measured; a reused line says when it was
+        # measured, so it never reads as a fresh sample.
+        $measureName = 'startup and idle measurements'
+        $measureKey = Get-GateInputKey @('target/release/repose.exe', 'scripts/measure-startup.ps1') @('qc runs measure-startup.ps1 -Exe target/release/repose.exe with its default IdleSeconds')
+        $hit = if ($NoCache) { $null } else { Get-GatePass $measureName $measureKey }
+        if ($hit) {
+            foreach ($line in $hit.lines) { Write-Host "$line [reused: measured at $($hit.at) on this same executable, script and conditions]" }
+        } else {
+            $measured = @(& (Join-Path $PSScriptRoot 'measure-startup.ps1') -Exe $exe 6>&1 | ForEach-Object { "$_" })
+            $measured | ForEach-Object { Write-Host $_ }
+            $lines = @($measured | Where-Object { $_ -like 'MEASURE *' })
+            if ($lines.Count -eq 2 -and -not ($lines | Where-Object { $_ -match ' unavailable' })) {
+                Save-GatePass $measureName $measureKey '' $lines
+            } else {
+                Clear-GatePass $measureName
+            }
+        }
     }
 }
 # A per-user install (scripts/install-user.ps1) is refreshed by a green gate (Phillip #31471 on

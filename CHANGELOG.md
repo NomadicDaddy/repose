@@ -65,6 +65,12 @@ All notable changes to repose are recorded here. The format follows
 - The gate's idle memory sample is taken with a diff open, as its target assumes. It runs in a
   throwaway fixture repository and config, never a user checkout. The new `--measure-diff
   <file>` flag reports when the diff has loaded.
+- The gate no longer reruns a step that already passed with exactly the same inputs. It prints
+  `CACHED` with the time of that pass. This covers format, clippy, tests, the release build, the
+  file-length check, the notices check and the startup and idle measurements. Failures are never
+  cached, the advisory audit and the release staging always run, and `-NoCache` forces every
+  step. Reused measurements say when they were measured. A self-test of the cache runs in every
+  gate.
 
 ## [1.0.0] - 2026-11-04
 

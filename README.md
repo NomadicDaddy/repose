@@ -33,6 +33,20 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   When every step passed, the tree is clean and you are on `main`, it also refreshes a per-user
   copy installed by `install-user.ps1`, or says why it left that copy alone. Its last line is
   `QC_EXIT=<code>`.
+- The gate remembers passes, never failures, in `target/gate-cache`. A step that passed with
+  exactly the same inputs prints `CACHED` with the time of that pass instead of running again.
+  This covers format, clippy, tests, the release build, the 300-line check, the notices check and
+  the startup and idle measurements. The inputs are the files under `crates`, the manifests, the
+  lockfile, the tool configuration and the gate scripts. They also include the Rust tool versions
+  and the cargo environment variables, the Git version for the tests, and the licence inputs for
+  the notices. A cached release build also needs `target/release/repose.exe` to still be the
+  executable that pass produced. Reused measurements are tied to the executable's bytes and the
+  measurement script, and each one says when it was measured. The advisory audit and the release
+  staging always run. `-NoCache` runs every step anyway. `scripts/gate-cache-test.ps1`, run by
+  every gate, checks the cache's hits and misses.
+- A full uncached gate includes the idle memory run's 60-second sample. Give it at least 600
+  seconds before calling it stuck. How long a run takes depends on the machine and on what is
+  cached, so no timing here is a guarantee.
 - `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
   adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with
