@@ -40,6 +40,10 @@ All notable changes to repose are recorded here. The format follows
   `ssh://git@[2001:db8::1]:2222/repo.git` or `git@[2001:db8::1]:group/repo.git`. It opens
   `https://[2001:db8::1]/…` instead of a page cut at the address's first colon. A bracket that
   never closes gets no page.
+- When Open remote page is unavailable for a URL origin repose refuses (an unsupported scheme or
+  an unsafe form such as `http://localhost?who=a@b`), its tooltip now says so. It no longer
+  claims the origin is a local path, which stays the reason only for a real path or `file://`
+  origin. This resolves a 1.0.0 known limitation.
 - A file event whose path goes up and back down (`thing\..\thingamajig\x`) refreshes the
   repository the path really lands in, not the one its spelling starts with.
 

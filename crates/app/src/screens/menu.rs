@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{self, Key, Popup, Response, RichText, SetOpenCommand, Ui};
-use repose_core::git::remote::{https_page, origin};
+use repose_core::git::remote::{NoPage, https_page, no_page_reason, origin};
 
 use crate::platform::Platform;
 use crate::state::{AppState, Remote};
@@ -128,15 +128,19 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> O
 						return Some(Action::OpenUrl(page));
 					}
 				}
-				None => disabled(
-					ui,
-					"Open remote page",
-					"The origin is a local path, which has no web page",
-				),
+				None => disabled(ui, "Open remote page", no_page_tooltip(no_page_reason(url))),
 			}
 		}
 	}
 	None
+}
+
+/// The disabled Open remote page's reason, from core's account of why there is no page.
+fn no_page_tooltip(reason: NoPage) -> &'static str {
+	match reason {
+		NoPage::LocalPath => "The origin is a local path, which has no web page",
+		NoPage::Refused => "This remote URL has no web page repose can open safely",
+	}
 }
 
 pub(super) fn commit_items(ui: &mut Ui, hash: &str, subject: &str) -> Option<Action> {
@@ -234,4 +238,28 @@ pub(super) fn perform(
 		}
 	};
 	state.notice = result.err();
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	/// A URL origin that has no page never gets the local-path reason (the F3 native check on
+	/// e8a6757 showed it for http://localhost?who=a@b); a path origin keeps it.
+	#[test]
+	fn a_refused_url_and_a_local_path_get_their_own_tooltips() {
+		let local = "The origin is a local path, which has no web page";
+		let refused = "This remote URL has no web page repose can open safely";
+		for (url, want) in [
+			("http://localhost?who=a@b", refused),
+			("svn://host.example/x", refused),
+			("https://tok?en@host.invalid/x", refused),
+			("thing", local),
+			(r"D:\applications\thing", local),
+			("file:///D:/applications/thing", local),
+		] {
+			assert_eq!(https_page(url), None, "{url} has no page");
+			assert_eq!(no_page_tooltip(no_page_reason(url)), want, "{url}");
+		}
+	}
 }

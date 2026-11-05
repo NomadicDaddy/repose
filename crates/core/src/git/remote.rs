@@ -161,6 +161,40 @@ pub fn https_page(url: &str) -> Option<String> {
 	))
 }
 
+/// Why a remote URL has no web page, for the menu's disabled Open remote page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoPage {
+	/// A path on disk: plain or relative (a bare name included), a Windows drive, or `file://`.
+	LocalPath,
+	/// A URL `https_page` refuses: an unsupported scheme, or a malformed or unsafe form.
+	Refused,
+}
+
+/// Why `https_page` gives no page for `url`; asked only after it gave none. A path is told
+/// apart by the same rules `https_page` uses to refuse it; anything else, an empty URL
+/// included, is a refused URL.
+pub fn no_page_reason(url: &str) -> NoPage {
+	let url = url.trim();
+	if let Some((scheme, _)) = url.split_once("://") {
+		return if scheme.eq_ignore_ascii_case("file") {
+			NoPage::LocalPath
+		} else {
+			NoPage::Refused
+		};
+	}
+	let local = !url.is_empty()
+		&& (url.contains(":\\")
+			|| url.starts_with(['/', '\\', '.'])
+			|| url
+				.split_once(':')
+				.is_none_or(|(before, _)| before.len() == 1 || before.contains('/')));
+	if local {
+		NoPage::LocalPath
+	} else {
+		NoPage::Refused
+	}
+}
+
 /// The host of an ssh-style authority without its port. A bracketed IPv6 address keeps its
 /// colons through the closing `]` (`[2001:db8::1]:2222` is `[2001:db8::1]`); an unclosed bracket
 /// has no host. Any other authority drops everything from its first colon.
