@@ -36,6 +36,12 @@ All notable changes to repose are recorded here. The format follows
   outcome ("Committed.", "Commit failed" and the like), and "Reading status…" as they change.
   The status line's announcement leaves out its clock, so the minute-by-minute check doesn't
   repeat it when nothing else changed.
+- Open remote page works for a remote on a bracketed IPv6 host, such as
+  `ssh://git@[2001:db8::1]:2222/repo.git` or `git@[2001:db8::1]:group/repo.git`. It opens
+  `https://[2001:db8::1]/…` instead of a page cut at the address's first colon. A bracket that
+  never closes gets no page.
+- A file event whose path goes up and back down (`thing\..\thingamajig\x`) refreshes the
+  repository the path really lands in, not the one its spelling starts with.
 
 ### Changed
 
@@ -44,6 +50,7 @@ All notable changes to repose are recorded here. The format follows
 - The README and technical spec describe every gate step: the measurements are reported
   against targets and never fail the gate, `-SkipMeasure` skips the startup and memory runs,
   and a green run on a clean `main` refreshes an existing per-user install.
+- The repository ignores a local `AGENTS.md`, as the other repositories in the workspace do.
 
 ## [1.0.0] - 2026-11-04
 
