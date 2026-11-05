@@ -26,6 +26,8 @@ mod ui_branch_menu_tests;
 #[cfg(test)]
 mod ui_close_guard_tests;
 #[cfg(test)]
+mod ui_commit_outcome_tests;
+#[cfg(test)]
 mod ui_discard_tests;
 #[cfg(test)]
 mod ui_fetch_tests;
