@@ -58,6 +58,9 @@ All notable changes to repose are recorded here. The format follows
   against targets and never fail the gate, `-SkipMeasure` skips the startup and memory runs,
   and a green run on a clean `main` refreshes an existing per-user install.
 - The repository ignores a local `AGENTS.md`, as the other repositories in the workspace do.
+- The gate's idle memory sample is taken with a diff open, as its target assumes. It runs in a
+  throwaway fixture repository and config, never a user checkout. The new `--measure-diff
+  <file>` flag reports when the diff has loaded.
 
 ## [1.0.0] - 2026-11-04
 

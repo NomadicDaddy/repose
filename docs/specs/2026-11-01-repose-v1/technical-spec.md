@@ -208,8 +208,9 @@ pixels. Phillip chooses from the screenshots and numbers; `decisions.md` records
 staging the release files in `target/dist` (`scripts/stage-release.ps1`), a 300 physical-line file check (blank lines count)
 over `crates/**/*.rs`, the third-party notices check (`scripts/third-party-notices.ps1 -Check`),
 then the measurements: the executable size and, unless `-SkipMeasure` is given, the median of
-three starts to a painted list and the private working set after 60 s idle
-(`scripts/measure-startup.ps1`). They are printed as `MEASURE` lines and never change `QC_EXIT`
+three starts to a painted list and the private working set after 60 s idle with a diff open, in
+a disposable fixture repository the script creates and removes, sampled once `--measure-diff`
+reports the diff loaded (`scripts/measure-startup.ps1`). They are printed as `MEASURE` lines and never change `QC_EXIT`
 (assertions A8 and A9; Phillip, 2026-11-01). Last, when every step passed and a per-user copy
 exists, the gate refreshes that copy from `target/dist`, but only for a clean tree on `main`;
 otherwise it prints why the copy was kept. That refresh never changes the exit code either. The

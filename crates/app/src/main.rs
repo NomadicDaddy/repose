@@ -1,6 +1,10 @@
 //! repose: the window. Flags: `--config <path>` overrides the config file location;
 //! `--measure-startup [file]` writes the milliseconds from process start to the first frame that
 //! shows repository rows into the file (default `repose-startup-ms.txt`), prints it, then exits.
+//! `--measure-diff <file>` writes one tab-separated line, `diff-loaded`, the repository, the path,
+//! the hunk count and the milliseconds since start, once the
+//! open diff has loaded with at least one hunk, and keeps running, so the idle memory sample is
+//! taken with a diff on screen.
 //! `--select <repository path>` opens on that repository and
 //! `--view changes|history|files|branches` on that pane, so a shortcut or a script can land where
 //! the user wants; `--file <path>` opens that file's working-tree diff there, `--inline` in
@@ -29,6 +33,8 @@ struct App {
 	started: Instant,
 	/// When set, the startup measurement is written to this file at the first frame with rows.
 	measure: Option<PathBuf>,
+	/// When set, a line is written here once the open diff has loaded; then it is cleared.
+	diff_loaded: Option<PathBuf>,
 	state: state::AppState,
 	platform: Box<dyn platform::Platform>,
 }
@@ -46,6 +52,7 @@ impl App {
 		Self {
 			started,
 			measure,
+			diff_loaded: None,
 			state,
 			platform: platform::current(),
 		}
@@ -71,6 +78,22 @@ impl eframe::App for App {
 			let _ = std::fs::write(out, &line);
 			print!("{line}");
 			std::process::exit(0);
+		}
+		if let Some(out) = &self.diff_loaded
+			&& let Some(d) = &self.state.diff
+			&& let state::DiffContent::Files(files) = &d.content
+		{
+			let hunks: usize = files.iter().map(|f| f.hunks.len()).sum();
+			if hunks > 0 {
+				let line = format!(
+					"diff-loaded\t{}\t{}\t{hunks}\t{}\n",
+					d.open.repo.display(),
+					d.open.display,
+					self.started.elapsed().as_millis()
+				);
+				let _ = std::fs::write(out, line);
+				self.diff_loaded = None;
+			}
 		}
 		if self.state.scanning {
 			ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -129,6 +152,11 @@ fn main() -> eframe::Result {
 			.map(PathBuf::from)
 			.unwrap_or_else(|| PathBuf::from("repose-startup-ms.txt"))
 	});
+	let diff_loaded = args
+		.iter()
+		.position(|a| a == "--measure-diff")
+		.and_then(|i| args.get(i + 1))
+		.map(PathBuf::from);
 	let config_path = args
 		.iter()
 		.position(|a| a == "--config")
@@ -209,6 +237,7 @@ fn main() -> eframe::Result {
 				cc.egui_ctx.set_zoom_factor(scale);
 			}
 			let mut app = App::new(cc, started, measure, cfg);
+			app.diff_loaded = diff_loaded;
 			app.state.view = view;
 			app.state.requested_selection = select;
 			app.state.requested_diff = file.map(|f| (f, inline));

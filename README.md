@@ -51,6 +51,9 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   refused and repose exits with code 2.
 - `--measure-startup [file]`: write the milliseconds to the first frame with repository rows into
   the file (default `repose-startup-ms.txt`), print them, then exit.
+- `--measure-diff <file>`: once the open diff has loaded, write one tab-separated line to the
+  file (`diff-loaded`, the repository, the path, the hunk count and the milliseconds since
+  start), and keep running. The gate's idle memory sample uses it.
 
 There is no `--help` yet.
 
