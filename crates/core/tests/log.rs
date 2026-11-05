@@ -1,12 +1,12 @@
 //! The log and name-status parsers against real git: multi-line bodies, a quoted subject, a
-//! rename and a merge commit's first-parent files.
+//! rename and a merge commit's first-parent files, and a second page of history past the first.
 #![allow(clippy::expect_used)]
 
 mod support;
 
 use std::collections::HashSet;
 
-use repose_core::git::log::{read_commit_files, read_log, read_outgoing};
+use repose_core::git::log::{PAGE, read_commit_files, read_log, read_outgoing};
 use repose_core::model::ChangeKind;
 use support::TempRepo;
 
@@ -68,6 +68,31 @@ fn pages_bodies_quotes_and_order() {
 	assert_eq!(log[0].short.len(), 7);
 	assert!(log[0].time > 1_700_000_000, "time parsed: {}", log[0].time);
 	assert!(read_log(&repo.path, 2).expect("past the end").is_empty());
+}
+
+/// History's Load more asks for the next page by skipping the commits it already holds. With one
+/// commit more than a page, the first page is the newest PAGE, the second holds only the oldest,
+/// and a skip past the end is empty; the shorter page is what marks the list exhausted.
+#[test]
+fn a_second_page_holds_what_the_first_page_left() {
+	assert_eq!(PAGE, 100, "the page size History and this test share");
+	let repo = TempRepo::new("pages");
+	for n in 1..=PAGE + 1 {
+		repo.git(&["commit", "-q", "--allow-empty", "-m", &format!("c{n}")]);
+	}
+	let first = read_log(&repo.path, 0).expect("first page");
+	let subjects: Vec<&str> = first.iter().map(|c| c.subject.as_str()).collect();
+	let newest: Vec<String> = (2..=PAGE + 1).rev().map(|n| format!("c{n}")).collect();
+	assert_eq!(subjects, newest, "the newest PAGE commits, newest first");
+	let second = read_log(&repo.path, PAGE).expect("second page");
+	let rest: Vec<&str> = second.iter().map(|c| c.subject.as_str()).collect();
+	assert_eq!(rest, ["c1"], "only the oldest commit is left");
+	assert!(second.len() < PAGE, "a short page ends the list");
+	assert!(
+		read_log(&repo.path, 2 * PAGE)
+			.expect("past the end")
+			.is_empty()
+	);
 }
 
 #[test]
