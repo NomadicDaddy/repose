@@ -31,7 +31,14 @@ if ($starts.Count -gt 0) {
 }
 # The idle fixture: one repository with a committed 400-line file, then edited in three places so
 # its working-tree diff has three hunks. Its own empty hooks folder keeps user hooks out.
-$fixture = Join-Path ([System.IO.Path]::GetTempPath()) "repose-idle-$PID"
+# The folder name is new for every run, and a folder already there is refused rather than
+# reused, so neither an old marker nor files this run did not create can be read or removed.
+$fixture = Join-Path ([System.IO.Path]::GetTempPath()) "repose-idle-$([guid]::NewGuid().ToString('N'))"
+if (Test-Path -LiteralPath $fixture) {
+    Write-Host "MEASURE idle-private-working-set-mb unavailable (fixture folder $fixture already exists)"
+    exit 0
+}
+[System.IO.Directory]::CreateDirectory($fixture) | Out-Null
 $repo = Join-Path $fixture 'repo'
 $marker = Join-Path $fixture 'diff-loaded.txt'
 New-Item -ItemType Directory -Path (Join-Path $repo 'hooks-none') -Force | Out-Null
@@ -50,8 +57,15 @@ $p = Start-Process -FilePath $Exe -PassThru -ArgumentList @(
     '--config', $config, '--select', $repo, '--file', 'sample.rs', '--measure-diff', $marker)
 $deadline = (Get-Date).AddSeconds(60)
 while (-not (Test-Path $marker) -and -not $p.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
-$loaded = if (Test-Path $marker) { (Get-Content $marker | Select-Object -First 1) -split "`t" } else { $null }
-if ($loaded -and -not $p.HasExited) {
+$loaded = if (Test-Path $marker) { @((Get-Content $marker | Select-Object -First 1) -split "`t") } else { $null }
+# The marker counts only when it names this run's repository and file with a loaded hunk.
+$hunks = 0
+$valid = $loaded -and $loaded.Count -eq 5 -and $loaded[0] -eq 'diff-loaded' -and
+    [string]::Equals([System.IO.Path]::GetFullPath($loaded[1]), [System.IO.Path]::GetFullPath($repo), 'OrdinalIgnoreCase') -and
+    $loaded[2] -ceq 'sample.rs' -and [int]::TryParse($loaded[3], [ref]$hunks) -and $hunks -gt 0 -and $loaded[4] -match '^\d+$'
+if ($loaded -and -not $valid) {
+    Write-Host "MEASURE idle-private-working-set-mb unavailable (the diff marker does not name this fixture: $($loaded -join ' | '))"
+} elseif ($valid -and -not $p.HasExited) {
     Start-Sleep -Seconds $IdleSeconds
     # The counter instance is matched by its ID Process, not its name: with another repose open,
     # the instance named repose may be that one (repose#1 is then ours).
