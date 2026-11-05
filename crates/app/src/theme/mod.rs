@@ -39,14 +39,20 @@ pub fn apply(ctx: &egui::Context) {
 	});
 }
 
-/// Reads the desktop's animation setting once, off the UI thread, and turns egui's fades and
-/// smooth scrolling off when the user has turned animation effects off. Until the answer lands,
-/// and when it cannot be read, egui's defaults stand. There is no setting of repose's own.
+/// How long after the first rows the animation setting is asked for, so its pwsh starts after
+/// the first status and diff reads rather than during them.
+const MOTION_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Reads the desktop's animation setting once, off the UI thread and `MOTION_DELAY` after the
+/// call, and turns egui's fades and smooth scrolling off when the user has turned animation
+/// effects off. Until the answer lands, and when it cannot be read, egui's defaults stand. There
+/// is no setting of repose's own.
 pub fn follow_reduced_motion(ctx: &egui::Context) {
 	let ctx = ctx.clone();
 	let _ = std::thread::Builder::new()
 		.name("reduced-motion".into())
 		.spawn(move || {
+			std::thread::sleep(MOTION_DELAY);
 			if crate::platform::animations_enabled() == Some(false) {
 				ctx.all_styles_mut(|style| set_motion(style, false));
 				ctx.request_repaint();
