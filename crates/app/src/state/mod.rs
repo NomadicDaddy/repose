@@ -46,6 +46,8 @@ mod ui_labels_tests;
 #[cfg(test)]
 mod ui_origin_link_tests;
 #[cfg(test)]
+mod ui_repo_list_tests;
+#[cfg(test)]
 mod ui_row_focus_tests;
 #[cfg(test)]
 mod ui_tests;
