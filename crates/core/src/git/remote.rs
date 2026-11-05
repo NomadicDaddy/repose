@@ -147,8 +147,8 @@ pub fn https_page(url: &str) -> Option<String> {
 	if url.contains(":\\") || url.starts_with('/') || url.starts_with('.') {
 		return None;
 	}
-	// scp form: [user@]host:path
-	let (host_part, path) = url.split_once(':')?;
+	// scp form: [user@]host:path, where a bracketed IPv6 host ends at `]:`.
+	let (host_part, path) = scp_split(url)?;
 	let path = path.find(['?', '#']).map_or(path, |i| &path[..i]);
 	let host = host_part.rsplit_once('@').map_or(host_part, |(_, h)| h);
 	// A one-letter "host" is a Windows drive (C:/repos/x), which git also reads as a path.
@@ -170,6 +170,19 @@ fn ssh_host(authority: &str) -> Option<&str> {
 		return Some(&authority[..=close]);
 	}
 	Some(authority.split_once(':').map_or(authority, |(h, _)| h))
+}
+
+/// An scp-form URL split into its `[user@]host` and its path. A `[` before any colon opens a
+/// bracketed IPv6 host (`git@[2001:db8::1]:group/repo.git`), which ends at `]:`; without that
+/// there is no host. Any other URL splits at its first colon.
+fn scp_split(url: &str) -> Option<(&str, &str)> {
+	match url.find('[') {
+		Some(open) if !url[..open].contains(':') => {
+			let close = open + url[open..].find("]:")?;
+			Some((&url[..=close], &url[close + 2..]))
+		}
+		_ => url.split_once(':'),
+	}
 }
 
 fn strip_git(path: &str) -> &str {

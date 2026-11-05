@@ -201,6 +201,12 @@ fn remote_urls_become_pages() {
 		("ssh://[::1]/repo.git", Some("https://[::1]/repo")),
 		("ssh://git@[2001:db8::1/repo.git", None),
 		(
+			"git@[2001:db8::1]:group/repo.git",
+			Some("https://[2001:db8::1]/group/repo"),
+		),
+		("[::1]:repo.git", Some("https://[::1]/repo")),
+		("git@[2001:db8::1:group/repo.git", None),
+		(
 			"https://github.com/example/thing.git",
 			Some("https://github.com/example/thing"),
 		),
