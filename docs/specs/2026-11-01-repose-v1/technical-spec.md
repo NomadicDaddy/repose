@@ -169,15 +169,16 @@ each action):
 
 - `open_folder(dir)`: `explorer.exe <dir>`.
 - `reveal_file(file)`: `explorer.exe /select,"<file>"`, or the folder when the file is gone.
-- `open_in_editor(command, target, line: Option<usize>)`: `<command> --goto <file>:<line>` for a
-  file, `<command> <dir>` for a folder; a command with no extension that is not found is retried
-  as its `.cmd`, and a missing editor is a notice naming the command.
+- `open_in_editor(command, target, line: Option<usize>)`: `<command> --goto <target>:<line>` when
+  a line is given, otherwise `<command> <target>` (a folder, or a file with no line); a command
+  with no extension that is not found is retried as its `.cmd`, and a missing editor is a notice
+  naming the command.
 - `open_terminal(command, dir)`: `<command> -d <dir> pwsh -NoLogo` (default `wt`), else an
   interactive pwsh in `<dir>`, started by a hidden pwsh through `Start-Process` so the new console
   gets its own input.
 
 Every path handed to Explorer or the editor has its slashes turned to backslashes. Beside the
-trait, the module has two free functions: `utc_offset_minutes()`, read once from `w32tm /tz`, and
+trait, the module has two free functions: `utc_offset_minutes()`, read from `w32tm /tz` and re-read at most once a minute, and
 `git_worktree_path(repo, git_path)`, which turns a Git path into the working-tree file. The
 clipboard and the browser go through egui's context (`copy_text`, `open_url`), not the trait. The
 config file's location is not a platform method: core's `config::default_path` chooses it (see
