@@ -42,6 +42,8 @@ mod ui_header_tests;
 #[cfg(test)]
 mod ui_history_block_tests;
 #[cfg(test)]
+mod ui_history_row_tests;
+#[cfg(test)]
 mod ui_labels_tests;
 #[cfg(test)]
 mod ui_origin_link_tests;

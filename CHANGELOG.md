@@ -30,6 +30,9 @@ All notable changes to repose are recorded here. The format follows
 
 ### Fixed
 
+- A commit subject too long for its row in History is cut to one line with an ellipsis, and its
+  tooltip shows it whole. It used to wrap inside the row and show stray fragments of its second
+  line.
 - Commits whose hooks run for a long time no longer hold up everything else. Reads and writes
   now have separate limits of eight git processes each, so status, diffs, history, branches and
   files keep loading while up to eight commits wait on their hooks.

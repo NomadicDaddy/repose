@@ -166,8 +166,10 @@ fn badges(repo: &RepoSummary) -> Vec<(String, egui::Color32)> {
 }
 
 /// One line of text laid out to fit `width`: whole when it fits, otherwise cut at a character
-/// boundary with an ellipsis so it never runs under the pills or off the panel.
-fn fit(
+/// boundary with an ellipsis so it never runs under the pills or off the panel. History's commit
+/// subjects use it too, in a proportional face, where the first guess may keep a little less
+/// than fits but never more.
+pub(super) fn fit(
 	painter: &egui::Painter,
 	text: &str,
 	font: FontId,

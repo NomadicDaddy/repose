@@ -4,7 +4,7 @@
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{BranchState, Commit, RepoSummary, relative};
 
-use super::row::frame;
+use super::row::{fit, frame};
 use super::{a11y, fetch, menu};
 use crate::platform::Platform;
 use crate::state::AppState;
@@ -168,18 +168,20 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	);
 	let subject_left = x + 70.0;
 	let subject_width = (rect.right() - 20.0 - meta_w - subject_left).max(40.0);
-	let subject = painter.layout(
-		c.subject.clone(),
-		FontId::new(TEXT_BASE, FontFamily::Proportional),
-		TEXT,
-		subject_width,
-	);
-	let clipped = painter.with_clip_rect(egui::Rect::from_min_size(
-		pos2(subject_left, rect.top()),
-		vec2(subject_width, rect.height()),
-	));
-	clipped.galley(pos2(subject_left, rect.center().y - 9.0), subject, TEXT);
-	let response = response.on_hover_text(iso_tooltip(c));
+	// One line, cut with an ellipsis when it is wider than the room beside the hash and the meta:
+	// laid out with wrapping and clipped, a long subject showed the top of its second line inside
+	// the row (F4 sweep on 6445c56). A cut subject is shown whole in the tooltip.
+	let font = FontId::new(TEXT_BASE, FontFamily::Proportional);
+	let subject = fit(&painter, &c.subject, font, TEXT, subject_width);
+	let cut = subject.text() != c.subject;
+	let subject_y = rect.center().y - subject.size().y / 2.0;
+	painter.galley(pos2(subject_left, subject_y), subject, TEXT);
+	let tooltip = if cut {
+		format!("{}\n{}", c.subject, iso_tooltip(c))
+	} else {
+		iso_tooltip(c)
+	};
+	let response = response.on_hover_text(tooltip);
 	let name = a11y::commit_name(c, &relative(c.time, now, &c.date));
 	a11y::control(&response, egui::Role::Button, Some(open), &name);
 	let ctx = ui.ctx().clone();
