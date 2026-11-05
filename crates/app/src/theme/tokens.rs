@@ -37,7 +37,8 @@ pub const TEXT_DETAIL_TITLE: f32 = 18.0;
 pub const TEXT_META: f32 = 12.0;
 /// Monospace text in lists and diffs: a commit's hash and author line, a diff or file line.
 pub const TEXT_MONO: f32 = 12.0;
-/// A repository row's name (monospace) and the branch line under it.
+/// A list row's monospace name, and its smaller second text: a repository row's branch line, a
+/// branch row's short hash.
 pub const TEXT_ROW_NAME: f32 = 14.0;
 pub const TEXT_ROW_BRANCH: f32 = 11.5;
 /// A repository row in the left list.
