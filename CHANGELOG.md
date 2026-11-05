@@ -44,6 +44,9 @@ All notable changes to repose are recorded here. The format follows
   an unsafe form such as `http://localhost?who=a@b`), its tooltip now says so. It no longer
   claims the origin is a local path, which stays the reason only for a real path or `file://`
   origin. This resolves a 1.0.0 known limitation.
+- THIRD-PARTY-NOTICES.md lists only the crates linked into the executable. It no longer lists
+  13 that a disabled feature leaves out (egui_glow, the glutin crates and an image-decoding
+  chain among them), so its crate count drops from 208 to 195.
 - A file event whose path goes up and back down (`thing\..\thingamajig\x`) refreshes the
   repository the path really lands in, not the one its spelling starts with.
 
