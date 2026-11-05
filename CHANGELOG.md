@@ -17,9 +17,12 @@ All notable changes to repose are recorded here. The format follows
   page Open remote page opens. It shows the page as its tooltip and opens it with a click, or
   with Enter once Tab reaches it. Other remotes, and an origin with no web page, stay plain
   text.
+- `--help` (or `-h`) lists every command-line flag and exits.
 
 ### Fixed
 
+- A `--view` value that names no pane, or none at all, is refused with a message naming the
+  four panes and exit code 2, as a bad `--scale` is, instead of quietly opening Changes.
 - Change rows, commit rows and file-view lines show the one-pixel accent outline when they
   hold keyboard focus, over their selected, open or current fill, like repository and branch
   rows. This resolves the first 1.0.0 known limitation.

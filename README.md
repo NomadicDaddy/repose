@@ -60,7 +60,8 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `--config <path>`: read this config file instead of `%APPDATA%\repose\config.toml`.
 - `--select <path>`: open on this repository. Without it, starting from inside a listed
   repository selects that one.
-- `--view changes|history|files|branches`: open on this tab. Any other value opens Changes.
+- `--view changes|history|files|branches`: open on this tab. Any other value, or none, is
+  refused with a message naming the four, and repose exits with code 2.
 - `--file <path>`: open this file's working-tree diff; `--inline` shows it inline.
 - `--open <path>`: open this file read-only as HEAD holds it.
 - `--scale <factor>`: zoom on top of the desktop's scaling, from 0.5 to 4. Any other value is
@@ -71,7 +72,11 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   file (`diff-loaded`, the repository, the path, the hunk count and the milliseconds since
   start), and keep running. The gate's idle memory sample uses it.
 
-There is no `--help` yet.
+- `--help` or `-h`: print these flags and exit with code 0.
+
+Refusals and the help are written to stderr. The release build is a windowed program with no
+console, so a refused value is also shown in a small window. To read the help from a terminal,
+redirect it, for example `repose --help 2>&1 | Out-Host` in PowerShell.
 
 ## Layout
 

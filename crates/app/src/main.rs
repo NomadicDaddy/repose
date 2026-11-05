@@ -13,8 +13,11 @@
 //! renders as 125% would, and 0.8333 on a 150% desktop too), for eyesight and for the scaling
 //! captures in the records. Without `--select`, a start from inside a repository selects that
 //! repository when it is in the list.
+//! `--help` (or `-h`) prints every flag to stderr and exits 0; a `--view` that names no pane is
+//! refused with exit code 2, as a bad `--scale` is.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cli;
 mod diff_rows;
 mod file_tree;
 mod highlight;
@@ -147,6 +150,10 @@ fn error_window(message: String) -> eframe::Result {
 fn main() -> eframe::Result {
 	let started = Instant::now();
 	let args: Vec<String> = std::env::args().collect();
+	if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
+		eprint!("{}", cli::HELP);
+		std::process::exit(0);
+	}
 	let measure = args.iter().position(|a| a == "--measure-startup").map(|i| {
 		args.get(i + 1)
 			.map(PathBuf::from)
@@ -171,16 +178,18 @@ fn main() -> eframe::Result {
 		// that fails.
 		.map(|s| std::path::absolute(s).unwrap_or_else(|_| PathBuf::from(s)))
 		.or_else(repo_at_cwd);
-	let view = match args
+	// --view with no value after it is refused too, as an empty name, rather than opening Changes.
+	let view_value = args
 		.iter()
 		.position(|a| a == "--view")
-		.and_then(|i| args.get(i + 1))
-		.map(String::as_str)
-	{
-		Some("history") => state::View::History,
-		Some("files") => state::View::Files,
-		Some("branches") => state::View::Branches,
-		_ => state::View::Changes,
+		.map(|i| args.get(i + 1).map_or("", String::as_str));
+	let view = match cli::view(view_value) {
+		Ok(view) => view,
+		Err(message) => {
+			eprintln!("repose: {message}");
+			let _ = error_window(message);
+			std::process::exit(2);
+		}
 	};
 	let file = args
 		.iter()
