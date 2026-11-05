@@ -35,29 +35,34 @@ try {
     $ok = Run 0 @('tool 2'); Check 'a changed tool version or setting is a miss' ($ok -and $runs -eq 6)
     Set-Content -LiteralPath (Join-Path $GateRoot 'Cargo.lock') -Value 'lock 2'
     $ok = Run 0 @('tool 2'); Check 'a changed lockfile or script input is a miss' ($ok -and $runs -eq 7)
+    # The release build's key carries the commit build.rs stamps: same bytes, new commit, a miss.
+    $ok = Run 0 @('tool 2', 'build stamp HEAD aaa dirty False'); Check 'a build with a stamp records it' ($ok -and $runs -eq 8)
+    $ok = Run 0 @('tool 2', 'build stamp HEAD bbb dirty False'); Check 'the same bytes at a new commit are a miss' ($ok -and $runs -eq 9)
+    $ok = Run 0 @('tool 2', 'build stamp HEAD bbb dirty True'); Check 'the same commit with tracked edits is a miss' ($ok -and $runs -eq 10)
+    $ok = Run 0 @('tool 2'); Check 'back to the unstamped facts runs again' ($ok -and $runs -eq 11)
 
     # New inputs, so the step runs (the old pass does not cover them) and fails.
     Set-Content -LiteralPath (Join-Path $GateRoot 'src\a.rs') -Value 'fn a() { broken'
-    $ok = Run 1 @('tool 2'); Check 'a failing step reports failure' (-not $ok -and $runs -eq 8)
+    $ok = Run 1 @('tool 2'); Check 'a failing step reports failure' (-not $ok -and $runs -eq 12)
     Check 'a failure leaves no record' (-not (Test-Path -LiteralPath (Get-GateCacheFile 'demo step')))
-    $ok = Run 1 @('tool 2'); Check 'a failed step reruns on the next gate' (-not $ok -and $runs -eq 9)
-    $ok = Run 0 @('tool 2'); Check 'once it passes it is recorded' ($ok -and $runs -eq 10)
-    $ok = Run 0 @('tool 2'); Check '...and then hits' ($ok -and $runs -eq 10)
+    $ok = Run 1 @('tool 2'); Check 'a failed step reruns on the next gate' (-not $ok -and $runs -eq 13)
+    $ok = Run 0 @('tool 2'); Check 'once it passes it is recorded' ($ok -and $runs -eq 14)
+    $ok = Run 0 @('tool 2'); Check '...and then hits' ($ok -and $runs -eq 14)
 
     Set-Content -LiteralPath (Get-GateCacheFile 'demo step') -Value '{ not json'
-    $ok = Run 0 @('tool 2'); Check 'an unparseable record is a miss' ($ok -and $runs -eq 11)
+    $ok = Run 0 @('tool 2'); Check 'an unparseable record is a miss' ($ok -and $runs -eq 15)
     $record = Get-Content -LiteralPath (Get-GateCacheFile 'demo step') -Raw | ConvertFrom-Json
     $record.result = 'fail'
     $record | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Get-GateCacheFile 'demo step')
-    $ok = Run 0 @('tool 2'); Check 'a record that does not say pass is a miss' ($ok -and $runs -eq 12)
+    $ok = Run 0 @('tool 2'); Check 'a record that does not say pass is a miss' ($ok -and $runs -eq 16)
 
     Set-Content -LiteralPath (Join-Path $GateRoot 'out.exe') -Value 'binary 1'
-    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a step with an artifact records it' ($ok -and $runs -eq 13)
-    $ok = Run 0 @('tool 2') 'out.exe'; Check 'the same artifact is a hit' ($ok -and $runs -eq 13)
+    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a step with an artifact records it' ($ok -and $runs -eq 17)
+    $ok = Run 0 @('tool 2') 'out.exe'; Check 'the same artifact is a hit' ($ok -and $runs -eq 17)
     Set-Content -LiteralPath (Join-Path $GateRoot 'out.exe') -Value 'binary 2'
-    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a changed artifact is a miss' ($ok -and $runs -eq 14)
+    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a changed artifact is a miss' ($ok -and $runs -eq 18)
     Remove-Item -LiteralPath (Join-Path $GateRoot 'out.exe')
-    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a missing artifact is a miss, and a pass that produced none fails' (-not $ok -and $runs -eq 15)
+    $ok = Run 0 @('tool 2') 'out.exe'; Check 'a missing artifact is a miss, and a pass that produced none fails' (-not $ok -and $runs -eq 19)
     Check '...and leaves no record' (-not (Test-Path -LiteralPath (Get-GateCacheFile 'demo step')))
 } finally {
     Remove-Item -LiteralPath $GateRoot -Recurse -Force -ErrorAction SilentlyContinue

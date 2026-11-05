@@ -220,7 +220,10 @@ The gate caches passes only, never failures (`scripts/gate-cache.ps1`, records i
 are skipped as `CACHED` when the key of their complete inputs matches an earlier pass. That key
 covers each input file's path and SHA-256, plus the tool versions and cargo environment, the Git
 version for the tests, and the licence inputs and standard-library notice hash for the notices.
-A cached release build also requires the executable it produced to be unchanged. The startup and
+The release build's key also carries `git rev-parse HEAD` and the dirty bit `build.rs` stamps
+(tracked files differing from the commit), so a commit of the same bytes rebuilds and the
+executable names its own commit. A cached release build also requires the executable it
+produced to be unchanged. The startup and
 idle measurements are reused only for the same executable, measurement script and conditions,
 only when both were measured, and with their original time stated. `cargo audit` and the
 staging always run, `-NoCache` forces every step, and `scripts/gate-cache-test.ps1` runs first

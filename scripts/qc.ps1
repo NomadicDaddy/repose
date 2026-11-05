@@ -48,7 +48,14 @@ CachedStep 'cargo test' $rustInputs ($rustFacts + "git $(git --version 2>&1)") {
 # and holds the list of accepted advisory ids. Unmaintained-crate warnings are printed, not failed.
 Step 'cargo audit' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'audit.ps1') }
 # A hit also needs target\release\repose.exe to be the executable that pass produced.
-CachedStep 'cargo build --release' $rustInputs $rustFacts { cargo build --workspace --release } 'target/release/repose.exe'
+# crates/app/build.rs stamps the commit into the executable (HEAD, plus "+dirty" when tracked
+# files differ), so the build's key carries both as build.rs works them out: committing the same
+# bytes is a miss, and the exe the gate installs names the commit it came from (Morticia M-1 on
+# c9cc1be). Only stdout counts as Git's answer.
+$stampHead = "$(git rev-parse HEAD 2>$null)"
+$stampDirty = @(git status --porcelain --untracked-files=no 2>$null | Where-Object { "$_" -ne '' }).Count -gt 0
+$buildFacts = $rustFacts + "build stamp HEAD $stampHead dirty $stampDirty"
+CachedStep 'cargo build --release' $rustInputs $buildFacts { cargo build --workspace --release } 'target/release/repose.exe'
 # What a release carries, staged in target\dist and verified (quality-gate clauses 5 and 9): the
 # executable, LICENSE, THIRD-PARTY-NOTICES.md and the toolchain's RUST-STD-COPYRIGHT.html, no
 # runtimes, listed as RELEASE lines in the log.

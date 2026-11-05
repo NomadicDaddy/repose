@@ -39,8 +39,10 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   the startup and idle measurements. The inputs are the files under `crates`, the manifests, the
   lockfile, the tool configuration and the gate scripts. They also include the Rust tool versions
   and the cargo environment variables, the Git version for the tests, and the licence inputs for
-  the notices. A cached release build also needs `target/release/repose.exe` to still be the
-  executable that pass produced. Reused measurements are tied to the executable's bytes and the
+  the notices. The release build's inputs also include the commit and whether tracked files are
+  edited, because the build stamps both into the executable, so a new commit always rebuilds. A
+  cached release build also needs `target/release/repose.exe` to still be the executable that
+  pass produced. Reused measurements are tied to the executable's bytes and the
   measurement script, and each one says when it was measured. The advisory audit and the release
   staging always run. `-NoCache` runs every step anyway. `scripts/gate-cache-test.ps1`, run by
   every gate, checks the cache's hits and misses.
