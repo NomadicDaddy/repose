@@ -119,7 +119,7 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 	let mono = |size: f32| FontId::new(size, FontFamily::Monospace);
 	let mut x = rect.left() + 10.0;
 	let name_color = if branch.current { TEXT_BRIGHT } else { TEXT };
-	let name = painter.layout_no_wrap(branch.name.clone(), mono(14.0), name_color);
+	let name = painter.layout_no_wrap(branch.name.clone(), mono(TEXT_ROW_NAME), name_color);
 	let name_w = name.size().x;
 	painter.galley(
 		pos2(x, rect.center().y - name.size().y / 2.0),
@@ -127,7 +127,7 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 		name_color,
 	);
 	x += name_w + 12.0;
-	let hash = painter.layout_no_wrap(branch.short_hash.clone(), mono(11.5), MUTED);
+	let hash = painter.layout_no_wrap(branch.short_hash.clone(), mono(TEXT_ROW_BRANCH), MUTED);
 	let hash_w = hash.size().x;
 	painter.galley(pos2(x, rect.center().y - hash.size().y / 2.0), hash, MUTED);
 	x += hash_w + 12.0;
