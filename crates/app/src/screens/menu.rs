@@ -8,7 +8,7 @@ use eframe::egui::{self, Key, Popup, Response, RichText, SetOpenCommand, Ui};
 use repose_core::git::remote::{NoPage, https_page, no_page_reason, origin};
 
 use crate::platform::Platform;
-use crate::state::{AppState, Remote};
+use crate::state::{AppState, WriteKind};
 use crate::theme::*;
 
 pub(super) enum Action {
@@ -21,6 +21,8 @@ pub(super) enum Action {
 	Terminal(PathBuf),
 	Copy(String),
 	OpenUrl(String),
+	/// The user's Fetch on a repository (A1, Phillip #35530), queued like a write.
+	Fetch(PathBuf),
 }
 
 /// Shows the menu on a secondary click anywhere on the row, or on the Menu key when the row is
@@ -71,8 +73,9 @@ fn disabled(ui: &mut Ui, label: &str, why: &str) {
 		.on_disabled_hover_text(why);
 }
 
-/// `remote` is None while the origin is still being read, then the URL, none, or the failure.
-pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> Option<Action> {
+/// The remotes are None while still being read, then the list or the failure.
+pub(super) fn repo_items(ui: &mut Ui, repo: &Path, state: &AppState) -> Option<Action> {
+	let remote = state.remotes.get(repo);
 	ui.label(
 		RichText::new(repo.display().to_string())
 			.size(TEXT_SMALL)
@@ -94,6 +97,15 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, remote: Option<&Remote>) -> O
 	ui.separator();
 	if item(ui, "Copy path") {
 		return Some(Action::Copy(repo.display().to_string()));
+	}
+	// Fetch needs a remote to fetch from, and one fetch per repository at a time.
+	match super::fetch::blocked(state, repo) {
+		Some(why) => disabled(ui, "Fetch", &why),
+		None => {
+			if item(ui, "Fetch") {
+				return Some(Action::Fetch(repo.to_path_buf()));
+			}
+		}
 	}
 	match remote.map(|r| r.as_ref().map(|list| origin(list))) {
 		None => {
@@ -234,6 +246,10 @@ pub(super) fn perform(
 		}
 		Action::OpenUrl(url) => {
 			ctx.open_url(egui::OpenUrl::new_tab(url));
+			Ok(())
+		}
+		Action::Fetch(repo) => {
+			state.request_write(repo, WriteKind::Fetch, ctx);
 			Ok(())
 		}
 	};

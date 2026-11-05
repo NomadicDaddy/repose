@@ -72,3 +72,8 @@ explicit `a/` and `b/` prefixes and both paths of a rename; a commit's files use
 
 Status: accepted 2026-11-01 (Phillip, in session). Ahead and behind come from saved refs; the
 status line says so. Fetch, pull and push are the `remote-sync` record in v1.1.
+
+Revised for v1.1 (Phillip #35530 on #35488): Fetch only, on the user's click in a repository row's
+menu or the History header, with git's terminal prompt and Git Credential Manager's interactive
+mode both off, so a sign-in request fails with git's message rather than opening anything. Nothing
+fetches on its own. Pull and push are `remote-pull-push`, v2.0.

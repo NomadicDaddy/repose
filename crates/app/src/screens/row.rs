@@ -1,9 +1,10 @@
-//! One repository row: name, branch line, badges, and the worktree chevron.
+//! One repository row: name, branch line, badges, a running fetch, and the worktree chevron.
 
 use eframe::egui::{self, FontFamily, FontId, Rect, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::RepoSummary;
 
 use super::a11y;
+use crate::state::AppState;
 use crate::theme::*;
 
 pub struct RowOut {
@@ -13,6 +14,7 @@ pub struct RowOut {
 
 pub fn draw(
 	ui: &mut Ui,
+	state: &AppState,
 	repo: &RepoSummary,
 	selected: bool,
 	indent: f32,
@@ -40,6 +42,11 @@ pub fn draw(
 	// left and are cut with an ellipsis rather than run under the pills or off the panel (seen
 	// on worktree rows with long branch names, 2026-11-01).
 	let mut right = rect.right() - 8.0;
+	// A fetch shows on its row from the click until git exits (remote-sync clause 2).
+	let fetching = state.writes.fetching(&repo.path);
+	if fetching {
+		right = pill(&painter, right, rect.center().y, "fetching…", INFO) - 6.0;
+	}
 	for (text, color) in badges(repo) {
 		right = pill(&painter, right, rect.center().y, &text, color) - 6.0;
 	}
@@ -96,12 +103,11 @@ pub fn draw(
 	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED);
 	let tooltip = tooltip_text(repo);
 	let response = response.on_hover_text(tooltip);
-	a11y::control(
-		&response,
-		egui::Role::Button,
-		Some(selected),
-		&a11y::repo_name(repo),
-	);
+	let mut spoken = a11y::repo_name(repo);
+	if fetching {
+		spoken.push_str(", fetching");
+	}
+	a11y::control(&response, egui::Role::Button, Some(selected), &spoken);
 	RowOut {
 		response,
 		chevron_clicked,

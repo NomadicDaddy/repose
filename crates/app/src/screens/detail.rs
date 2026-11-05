@@ -6,7 +6,8 @@ use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::git::remote::{display_url, https_page};
 
 use super::{
-	a11y, branches, changes, close_guard, commit_box, confirm, diff, file_view, files, history,
+	a11y, branches, changes, close_guard, commit_box, confirm, diff, fetch, file_view, files,
+	history,
 };
 use crate::platform::Platform;
 use crate::state::{AppState, Remote, View};
@@ -72,9 +73,13 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					.family(FontFamily::Monospace),
 			);
 			ui.label(
-				RichText::new(format!("{} · Saved refs; no fetch", repo.branch_line()))
-					.size(12.0)
-					.color(MUTED),
+				RichText::new(format!(
+					"{} · {}",
+					repo.branch_line(),
+					fetch::refs_note(state, &repo.path)
+				))
+				.size(12.0)
+				.color(MUTED),
 			);
 			ui.label(
 				RichText::new(repo.path.display().to_string())
@@ -87,6 +92,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			if let Some(n) = &state.notice {
 				ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
 			}
+			fetch::outcome(ui, state, &repo.path);
 			ui.add_space(8.0);
 			match (&repo.status, &repo.error) {
 				(_, Some(e)) => {

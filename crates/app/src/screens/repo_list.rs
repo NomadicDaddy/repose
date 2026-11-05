@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use eframe::egui::{self, Key, RichText, Ui};
 
+use super::status_line::status_line;
 use super::{a11y, menu, row};
 use crate::platform::Platform;
 use crate::state::{AppState, find};
@@ -73,61 +74,6 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 	}
 }
 
-/// The header status line; with `clock_shown` false, no "Checked HH:MM" (the live region).
-fn status_line(state: &AppState, count: usize, clock_shown: bool) -> String {
-	if state.scanning && state.checked_at.is_none() {
-		return "Scanning…".to_string();
-	}
-	let time = state
-		.checked_at
-		.map(|t| clock(t, state.utc_offset))
-		.unwrap_or_default();
-	let noun = if count == 1 {
-		"repository"
-	} else {
-		"repositories"
-	};
-	let missing = match state.missing_roots.len() {
-		0 => String::new(),
-		1 => format!(" · 1 root not found: {}", state.missing_roots[0].display()),
-		n => format!(" · {n} roots not found"),
-	};
-	// The watcher's notes: a root it could not watch or no watcher at all (lasting), and Watcher
-	// caught up after an overflow (until the next full scan completes).
-	let mut note = state
-		.watching
-		.note
-		.as_deref()
-		.map(|n| format!(" · {n}"))
-		.unwrap_or_default();
-	if state.watching.caught_up && !state.watching.full_pending {
-		note.push_str(" · Watcher caught up");
-	}
-	if state.scanning {
-		format!("{count} {noun} · Checking… · Saved refs; no fetch{missing}{note}")
-	} else if !clock_shown {
-		format!("{count} {noun} · Saved refs; no fetch{missing}{note}")
-	} else {
-		format!("{count} {noun} · Checked {time} · Saved refs; no fetch{missing}{note}")
-	}
-}
-
-/// Local wall-clock HH:MM: UTC seconds plus the offset the last scan read, or UTC marked as such
-/// when the offset is unknown. Nothing here touches the OS, so the UI thread stays free.
-fn clock(t: std::time::SystemTime, offset: Option<i32>) -> String {
-	let secs = t
-		.duration_since(std::time::UNIX_EPOCH)
-		.map(|d| d.as_secs())
-		.unwrap_or(0);
-	let Some(offset) = offset else {
-		let minutes = (secs as i64).rem_euclid(86_400) / 60;
-		return format!("{:02}:{:02} UTC", minutes / 60, minutes % 60);
-	};
-	let local = secs as i64 + i64::from(offset) * 60;
-	let minutes = local.rem_euclid(86_400) / 60;
-	format!("{:02}:{:02}", minutes / 60, minutes % 60)
-}
-
 /// Where the list publishes its scroll area's id each frame, in test builds.
 #[cfg(test)]
 pub(crate) fn scroll_key() -> egui::Id {
@@ -166,7 +112,7 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				// opens it fully or closes it (Phillip #31154).
 				let expanded = repo.worktrees.iter().any(|w| paths.contains(&w.path));
 				let is_selected = selected.as_deref() == Some(repo.path.as_path());
-				let out = row::draw(ui, repo, is_selected, 0.0, expanded);
+				let out = row::draw(ui, state, repo, is_selected, 0.0, expanded);
 				if is_selected && state.reveal_selected {
 					out.response.scroll_to_me(Some(egui::Align::Center));
 				}
@@ -181,14 +127,14 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					wants_remote = Some(repo.path.clone());
 				}
 				menu::row_menu(ui, &out.response, is_selected, |ui| {
-					action = menu::repo_items(ui, &repo.path, state.remotes.get(&repo.path));
+					action = menu::repo_items(ui, &repo.path, state);
 				});
 				for wt in &repo.worktrees {
 					if !paths.contains(&wt.path) {
 						continue;
 					}
 					let is_selected = selected.as_deref() == Some(wt.path.as_path());
-					let out = row::draw(ui, wt, is_selected, 16.0, false);
+					let out = row::draw(ui, state, wt, is_selected, 16.0, false);
 					if is_selected && state.reveal_selected {
 						out.response.scroll_to_me(Some(egui::Align::Center));
 					}
@@ -201,7 +147,7 @@ fn list(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 						wants_remote = Some(wt.path.clone());
 					}
 					menu::row_menu(ui, &out.response, is_selected, |ui| {
-						action = menu::repo_items(ui, &wt.path, state.remotes.get(&wt.path));
+						action = menu::repo_items(ui, &wt.path, state);
 					});
 				}
 			}

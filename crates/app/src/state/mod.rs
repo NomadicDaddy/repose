@@ -28,6 +28,8 @@ mod ui_close_guard_tests;
 #[cfg(test)]
 mod ui_discard_tests;
 #[cfg(test)]
+mod ui_fetch_tests;
+#[cfg(test)]
 mod ui_filter_tests;
 #[cfg(test)]
 mod ui_focus_tests;
@@ -106,6 +108,9 @@ pub struct AppState {
 	pub utc_offset: Option<i32>,
 	/// One draft per repository, so a message follows its repository and not the selection.
 	pub commit_messages: HashMap<PathBuf, String>,
+	/// When each repository's last Fetch succeeded, for its "Fetched HH:MM" line. Kept across
+	/// Refresh: the refs it brought stay fetched.
+	pub fetched: HashMap<PathBuf, std::time::SystemTime>,
 	/// The repositories whose unsaved draft held up a window close, while the question is open.
 	pub close_prompt: Option<Vec<String>>,
 	/// The user chose to close without committing; the next close request goes through.
@@ -171,6 +176,7 @@ impl AppState {
 			backstop_running: false,
 			utc_offset: None,
 			commit_messages: HashMap::new(),
+			fetched: HashMap::new(),
 			close_prompt: None,
 			close_confirmed: false,
 			writes: WriteQueue::default(),

@@ -75,7 +75,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 			state.request_write(repo.path.clone(), WriteKind::Commit(message), &ctx);
 		}
 	});
-	if let Some(last) = state.writes.last.get(&repo.path) {
+	// A fetch's outcome is shown under the repository header, where every pane can see it.
+	let last = state.writes.last.get(&repo.path);
+	if let Some(last) = last.filter(|l| l.kind != WriteKind::Fetch) {
 		match &last.error {
 			Some(error) => {
 				let what = match &last.kind {

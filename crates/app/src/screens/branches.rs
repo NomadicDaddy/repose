@@ -6,7 +6,7 @@ use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, Ui, pos2, vec
 use repose_core::model::{Branch, HeadState};
 
 use super::row::{frame, pill};
-use super::{a11y, menu};
+use super::{a11y, fetch, menu};
 use crate::state::AppState;
 use crate::theme::*;
 
@@ -46,11 +46,12 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	}
 	ui.label(
 		RichText::new(format!(
-			"{} · Saved refs; no fetch",
+			"{} · {}",
 			match branches.list.len() {
 				1 => "1 local branch".to_string(),
 				n => format!("{n} local branches"),
-			}
+			},
+			fetch::refs_note(state, &repo.path)
 		))
 		.size(TEXT_SMALL)
 		.color(MUTED),

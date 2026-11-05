@@ -1,4 +1,4 @@
-//! Stage, unstage, discard and commit requests. Each repository has at most one write running, so
+//! Stage, unstage, discard, commit and fetch requests. Each repository has at most one write running, so
 //! writes never overlap in a repository and a slow hook in one never holds up another; a request
 //! behind a running one in the same repository shows as Waiting.
 
@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::write;
 use repose_core::git::{Cancel, GitError};
+use repose_core::git::{remote, write};
 
 use super::{AppState, Msg};
 
@@ -23,6 +23,9 @@ pub enum WriteKind {
 		untracked: Vec<String>,
 	},
 	Commit(String),
+	/// `git fetch` from the configured remote, on the user's Fetch (A1, Phillip #35530). It runs
+	/// in the same per-repository queue, so it never overlaps a stage or a commit there.
+	Fetch,
 }
 
 impl WriteKind {
@@ -32,6 +35,7 @@ impl WriteKind {
 			Self::Unstage(_) | Self::UnstageAll => "Unstaging",
 			Self::Discard { .. } => "Discarding",
 			Self::Commit(_) => "Committing",
+			Self::Fetch => "Fetching",
 		}
 	}
 }
@@ -79,6 +83,17 @@ impl WriteQueue {
 		}
 	}
 
+	/// A fetch for this repository is running or waiting.
+	pub fn fetching(&self, repo: &Path) -> bool {
+		self.running
+			.get(repo)
+			.is_some_and(|r| r.kind == WriteKind::Fetch)
+			|| self
+				.waiting
+				.iter()
+				.any(|r| r.repo == repo && r.kind == WriteKind::Fetch)
+	}
+
 	pub fn busy_for(&self, repo: &Path) -> Option<&'static str> {
 		if let Some(r) = self.running.get(repo) {
 			return Some(r.kind.label());
@@ -108,6 +123,7 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		WriteKind::Unstage(paths) => write::unstage(repo, paths),
 		WriteKind::UnstageAll => write::unstage_all(repo),
 		WriteKind::Discard { tracked, untracked } => write::discard(repo, tracked, untracked),
+		WriteKind::Fetch => remote::fetch(repo, Some(&request.cancel)),
 		WriteKind::Commit(message) => {
 			match write::commit_cancellable(repo, message, Some(&request.cancel)) {
 				Ok(done) => {
@@ -173,10 +189,16 @@ impl AppState {
 		}
 	}
 
-	/// A successful commit clears its repository's draft; a cancelled or failed one keeps it.
+	/// A successful commit clears its repository's draft; a cancelled or failed one keeps it. A
+	/// successful fetch records its time for the "Fetched HH:MM" line; the status re-read below
+	/// brings the new ahead and behind counts.
 	pub(super) fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
 		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
 			self.commit_messages.remove(&outcome.repo);
+		}
+		if outcome.error.is_none() && outcome.kind == WriteKind::Fetch {
+			self.fetched
+				.insert(outcome.repo.clone(), std::time::SystemTime::now());
 		}
 		self.refresh_repo(&outcome.repo.clone(), ctx);
 		self.writes.running.remove(&outcome.repo);

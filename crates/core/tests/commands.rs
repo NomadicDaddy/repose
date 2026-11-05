@@ -1,4 +1,5 @@
-//! Assertions A1 and A3: no remote verb exists, every spawn carries the shared environment, and a
+//! Assertions A1 and A3: fetch is the only remote verb, and only as the user's Fetch; every spawn
+//! carries the shared environment, and a
 //! commit never passes --no-verify. Plus the pipe-capacity cases Morticia found on cdfc251: output
 //! larger than the pipe buffer on a read and on a hook must not deadlock, and a spawn reads EOF
 //! from its null stdin.
@@ -57,16 +58,55 @@ fn chatty_hook_on_a_write_does_not_deadlock() {
 }
 
 #[test]
-fn no_remote_commands() {
+fn fetch_is_the_only_remote_verb() {
 	for verb in Verb::ALL {
 		for word in verb.args() {
 			assert!(
-				!["fetch", "pull", "push", "clone", "ls-remote"].contains(word),
-				"{word} is a network verb"
+				!["pull", "push", "clone", "ls-remote", "update"].contains(word),
+				"{word} reaches a remote"
 			);
+			if *word == "fetch" {
+				assert_eq!(verb, Verb::Fetch, "only Verb::Fetch may run git fetch");
+			}
 		}
 	}
-	assert_eq!(Verb::ALL.len(), 15);
+	assert_eq!(Verb::Fetch.args(), ["fetch", "--quiet"]);
+	assert_eq!(Verb::ALL.len(), 16);
+}
+
+/// Fetch never prompts: git's terminal prompt is off for every verb, and for fetch Git
+/// Credential Manager is made non-interactive too, by environment and by config (Steward #35492).
+#[test]
+fn fetch_cannot_prompt_for_a_sign_in() {
+	let cmd = commands::command(Path::new("."), Verb::Fetch, &[]);
+	let env = |name: &str, want: &str| {
+		cmd.get_envs()
+			.any(|(k, v)| k == name && v.is_some_and(|v| v == want))
+	};
+	assert!(env("GIT_TERMINAL_PROMPT", "0"));
+	assert!(env("GCM_INTERACTIVE", "never"));
+	let args: Vec<String> = cmd
+		.get_args()
+		.map(|a| a.to_string_lossy().to_string())
+		.collect();
+	let at = args
+		.iter()
+		.position(|a| a == "credential.interactive=false")
+		.expect("credential.interactive=false is set");
+	assert_eq!(args[at - 1], "-c");
+	assert!(
+		at < args.iter().position(|a| a == "fetch").expect("fetch"),
+		"the setting comes before the verb: {args:?}"
+	);
+	assert!(
+		commands::run(
+			&std::env::temp_dir(),
+			Verb::Fetch,
+			&["https://example.invalid/x.git"]
+		)
+		.is_err(),
+		"fetch takes no URL or refspec from a caller"
+	);
 }
 
 #[test]

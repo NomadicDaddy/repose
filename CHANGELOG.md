@@ -18,6 +18,11 @@ All notable changes to repose are recorded here. The format follows
   with Enter once Tab reaches it. Other remotes, and an origin with no web page, stay plain
   text.
 - `--help` (or `-h`) lists every command-line flag and exits.
+- Fetch, in a repository row's menu and the History header, brings the remote's commits in so
+  the ahead and behind counts are current. It is the one action that reaches the network, and
+  only on your click. It never asks for a sign-in: git's prompt and Git Credential Manager's
+  window are both off, so a remote that wants one fails under "Fetch failed" with git's message.
+  The row shows the fetch while it runs, and the repository's line then says "Fetched HH:MM".
 
 ### Fixed
 

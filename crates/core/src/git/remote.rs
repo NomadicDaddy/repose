@@ -1,10 +1,10 @@
-//! The configured remotes, read-only: names and URLs from `git remote --verbose` (saved config,
-//! no network), shown in the repository header, and the https page a URL names, for Copy remote
-//! URL and Open remote page.
+//! The configured remotes: names and URLs from `git remote --verbose` (saved config, no
+//! network), shown in the repository header, and the https page a URL names, for Copy remote URL
+//! and Open remote page. Also the one network action, Fetch, run only when the user asks.
 
 use std::path::Path;
 
-use super::commands::{GitError, Verb, run};
+use super::commands::{Cancel, GitError, Verb, run, run_cancellable};
 
 /// One configured remote. `push_url` is set only when it differs from the fetch URL.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +18,13 @@ pub struct RemoteEntry {
 /// nothing and exits 0), so only a failed spawn or a broken repository is an error.
 pub fn read_remotes(repo: &Path) -> Result<Vec<RemoteEntry>, GitError> {
 	Ok(parse_remotes(&run(repo, Verb::RemoteList, &[])?))
+}
+
+/// `git fetch --quiet` from the repository's configured remote, on the user's Fetch only (A1). A
+/// sign-in request or a network failure comes back as the error with git's own message; the
+/// repository's refs are left as they were. Cancel stops git and anything it started.
+pub fn fetch(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
+	run_cancellable(repo, Verb::Fetch, &[], cancel).map(|_| ())
 }
 
 /// `git remote --verbose` prints `<name>\t<url> (fetch)` and `<name>\t<url> (push)` per remote.

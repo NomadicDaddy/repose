@@ -5,7 +5,7 @@ use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Ui, pos2, 
 use repose_core::model::{BranchState, Commit, RepoSummary, relative};
 
 use super::row::frame;
-use super::{a11y, menu};
+use super::{a11y, fetch, menu};
 use crate::platform::Platform;
 use crate::state::AppState;
 use crate::theme::*;
@@ -18,6 +18,12 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
 	};
+	// The History header: Fetch, and what the counts below are read from.
+	ui.horizontal(|ui| {
+		fetch::button(ui, state, &repo.path);
+		let note = fetch::refs_note(state, &repo.path);
+		ui.label(RichText::new(note).size(TEXT_SMALL).color(MUTED));
+	});
 	if repo.branch == BranchState::Unborn {
 		ui.label(RichText::new("No commits yet").color(MUTED));
 		return;

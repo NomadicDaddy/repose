@@ -54,6 +54,10 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with
   defaults on first run), within its configured depth (3 folders by default) and skipping its
   exclude folders. Submodules are counted on their parent rather than listed as rows.
+- Ahead and behind counts come from the refs already on disk. repose reaches the network only
+  when you click Fetch, in a repository row's menu or the History header. That fetch never asks
+  for a sign-in. If the remote wants one, it fails under "Fetch failed" with git's message, and
+  you sign in from a terminal. After a fetch, that repository's line says "Fetched HH:MM".
 
 ## Command-line flags
 

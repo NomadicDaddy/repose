@@ -7,7 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
-/// The verbs repose may run. No fetch, pull, push, clone or ls-remote exists here.
+/// The verbs repose may run. Fetch is the only one that reaches a remote, and only from the
+/// user's Fetch action (A1, Phillip #35530); no pull, push, clone or ls-remote exists here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verb {
 	Status,
@@ -29,10 +30,14 @@ pub enum Verb {
 	RemoteList,
 	/// `git for-each-ref`: the local branches with their saved upstream counts, read-only.
 	ForEachRef,
+	/// `git fetch --quiet`, with no other argument: the repository's configured remote, on the
+	/// user's click only. No terminal prompt and no Git Credential Manager window: a sign-in
+	/// request fails with git's message instead (Steward #35492).
+	Fetch,
 }
 
 impl Verb {
-	pub const ALL: [Verb; 15] = [
+	pub const ALL: [Verb; 16] = [
 		Verb::Status,
 		Verb::RevParse,
 		Verb::Log,
@@ -48,6 +53,7 @@ impl Verb {
 		Verb::SymbolicRef,
 		Verb::RemoteList,
 		Verb::ForEachRef,
+		Verb::Fetch,
 	];
 
 	pub fn args(self) -> &'static [&'static str] {
@@ -69,14 +75,16 @@ impl Verb {
 			Verb::SymbolicRef => &["symbolic-ref", "--quiet"],
 			Verb::RemoteList => &["remote", "--verbose"],
 			Verb::ForEachRef => &["for-each-ref"],
+			Verb::Fetch => &["fetch", "--quiet"],
 		}
 	}
 
-	/// Writes have no timeout, because a hooked commit can run for minutes.
+	/// Writes have no timeout, because a hooked commit can run for minutes. Fetch writes refs and
+	/// can take as long as the network does; the user's Cancel stops it.
 	pub fn is_write(self) -> bool {
 		matches!(
 			self,
-			Verb::Add | Verb::Restore | Verb::Clean | Verb::Commit | Verb::RmCached
+			Verb::Add | Verb::Restore | Verb::Clean | Verb::Commit | Verb::RmCached | Verb::Fetch
 		)
 	}
 }
@@ -103,6 +111,7 @@ impl Cancel {
 }
 
 pub const READ_TIMEOUT: Duration = Duration::from_secs(10);
+use super::kill::kill_tree;
 pub use super::pool::POOL_SIZE;
 use super::pool::Permit;
 use super::tail::{tail, tail_lines};
@@ -143,6 +152,13 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 		cmd.env("GIT_OPTIONAL_LOCKS", "0")
 			.arg("-c")
 			.arg("log.showSignature=false");
+	}
+	if verb == Verb::Fetch {
+		// GIT_TERMINAL_PROMPT=0 stops git's own prompt but not Git Credential Manager, which can
+		// still open a sign-in window or a browser; both of these keep it non-interactive.
+		cmd.env("GCM_INTERACTIVE", "never")
+			.arg("-c")
+			.arg("credential.interactive=false");
 	}
 	cmd.args(verb.args()).args(extra);
 	cmd
@@ -187,6 +203,12 @@ pub fn run_cancellable(
 	if verb == Verb::RemoteList && !extra.is_empty() {
 		return Err(GitError::Spawn(
 			"git remote takes no extra arguments in repose".into(),
+		));
+	}
+	// Likewise fetch: a URL or refspec after it would reach somewhere the user never chose.
+	if verb == Verb::Fetch && !extra.is_empty() {
+		return Err(GitError::Spawn(
+			"git fetch takes no extra arguments in repose".into(),
 		));
 	}
 	let _permit = Permit::acquire();
@@ -259,27 +281,4 @@ pub fn run_cancellable(
 			stderr_tail,
 		})
 	}
-}
-
-/// Kills git and everything under it. Killing git alone would leave a hook and the hook's
-/// children running on; on Windows `taskkill /T` takes the tree, and the child is reaped after.
-/// Returns whether the tree kill itself succeeded; git is reaped either way, and a false answer
-/// is reported to the user rather than claimed as stopped (Roger 5Q-2 on a31e63b).
-fn kill_tree(child: &mut std::process::Child) -> bool {
-	#[cfg(windows)]
-	let tree_killed = {
-		let mut kill = Command::new("taskkill");
-		hide_console(&mut kill);
-		kill.args(["/PID", &child.id().to_string(), "/T", "/F"])
-			.stdin(Stdio::null())
-			.stdout(Stdio::null())
-			.stderr(Stdio::null())
-			.status()
-			.is_ok_and(|s| s.success())
-	};
-	#[cfg(not(windows))]
-	let tree_killed = child.kill().is_ok();
-	let _ = child.kill();
-	let _ = child.wait();
-	tree_killed
 }

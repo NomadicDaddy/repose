@@ -2,9 +2,9 @@
 
 repose is a Rust desktop application that shows many Git repositories at once: a repository list
 with branch and state, the selected repository's working-tree changes, its linear commit history,
-read-only diffs and files, and staging and committing. It drives the installed `git` executable and
-runs no Git network operation; the only thing it sends outward is a remote URL handed to the
-browser when the user asks. This file is the glossary; the blueprint lives in `.aidd/` (local only) and
+read-only diffs and files, and staging and committing. It drives the installed `git` executable. Its one
+Git network operation is Fetch, and only when the user clicks it; otherwise the only thing it sends
+outward is a remote URL handed to the browser when the user asks. This file is the glossary; the blueprint lives in `.aidd/` (local only) and
 in `docs/specs/2026-11-01-repose-v1/`.
 
 ## Glossary
@@ -30,8 +30,9 @@ shows a count.
 
 **Saved refs**
 : The remote-tracking refs already in `.git` (`refs/remotes/...`). Ahead and behind counts compare
-the current branch with its upstream using these refs only. repose never fetches, so the status
-line says "Saved refs; no fetch" and a count can be out of date until the user fetches elsewhere.
+the current branch with its upstream using these refs only. repose fetches only when the user
+clicks Fetch, so the status line says "Saved refs; no fetch" until then, and a count can be out of
+date until someone fetches. After a Fetch, that repository's line says "Fetched HH:MM".
 
 **State badges**
 : The marks on a repository row: changed-file count, ahead `↑n`, behind `↓n`, detached HEAD,

@@ -4,6 +4,7 @@ pub mod branches;
 pub mod commands;
 pub mod diff;
 pub mod error;
+mod kill;
 pub mod log;
 pub mod parse;
 pub mod pool;
