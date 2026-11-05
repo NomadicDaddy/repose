@@ -41,6 +41,8 @@ struct App {
 	diff_loaded: Option<PathBuf>,
 	state: state::AppState,
 	platform: Box<dyn platform::Platform>,
+	/// Whether Windows' animation setting has been asked for yet; see `ui`.
+	motion_asked: bool,
 }
 
 impl App {
@@ -51,7 +53,6 @@ impl App {
 		cfg: config::Config,
 	) -> Self {
 		theme::apply(&cc.egui_ctx);
-		theme::follow_reduced_motion(&cc.egui_ctx);
 		let mut state = state::AppState::new(cfg);
 		state.start_scan(&cc.egui_ctx);
 		Self {
@@ -60,6 +61,7 @@ impl App {
 			diff_loaded: None,
 			state,
 			platform: platform::current(),
+			motion_asked: false,
 		}
 	}
 }
@@ -83,6 +85,13 @@ impl eframe::App for App {
 			let _ = std::fs::write(out, &line);
 			print!("{line}");
 			std::process::exit(0);
+		}
+		// Windows' animation setting is asked for only once the first rows are drawn, or the first
+		// scan found none, so its pwsh never competes with startup: started from App::new it took
+		// the a3b9a3a gate's startup from about 750 ms to 1074 ms.
+		if !self.motion_asked && (!self.state.repos.is_empty() || !self.state.scanning) {
+			self.motion_asked = true;
+			theme::follow_reduced_motion(&ctx);
 		}
 		if let Some(out) = &self.diff_loaded
 			&& let Some(d) = &self.state.diff
