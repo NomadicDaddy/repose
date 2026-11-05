@@ -30,13 +30,34 @@ pub struct Mapped {
 	pub rel: String,
 }
 
+/// The path's prefix and normal components in their original spelling, with `.` ignored and
+/// each `..` removing the normal component before it (never the prefix), so
+/// `thing\..\thingamajig` is `thingamajig` and not a path inside `thing`.
+fn resolved(path: &Path) -> Vec<String> {
+	let mut parts: Vec<String> = Vec::new();
+	let mut normals = 0;
+	for c in path.components() {
+		match c {
+			Component::Prefix(p) => parts.push(p.as_os_str().to_string_lossy().to_string()),
+			Component::Normal(s) => {
+				parts.push(s.to_string_lossy().to_string());
+				normals += 1;
+			}
+			Component::ParentDir if normals > 0 => {
+				parts.pop();
+				normals -= 1;
+			}
+			_ => {}
+		}
+	}
+	parts
+}
+
+/// The resolved components lower-cased, for comparison only.
 fn components(path: &Path) -> Vec<String> {
-	path.components()
-		.filter_map(|c| match c {
-			Component::Normal(s) => Some(s.to_string_lossy().to_lowercase()),
-			Component::Prefix(p) => Some(p.as_os_str().to_string_lossy().to_lowercase()),
-			_ => None,
-		})
+	resolved(path)
+		.into_iter()
+		.map(|s| s.to_lowercase())
 		.collect()
 }
 
@@ -76,13 +97,8 @@ impl RepoMap {
 			.iter()
 			.find(|o| parts.len() >= o.prefix.len() && parts[..o.prefix.len()] == o.prefix[..])?;
 		// Keep the original spelling of the tail; only the comparison was lower-cased.
-		let tail: Vec<String> = path
-			.components()
-			.filter_map(|c| match c {
-				Component::Normal(s) => Some(s.to_string_lossy().to_string()),
-				Component::Prefix(p) => Some(p.as_os_str().to_string_lossy().to_string()),
-				_ => None,
-			})
+		let tail: Vec<String> = resolved(path)
+			.into_iter()
 			.skip(owner.prefix.len())
 			.collect();
 		let mut rel = tail.join("/");
@@ -128,6 +144,19 @@ mod tests {
 		assert_eq!(
 			(m.repo.to_str(), m.rel.as_str()),
 			(Some("D:\\apps\\thing"), "src/Main.rs")
+		);
+
+		let m = map
+			.owner(Path::new("D:\\apps\\thing\\src\\..\\src\\Main.rs"))
+			.expect("a resolved .. stays inside");
+		assert_eq!(
+			(m.repo.to_str(), m.rel.as_str()),
+			(Some("D:\\apps\\thing"), "src/Main.rs")
+		);
+		assert_eq!(
+			map.owner(Path::new("D:\\apps\\thing\\..\\thingamajig\\x")),
+			None,
+			"a .. that leaves the repository is not owned by it"
 		);
 
 		let m = map
