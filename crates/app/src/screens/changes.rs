@@ -142,7 +142,10 @@ fn count_pill(ui: &mut Ui, n: usize) {
 
 fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChange) {
 	let selected = state.selected_file.as_deref() == Some(file.path.as_str());
-	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+	let (rect, response) = ui.allocate_exact_size(
+		vec2(ui.available_width(), CHANGE_ROW_HEIGHT),
+		Sense::click(),
+	);
 	// The row's own buttons cover it, so `hovered()` goes false under them and the actions would
 	// vanish every other frame; the pointer being in the row is what keeps them drawn.
 	let pointer_in = ui.rect_contains_pointer(rect);

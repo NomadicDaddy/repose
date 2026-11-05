@@ -14,10 +14,8 @@ use crate::highlight::Span;
 use crate::state::FileColours;
 use crate::theme::*;
 
-pub(super) const ROW_H: f32 = 20.0;
 pub(super) const GUTTER: f32 = 48.0;
-const MONO: f32 = 12.0;
-/// The advance of one glyph at `MONO`, for sizing a row to its longest line; an estimate, since
+/// The advance of one glyph at `TEXT_MONO`, for sizing a row to its longest line; an estimate, since
 /// the galley is laid out only for visible rows.
 pub(super) const MONO_ADVANCE: f32 = 7.4;
 
@@ -169,7 +167,7 @@ fn gutter(p: &egui::Painter, left: f32, rect: Rect, no: Option<u32>) {
 			pos2(left + GUTTER - 8.0, rect.center().y),
 			Align2::RIGHT_CENTER,
 			n.to_string(),
-			FontId::new(MONO - 1.0, FontFamily::Monospace),
+			FontId::new(TEXT_MONO - 1.0, FontFamily::Monospace),
 			MUTED,
 		);
 	}
@@ -202,7 +200,7 @@ fn text_cell(
 fn marked_job(text: &str, marks: &[Range<usize>], mark_bg: Color32, spans: &[Span]) -> LayoutJob {
 	let mut job = LayoutJob::default();
 	job.wrap.max_width = f32::INFINITY;
-	let font = FontId::new(MONO, FontFamily::Monospace);
+	let font = FontId::new(TEXT_MONO, FontFamily::Monospace);
 	let mut cuts: Vec<usize> = Vec::with_capacity(2 + 2 * (marks.len() + spans.len()));
 	cuts.push(0);
 	cuts.push(text.len());

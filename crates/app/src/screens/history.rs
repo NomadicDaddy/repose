@@ -129,7 +129,10 @@ struct Rows<'a> {
 fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit, rows: &Rows<'_>) {
 	let (expanded, files, now) = (rows.expanded, rows.files, rows.now);
 	let open = expanded == Some(c.hash.as_str());
-	let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+	let (rect, response) = ui.allocate_exact_size(
+		vec2(ui.available_width(), COMMIT_ROW_HEIGHT),
+		Sense::click(),
+	);
 	let painter = ui.painter_at(rect);
 	let fill = if open {
 		Some(ACCENT_BG)
@@ -145,7 +148,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 		pos2(x, rect.center().y),
 		Align2::LEFT_CENTER,
 		&c.short,
-		FontId::new(12.0, FontFamily::Monospace),
+		FontId::new(TEXT_MONO, FontFamily::Monospace),
 		INFO,
 	);
 	let meta = format!("{} · {}", c.author, relative(c.time, now, &c.date));

@@ -4,7 +4,7 @@
 
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 
-use super::diff_draw::{GUTTER, LineLook, MONO_ADVANCE, ROW_H, draw_file_line};
+use super::diff_draw::{GUTTER, LineLook, MONO_ADVANCE, draw_file_line};
 use super::{a11y, crumb};
 use crate::platform::Platform;
 use crate::state::{AppState, FileContent, FileRev, FileViewState};
@@ -142,11 +142,11 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 			let needed = (GUTTER + 16.0 + *columns as f32 * MONO_ADVANCE).min(MAX_ROW_WIDTH);
 			egui::ScrollArea::both()
 				.auto_shrink([false, false])
-				.show_rows(ui, ROW_H, lines.len(), |ui, range| {
+				.show_rows(ui, DIFF_ROW_HEIGHT, lines.len(), |ui, range| {
 					let width = ui.available_width().max(needed);
 					for i in range {
 						let (rect, response) =
-							ui.allocate_exact_size(vec2(width, ROW_H), Sense::click());
+							ui.allocate_exact_size(vec2(width, DIFF_ROW_HEIGHT), Sense::click());
 						if response.clicked() {
 							*current_line = Some(i + 1);
 						}

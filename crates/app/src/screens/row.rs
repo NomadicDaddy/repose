@@ -88,7 +88,7 @@ pub fn draw(
 	let name = fit(
 		&painter,
 		&repo.name,
-		FontId::new(14.0, FontFamily::Monospace),
+		FontId::new(TEXT_ROW_NAME, FontFamily::Monospace),
 		name_color,
 		width,
 	);
@@ -96,7 +96,7 @@ pub fn draw(
 	let branch = fit(
 		&painter,
 		&repo.branch_line(),
-		FontId::new(11.5, FontFamily::Monospace),
+		FontId::new(TEXT_ROW_BRANCH, FontFamily::Monospace),
 		MUTED,
 		width,
 	);

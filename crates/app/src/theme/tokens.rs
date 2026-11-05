@@ -31,14 +31,57 @@ pub const TEXT_BASE: f32 = 13.0;
 /// The smallest text drawn anywhere: section labels and badges.
 pub const TEXT_SMALL: f32 = 11.0;
 pub const TEXT_TITLE: f32 = 17.0;
+/// The selected repository's name at the top of the detail pane.
+pub const TEXT_DETAIL_TITLE: f32 = 18.0;
+/// Metadata lines under a title: the detail header's branch, path and upstream.
+pub const TEXT_META: f32 = 12.0;
+/// Monospace text in lists and diffs: a commit's hash and author line, a diff or file line.
+pub const TEXT_MONO: f32 = 12.0;
+/// A repository row's name (monospace) and the branch line under it.
+pub const TEXT_ROW_NAME: f32 = 14.0;
+pub const TEXT_ROW_BRANCH: f32 = 11.5;
+/// A repository row in the left list.
 pub const ROW_HEIGHT: f32 = 46.0;
+/// A commit row in History and a branch row in Branches; separate tokens though equal today.
+pub const COMMIT_ROW_HEIGHT: f32 = 32.0;
+pub const BRANCH_ROW_HEIGHT: f32 = 32.0;
+/// A file row in the Changes groups.
+pub const CHANGE_ROW_HEIGHT: f32 = 30.0;
+/// One line of a diff or of a file read at a revision.
+pub const DIFF_ROW_HEIGHT: f32 = 20.0;
 pub const SIDEBAR_WIDTH: f32 = 300.0;
 pub const RADIUS: f32 = 4.0;
 
 #[cfg(test)]
 mod tests {
-	use super::{ACCENT_BG, BG_APP, INFO};
+	use super::*;
 	use crate::theme::contrast::contrast;
+
+	/// The sizes the screens used as literals before they were named (the theme-token tidy-up);
+	/// naming them changed no value, and changing one is a visual change, not a refactor.
+	#[test]
+	fn the_named_sizes_keep_the_values_the_screens_drew() {
+		assert_eq!(
+			[
+				TEXT_DETAIL_TITLE,
+				TEXT_META,
+				TEXT_MONO,
+				TEXT_ROW_NAME,
+				TEXT_ROW_BRANCH
+			],
+			[18.0, 12.0, 12.0, 14.0, 11.5]
+		);
+		assert_eq!(
+			[
+				ROW_HEIGHT,
+				COMMIT_ROW_HEIGHT,
+				BRANCH_ROW_HEIGHT,
+				CHANGE_ROW_HEIGHT,
+				DIFF_ROW_HEIGHT
+			],
+			[46.0, 32.0, 32.0, 30.0, 20.0]
+		);
+	}
 
 	#[test]
 	fn info_reads_at_aa_on_the_selected_fill_and_the_app_background() {

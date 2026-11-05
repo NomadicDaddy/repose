@@ -10,8 +10,6 @@ use super::{a11y, fetch, menu};
 use crate::state::AppState;
 use crate::theme::*;
 
-const ROW: f32 = 32.0;
-
 pub fn show(ui: &mut Ui, state: &mut AppState) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
@@ -82,7 +80,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 /// Draws one row and returns the id its focus lives under.
 fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 	let id = ui.make_persistent_id(("branch-row", branch.name.as_str()));
-	let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::hover());
+	let (rect, _) = ui.allocate_exact_size(
+		vec2(ui.available_width(), BRANCH_ROW_HEIGHT),
+		Sense::hover(),
+	);
 	let response = ui.interact(rect, id, Sense::click());
 	let painter = ui.painter_at(rect);
 	// The same three looks as a repository row (visual-theme clause 5): the current branch has

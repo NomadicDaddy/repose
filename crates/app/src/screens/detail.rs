@@ -68,7 +68,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			};
 			ui.label(
 				RichText::new(&repo.name)
-					.size(18.0)
+					.size(TEXT_DETAIL_TITLE)
 					.color(ACCENT)
 					.family(FontFamily::Monospace),
 			);
@@ -78,7 +78,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					repo.branch_line(),
 					fetch::refs_note(state, &repo.path)
 				))
-				.size(12.0)
+				.size(TEXT_META)
 				.color(MUTED),
 			);
 			ui.label(
@@ -111,7 +111,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 						(Some(u), None, None) => format!("{u} · upstream gone"),
 						_ => "No upstream".to_string(),
 					};
-					ui.label(RichText::new(upstream).size(12.0).color(MUTED));
+					ui.label(RichText::new(upstream).size(TEXT_META).color(MUTED));
 				}
 				(None, None) => {
 					let shown = ui.label(RichText::new("Reading status…").color(MUTED));
