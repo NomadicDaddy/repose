@@ -23,8 +23,18 @@ All notable changes to repose are recorded here. The format follows
   only on your click. It never asks for a sign-in: git's prompt and Git Credential Manager's
   window are both off, so a remote that wants one fails under "Fetch failed" with git's message.
   The row shows the fetch while it runs, and the repository's line then says "Fetched HH:MM".
+- repose follows Windows' Animation effects setting (Settings > Accessibility > Visual
+  effects). With it off, fades stop and scrolling jumps instead of gliding. The setting is read
+  once, a couple of seconds after the first rows appear, so it never slows startup; there is no
+  setting of repose's own for it.
 
 ### Fixed
+
+- Commits whose hooks run for a long time no longer hold up everything else. Reads and writes
+  now have separate limits of eight git processes each, so status, diffs, history, branches and
+  files keep loading while up to eight commits wait on their hooks.
+- Open in VS Code passes the path with backslashes even when a root in `config.toml` is
+  written with forward slashes, as Explorer's paths already were.
 
 - A `--view` value that names no pane, or none at all, is refused with a message naming the
   four panes and exit code 2, as a bad `--scale` is, instead of quietly opening Changes.
@@ -79,6 +89,13 @@ All notable changes to repose are recorded here. The format follows
   cached, the advisory audit and the release staging always run, and `-NoCache` forces every
   step. Reused measurements say when they were measured. A self-test of the cache runs in every
   gate.
+- An internal tidy-up with no change in behaviour: the command-line flags are read from the same
+  table `--help` prints, so a flag can't be added without its help line; the commit box, an
+  expanded commit in History and the repository list are split into smaller pieces; the screens'
+  text sizes and row heights are named theme values; and one helper turns a Git path into a file
+  path. New tests drive the commit box's outcomes, an expanded commit's files, the worktree
+  chevron and the filter's worktree rows through the real window code.
+- The technical spec describes the platform module and the theme as they ship.
 
 ## [1.0.0] - 2026-11-04
 
