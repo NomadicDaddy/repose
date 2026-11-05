@@ -14,7 +14,8 @@
 //! captures in the records. Without `--select`, a start from inside a repository selects that
 //! repository when it is in the list.
 //! `--help` (or `-h`) prints every flag to stderr and exits 0; a `--view` that names no pane is
-//! refused with exit code 2, as a bad `--scale` is.
+//! refused with exit code 2, as a bad `--scale` is. The flags are read in cli.rs, from the same
+//! table `--help` prints.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cli;
@@ -149,78 +150,19 @@ fn error_window(message: String) -> eframe::Result {
 
 fn main() -> eframe::Result {
 	let started = Instant::now();
-	let args: Vec<String> = std::env::args().collect();
-	if args.iter().skip(1).any(|a| a == "--help" || a == "-h") {
-		eprint!("{}", cli::HELP);
-		std::process::exit(0);
-	}
-	let measure = args.iter().position(|a| a == "--measure-startup").map(|i| {
-		args.get(i + 1)
-			.map(PathBuf::from)
-			.unwrap_or_else(|| PathBuf::from("repose-startup-ms.txt"))
-	});
-	let diff_loaded = args
-		.iter()
-		.position(|a| a == "--measure-diff")
-		.and_then(|i| args.get(i + 1))
-		.map(PathBuf::from);
-	let config_path = args
-		.iter()
-		.position(|a| a == "--config")
-		.and_then(|i| args.get(i + 1))
-		.map(PathBuf::from)
-		.unwrap_or_else(config::default_path);
-	let select = args
-		.iter()
-		.position(|a| a == "--select")
-		.and_then(|i| args.get(i + 1))
-		// `.` and relative paths resolve against the current folder; the raw value is kept if
-		// that fails.
-		.map(|s| std::path::absolute(s).unwrap_or_else(|_| PathBuf::from(s)))
-		.or_else(repo_at_cwd);
-	// --view with no value after it is refused too, as an empty name, rather than opening Changes.
-	let view_value = args
-		.iter()
-		.position(|a| a == "--view")
-		.map(|i| args.get(i + 1).map_or("", String::as_str));
-	let view = match cli::view(view_value) {
-		Ok(view) => view,
-		Err(message) => {
+	let args = match cli::parse(&std::env::args().collect::<Vec<_>>()) {
+		cli::Parsed::Help => {
+			eprint!("{}", cli::help());
+			std::process::exit(0);
+		}
+		cli::Parsed::Refused(message) => {
 			eprintln!("repose: {message}");
 			let _ = error_window(message);
 			std::process::exit(2);
 		}
+		cli::Parsed::Run(args) => args,
 	};
-	let file = args
-		.iter()
-		.position(|a| a == "--file")
-		.and_then(|i| args.get(i + 1))
-		.cloned();
-	let inline = args.iter().any(|a| a == "--inline");
-	let open = args
-		.iter()
-		.position(|a| a == "--open")
-		.and_then(|i| args.get(i + 1))
-		.cloned();
-	// A zoom factor multiplied into the desktop's own scaling. A value that is not a number
-	// between 0.5 and 4 is refused out loud rather than run at normal zoom without a word
-	// (Morticia Info on 4b39403).
-	let scale = args.iter().position(|a| a == "--scale").map(|i| {
-		args.get(i + 1)
-			.and_then(|s| s.parse::<f32>().ok())
-			.filter(|s| (0.5..=4.0).contains(s))
-			.ok_or_else(|| args.get(i + 1).cloned().unwrap_or_default())
-	});
-	let scale = match scale {
-		None => None,
-		Some(Ok(s)) => Some(s),
-		Some(Err(given)) => {
-			let message = format!("--scale needs a number between 0.5 and 4, not {given:?}");
-			eprintln!("repose: {message}");
-			let _ = error_window(message);
-			std::process::exit(2);
-		}
-	};
+	let config_path = args.config.unwrap_or_else(config::default_path);
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -242,15 +184,15 @@ fn main() -> eframe::Result {
 		"repose",
 		options,
 		Box::new(move |cc| {
-			if let Some(scale) = scale {
+			if let Some(scale) = args.scale {
 				cc.egui_ctx.set_zoom_factor(scale);
 			}
-			let mut app = App::new(cc, started, measure, cfg);
-			app.diff_loaded = diff_loaded;
-			app.state.view = view;
-			app.state.requested_selection = select;
-			app.state.requested_diff = file.map(|f| (f, inline));
-			app.state.requested_file = open;
+			let mut app = App::new(cc, started, args.measure_startup, cfg);
+			app.diff_loaded = args.measure_diff;
+			app.state.view = args.view;
+			app.state.requested_selection = args.select.or_else(repo_at_cwd);
+			app.state.requested_diff = args.file.map(|f| (f, args.inline));
+			app.state.requested_file = args.open;
 			Ok(Box::new(app))
 		}),
 	)
