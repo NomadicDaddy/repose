@@ -8,15 +8,16 @@ mod support;
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use repose_core::git::pool::POOL_SIZE;
 use repose_core::git::read_status;
 use repose_core::git::write::commit;
 use support::TempRepo;
 
-/// A repository with one staged file and a pre-commit hook that waits until `marker` exists.
-fn blocked_commit_repo(label: &str, marker: &Path) -> TempRepo {
+/// A repository with one staged file and a pre-commit hook that writes `ready` once it runs, so
+/// its commit holds a write permit from then on, and waits until `go` exists.
+fn blocked_commit_repo(label: &str, ready: &Path, go: &Path) -> TempRepo {
 	let repo = TempRepo::new(label);
 	repo.write("a.txt", "a\n");
 	repo.commit_all("base");
@@ -24,8 +25,11 @@ fn blocked_commit_repo(label: &str, marker: &Path) -> TempRepo {
 	repo.git(&["add", "a.txt"]);
 	let hooks = repo.path.join(".githooks");
 	std::fs::create_dir_all(&hooks).expect("hooks dir");
-	let wait = marker.to_string_lossy().replace('\\', "/");
-	let script = format!("#!/bin/sh\nwhile [ ! -f \"{wait}\" ]; do sleep 0.2; done\nexit 0\n");
+	let sh = |p: &Path| p.to_string_lossy().replace('\\', "/");
+	let (ready, go) = (sh(ready), sh(go));
+	let script = format!(
+		"#!/bin/sh\n: > \"{ready}\"\nwhile [ ! -f \"{go}\" ]; do sleep 0.2; done\nexit 0\n"
+	);
 	std::fs::write(hooks.join("pre-commit"), script).expect("hook");
 	repo.git(&["config", "core.hooksPath", &hooks.to_string_lossy()]);
 	repo
@@ -37,16 +41,27 @@ fn reads_answer_while_every_write_permit_is_held_by_a_hook() {
 	let mut repos = Vec::new();
 	let mut workers = Vec::new();
 	let mut release: Vec<PathBuf> = Vec::new();
+	let mut ready: Vec<PathBuf> = Vec::new();
 	for n in 0..POOL_SIZE {
-		let marker = markers.path.join(format!("go-{n}"));
-		let repo = blocked_commit_repo(&format!("pool-w{n}"), &marker);
+		let go = markers.path.join(format!("go-{n}"));
+		let up = markers.path.join(format!("ready-{n}"));
+		let repo = blocked_commit_repo(&format!("pool-w{n}"), &up, &go);
 		let dir = repo.path.clone();
 		workers.push(std::thread::spawn(move || commit(&dir, "held by its hook")));
 		repos.push(repo);
-		release.push(marker);
+		release.push(go);
+		ready.push(up);
 	}
-	// Give every commit time to start git and reach its hook.
-	std::thread::sleep(Duration::from_secs(3));
+	// Every hook is running, so every commit holds its permit, before the read starts (Roger and
+	// Morticia on 5556e97: a fixed sleep could let the read in early and pass falsely).
+	let deadline = Instant::now() + Duration::from_secs(60);
+	while !ready.iter().all(|p| p.exists()) {
+		assert!(
+			Instant::now() < deadline,
+			"not every hook started within 60 s"
+		);
+		std::thread::sleep(Duration::from_millis(100));
+	}
 	let reader = TempRepo::new("pool-reader");
 	reader.write("r.txt", "r\n");
 	let (tx, rx) = mpsc::channel();
