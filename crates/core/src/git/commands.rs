@@ -1,5 +1,5 @@
 //! The one place that spawns `git`: an allowed-verb list, the environment every spawn gets, a
-//! bounded pool of eight processes, and a timeout on reads only.
+//! read pool and a write pool of eight processes each, and a timeout on reads only.
 
 use std::path::Path;
 use std::process::{Command, Stdio};

@@ -25,8 +25,8 @@ All notable changes to repose are recorded here. The format follows
   The row shows the fetch while it runs, and the repository's line then says "Fetched HH:MM".
 - repose follows Windows' Animation effects setting (Settings > Accessibility > Visual
   effects). With it off, fades stop and scrolling jumps instead of gliding. The setting is read
-  once, a couple of seconds after the first rows appear, so it never slows startup; there is no
-  setting of repose's own for it.
+  once, a couple of seconds after the first rows appear, so the read does not delay them; there
+  is no setting of repose's own for it.
 
 ### Fixed
 
@@ -35,7 +35,6 @@ All notable changes to repose are recorded here. The format follows
   files keep loading while up to eight commits wait on their hooks.
 - Open in VS Code passes the path with backslashes even when a root in `config.toml` is
   written with forward slashes, as Explorer's paths already were.
-
 - A `--view` value that names no pane, or none at all, is refused with a message naming the
   four panes and exit code 2, as a bad `--scale` is, instead of quietly opening Changes.
 - Change rows, commit rows and file-view lines show the one-pixel accent outline when they
@@ -92,8 +91,8 @@ All notable changes to repose are recorded here. The format follows
 - An internal tidy-up with no change in behaviour: the command-line flags are read from the same
   table `--help` prints, so a flag can't be added without its help line; the commit box, an
   expanded commit in History and the repository list are split into smaller pieces; the screens'
-  text sizes and row heights are named theme values; and one helper turns a Git path into a file
-  path. New tests drive the commit box's outcomes, an expanded commit's files, the worktree
+  text sizes and row heights are named theme values; the Changes and History panes share one
+  colour map for a change's letter; and one helper turns a Git path into a file path. New tests drive the commit box's outcomes, an expanded commit's files, the worktree
   chevron and the filter's worktree rows through the real window code.
 - The technical spec describes the platform module and the theme as they ship.
 
