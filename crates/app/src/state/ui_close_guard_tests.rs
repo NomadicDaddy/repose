@@ -78,12 +78,18 @@ fn a_draft_holds_the_close_until_close_without_committing() {
 		texts(&shown).iter().any(|t| t == TITLE),
 		"the question is shown"
 	);
+	// Design-polish clause 7: each draft is named by its repository's name, then its path.
+	// Search from the dialog's title on: the list behind it also paints the name, as its row.
+	let all = texts(&shown);
+	let title_at = all.iter().position(|t| t == TITLE).unwrap_or(all.len());
+	let dialog = &all[title_at..];
+	let name_at = dialog.iter().position(|t| t == "drafted");
+	let path_at = dialog.iter().position(|t| t == &path.display().to_string());
 	assert!(
-		texts(&shown)
-			.iter()
-			.any(|t| t == &path.display().to_string()),
-		"it names the repository"
+		name_at.is_some() && path_at.is_some(),
+		"it names the repository and gives its path: {all:?}"
 	);
+	assert!(name_at < path_at, "the name comes first: {all:?}");
 
 	// Keep editing, here by Escape: the window stays and the draft is untouched.
 	let (_, commands) = run(&ctx, &mut state, false, key(Key::Escape));
