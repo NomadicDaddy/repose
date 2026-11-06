@@ -8,7 +8,43 @@ use eframe::egui::{self, Event, Key, Modifiers};
 use repose_core::config::Config;
 
 use super::AppState;
-use super::ui_harness::{frame, repo};
+use super::ui_harness::{frame, repo, texts};
+
+/// Design-polish clause 4: with a filter typed, the status line says how many repositories match,
+/// and the detail pane says when the repository it shows is hidden from the list by the filter.
+#[test]
+fn a_typed_filter_counts_matches_and_names_a_hidden_selection() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let t0 = SystemTime::now();
+	let deeper = repo("deeper", t0);
+	state.requested_selection = Some(deeper.path.clone());
+	state.merge_discovered(vec![repo("summon", t0), deeper]);
+	let hidden = "Hidden from the list by the filter";
+	// Control: no filter, so the plain count and no note.
+	let all = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(
+		all.iter().any(|t| t.starts_with("2 repositories")),
+		"{all:?}"
+	);
+	assert!(!all.iter().any(|t| t.contains(hidden)), "{all:?}");
+	// A filter that hides the selected repository.
+	state.filter = "su".to_string();
+	state.filter_changed();
+	let all = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(all.iter().any(|t| t.starts_with("1 of 2 match")), "{all:?}");
+	assert!(
+		all.iter()
+			.any(|t| t.contains(hidden) && t.contains("\"su\"")),
+		"{all:?}"
+	);
+	// Control: a filter that keeps it shown says the count and no note.
+	state.filter = "de".to_string();
+	state.filter_changed();
+	let all = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(all.iter().any(|t| t.starts_with("1 of 2 match")), "{all:?}");
+	assert!(!all.iter().any(|t| t.contains(hidden)), "{all:?}");
+}
 
 fn key(key: Key, pressed: bool) -> Event {
 	Event::Key {

@@ -5,7 +5,14 @@ use super::fetch::list_note;
 use crate::state::AppState;
 
 /// The header status line; with `clock_shown` false, no "Checked HH:MM" (the live region).
-pub(super) fn status_line(state: &AppState, count: usize, clock_shown: bool) -> String {
+/// `matched` is how many repositories the typed filter leaves, or None with no filter; it reads
+/// "1 of 4 match" in place of the plain count (design-polish clause 4).
+pub(super) fn status_line(
+	state: &AppState,
+	count: usize,
+	matched: Option<usize>,
+	clock_shown: bool,
+) -> String {
 	if state.scanning && state.checked_at.is_none() {
 		return "Scanning…".to_string();
 	}
@@ -13,10 +20,10 @@ pub(super) fn status_line(state: &AppState, count: usize, clock_shown: bool) -> 
 		.checked_at
 		.map(|t| clock(t, state.utc_offset))
 		.unwrap_or_default();
-	let noun = if count == 1 {
-		"repository"
-	} else {
-		"repositories"
+	let lead = match matched {
+		Some(n) => format!("{n} of {count} match"),
+		None if count == 1 => "1 repository".to_string(),
+		None => format!("{count} repositories"),
 	};
 	let missing = match state.missing_roots.len() {
 		0 => String::new(),
@@ -36,11 +43,11 @@ pub(super) fn status_line(state: &AppState, count: usize, clock_shown: bool) -> 
 	}
 	let refs = list_note(state);
 	if state.scanning {
-		format!("{count} {noun} · Checking… · {refs}{missing}{note}")
+		format!("{lead} · Checking… · {refs}{missing}{note}")
 	} else if !clock_shown {
-		format!("{count} {noun} · {refs}{missing}{note}")
+		format!("{lead} · {refs}{missing}{note}")
 	} else {
-		format!("{count} {noun} · Checked {time} · {refs}{missing}{note}")
+		format!("{lead} · Checked {time} · {refs}{missing}{note}")
 	}
 }
 

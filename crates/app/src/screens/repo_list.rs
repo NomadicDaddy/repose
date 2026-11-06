@@ -22,9 +22,19 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			header(ui, state);
 			ui.add_space(4.0);
 			let count = state.repos.len();
-			let line = status_line(state, count, true);
+			// With a filter typed, the top-level rows it leaves: a row stays when its own name or a
+			// worktree's name matches, which is what visible_paths keeps.
+			let matched = (!state.filter.trim().is_empty()).then(|| {
+				let paths = state.visible_paths();
+				state
+					.repos
+					.iter()
+					.filter(|r| paths.contains(&r.path))
+					.count()
+			});
+			let line = status_line(state, count, matched, true);
 			let shown = ui.label(RichText::new(&line).size(TEXT_SMALL).color(MUTED));
-			let quiet = &status_line(state, count, false);
+			let quiet = &status_line(state, count, matched, false);
 			a11y::live_beside(ui, shown.id.with("live"), shown.rect, quiet);
 			ui.add_space(6.0);
 			list(ui, state, platform);

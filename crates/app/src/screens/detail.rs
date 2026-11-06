@@ -72,6 +72,16 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					.color(ACCENT)
 					.family(FontFamily::Monospace),
 			);
+			// The selection stays when the filter hides its row; say so, or this pane shows a
+			// repository the list does not (design-polish clause 4).
+			let filter = state.filter.trim();
+			if !filter.is_empty() && !state.visible_paths().contains(&repo.path) {
+				ui.label(
+					RichText::new(format!("Hidden from the list by the filter \"{filter}\""))
+						.size(TEXT_SMALL)
+						.color(WARN),
+				);
+			}
 			ui.label(
 				RichText::new(format!(
 					"{} · {}",
