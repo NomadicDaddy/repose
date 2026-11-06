@@ -95,6 +95,41 @@ fn the_change_letter_sits_on_the_paths_baseline() {
 	);
 }
 
+/// Morticia L-4 on d2b5f6e: with the letter in the proportional path font, M, A, D and R differ in
+/// width, so every file's path must still start in one column.
+#[test]
+fn the_paths_of_an_expanded_commit_start_in_one_column() {
+	let ctx = egui::Context::default();
+	crate::theme::apply(&ctx);
+	let file = |path: &str, kind| CommitFile {
+		path: path.into(),
+		kind,
+		from: None,
+	};
+	let mut state = expanded(Some(Ok(vec![
+		file("src/m.rs", ChangeKind::Modified),
+		file("src/a.rs", ChangeKind::Added),
+		file("src/d.rs", ChangeKind::Deleted),
+		file("src/t.rs", ChangeKind::TypeChanged),
+	])));
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let xs: Vec<(String, f32)> = shapes
+		.iter()
+		.filter_map(|s| match &s.shape {
+			egui::epaint::Shape::Text(t) if t.galley.text().starts_with("src/") => {
+				Some((t.galley.text().to_string(), t.pos.x))
+			}
+			_ => None,
+		})
+		.collect();
+	assert_eq!(xs.len(), 4, "four paths: {xs:?}");
+	let first = xs[0].1;
+	assert!(
+		xs.iter().all(|(_, x)| (x - first).abs() <= 0.5),
+		"the paths start in one column: {xs:?}"
+	);
+}
+
 #[test]
 fn clicking_a_renamed_file_opens_the_commits_diff_with_both_names() {
 	let ctx = egui::Context::default();

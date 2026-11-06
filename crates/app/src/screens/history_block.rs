@@ -93,10 +93,26 @@ fn commit_file_row(
 		let row_h = ui.fonts_mut(|fonts| fonts.row_height(&path_font))
 			+ 2.0 * ui.spacing().button_padding.y;
 		ui.set_min_height(row_h);
-		ui.label(
-			RichText::new(f.kind.letter())
-				.font(path_font)
-				.color(crate::screens::change_kind_colour(f.kind)),
+		// A proportional letter varies in width (M against T), so it gets a slot as wide as the
+		// widest change letter, and every path starts in one column (Morticia L-4 on d2b5f6e).
+		let slot = ui.fonts_mut(|fonts| {
+			"MADRUCT"
+				.chars()
+				.map(|c| {
+					fonts
+						.layout_no_wrap(c.to_string(), path_font.clone(), egui::Color32::WHITE)
+						.size()
+						.x
+				})
+				.fold(0.0_f32, f32::max)
+		});
+		ui.add_sized(
+			[slot, row_h],
+			egui::Label::new(
+				RichText::new(f.kind.letter())
+					.font(path_font)
+					.color(crate::screens::change_kind_colour(f.kind)),
+			),
 		);
 		let text = match &f.from {
 			Some(from) => format!("{}  ←  {from}", f.path),
