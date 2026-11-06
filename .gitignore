@@ -4,9 +4,6 @@
 # aidd metadata is local only, never published
 /.aidd/
 
-# Local records (fleet rule R7)
-/.records/
-
 # Environment and secrets
 .env
 .env.*
