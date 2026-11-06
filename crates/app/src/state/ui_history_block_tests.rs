@@ -60,6 +60,39 @@ fn the_expanded_commit_says_why_it_lists_no_files() {
 	}
 }
 
+/// The absolute baseline of the painted text equal to `label`: its galley position plus its
+/// first row's offset plus that row's first glyph's baseline.
+fn baseline_of(shapes: &[egui::epaint::ClippedShape], label: &str) -> Option<f32> {
+	shapes.iter().find_map(|s| match &s.shape {
+		egui::epaint::Shape::Text(t) if t.galley.text() == label => {
+			let row = t.galley.rows.first()?;
+			let glyph = row.row.glyphs.first()?;
+			Some(t.pos.y + row.pos.y + glyph.pos.y)
+		}
+		_ => None,
+	})
+}
+
+/// Design-polish clause 6: in an expanded commit, the change letter sits on the path's baseline.
+#[test]
+fn the_change_letter_sits_on_the_paths_baseline() {
+	let ctx = egui::Context::default();
+	crate::theme::apply(&ctx);
+	let mut state = expanded(Some(Ok(vec![CommitFile {
+		path: "src/new.rs".into(),
+		kind: ChangeKind::Renamed,
+		from: Some("src/old.rs".into()),
+	}])));
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let letter = baseline_of(&shapes, "R").unwrap_or_else(|| panic!("no letter"));
+	let path =
+		baseline_of(&shapes, "src/new.rs  ←  src/old.rs").unwrap_or_else(|| panic!("no path"));
+	assert!(
+		(letter - path).abs() <= 1.0,
+		"letter baseline {letter} against path baseline {path}"
+	);
+}
+
 #[test]
 fn clicking_a_renamed_file_opens_the_commits_diff_with_both_names() {
 	let ctx = egui::Context::default();

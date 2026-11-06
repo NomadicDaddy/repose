@@ -84,9 +84,17 @@ fn commit_file_row(
 	};
 	let mut action = None;
 	ui.horizontal(|ui| {
+		// egui centres each widget on the row height known when it is placed, and the letter comes
+		// before the taller, padded path label, so it sat 4.5 px high. Give the row the path
+		// label's height first, and the letter the path's size (design-polish clause 6).
+		let path_font = egui::FontId::proportional(TEXT_BASE);
+		let row_h = ui.fonts_mut(|fonts| fonts.row_height(&path_font))
+			+ 2.0 * ui.spacing().button_padding.y;
+		ui.set_min_height(row_h);
 		ui.label(
 			RichText::new(f.kind.letter())
 				.family(FontFamily::Monospace)
+				.size(TEXT_BASE)
 				.color(crate::screens::change_kind_colour(f.kind)),
 		);
 		let text = match &f.from {
