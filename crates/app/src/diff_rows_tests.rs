@@ -2,6 +2,58 @@
 
 use super::*;
 
+/// A hunk at `old_start` with one changed line, for the separator tests.
+fn one_line_hunk(old_start: u32) -> Hunk {
+	let mk = |kind, text: &str| DiffLine {
+		kind,
+		old_no: None,
+		new_no: None,
+		text: text.to_string(),
+	};
+	Hunk {
+		old_start,
+		old_count: 1,
+		new_start: old_start,
+		new_count: 1,
+		heading: String::new(),
+		lines: vec![mk(LineKind::Removed, "old"), mk(LineKind::Added, "new")],
+	}
+}
+
+/// Design-polish clause 1: a separator shows only when it hides at least one unchanged line.
+#[test]
+fn a_hunk_at_the_top_of_the_file_gets_no_separator() {
+	for inline in [false, true] {
+		let top = FileDiff {
+			hunks: vec![one_line_hunk(1)],
+			..FileDiff::default()
+		};
+		let rows = build_rows(&top, inline);
+		assert!(
+			!rows.iter().any(|r| matches!(r, Row::Separator { .. })),
+			"inline={inline}: no separator for a hunk at line 1: {rows:?}"
+		);
+		// Control: a second hunk further down hides lines, so it keeps its separator.
+		let two = FileDiff {
+			hunks: vec![one_line_hunk(1), one_line_hunk(5)],
+			..FileDiff::default()
+		};
+		let rows = build_rows(&two, inline);
+		let seps: Vec<u32> = rows
+			.iter()
+			.filter_map(|r| match r {
+				Row::Separator { skipped, .. } => Some(*skipped),
+				_ => None,
+			})
+			.collect();
+		assert_eq!(
+			seps,
+			vec![3],
+			"inline={inline}: only the second hunk's separator, hiding lines 2 to 4"
+		);
+	}
+}
+
 #[test]
 fn word_marks_cover_only_the_changed_words() {
 	let (o, n) = word_marks("let x = one", "let x = two");

@@ -46,10 +46,15 @@ pub fn build_rows(file: &FileDiff, inline: bool) -> Vec<Row> {
 	let mut rows = Vec::new();
 	let mut last_old_end = 1u32;
 	for (hi, hunk) in file.hunks.iter().enumerate() {
-		rows.push(Row::Separator {
-			skipped: hunk.old_start.saturating_sub(last_old_end),
-			heading: hunk.heading.clone(),
-		});
+		// A separator stands for the unchanged lines it hides, so a hunk that starts at the top of
+		// the file gets none: "0 unchanged lines" was noise (design-polish clause 1).
+		let skipped = hunk.old_start.saturating_sub(last_old_end);
+		if skipped > 0 {
+			rows.push(Row::Separator {
+				skipped,
+				heading: hunk.heading.clone(),
+			});
+		}
 		last_old_end = hunk.old_start + hunk.old_count;
 		if inline {
 			inline_rows(hunk, hi, &mut rows);
