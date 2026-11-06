@@ -57,6 +57,37 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 	}
 }
 
+/// The header's path, wrapping only at a separator: one unwrapped piece per folder, each ending in
+/// its separator, in a wrapping row with no gaps. A plain label broke inside a folder name
+/// (design-polish clause 8). A single folder wider than the pane still overflows on its own line.
+fn path_line(ui: &mut Ui, path: &str) {
+	ui.horizontal_wrapped(|ui| {
+		ui.spacing_mut().item_spacing.x = 0.0;
+		let mut piece = String::new();
+		for c in path.chars() {
+			piece.push(c);
+			if c == '\\' || c == '/' {
+				path_piece(ui, &std::mem::take(&mut piece));
+			}
+		}
+		if !piece.is_empty() {
+			path_piece(ui, &piece);
+		}
+	});
+}
+
+fn path_piece(ui: &mut Ui, piece: &str) {
+	ui.add(
+		egui::Label::new(
+			RichText::new(piece)
+				.size(TEXT_SMALL)
+				.color(MUTED)
+				.family(FontFamily::Monospace),
+		)
+		.wrap_mode(egui::TextWrapMode::Extend),
+	);
+}
+
 pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let ctx = root.ctx().clone();
 	egui::CentralPanel::default()
@@ -91,12 +122,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				.size(TEXT_META)
 				.color(MUTED),
 			);
-			ui.label(
-				RichText::new(repo.path.display().to_string())
-					.size(TEXT_SMALL)
-					.color(MUTED)
-					.family(FontFamily::Monospace),
-			);
+			path_line(ui, &repo.path.display().to_string());
 			state.ensure_remote(&repo.path, &ctx);
 			remotes(ui, state.remotes.get(&repo.path));
 			if let Some(n) = &state.notice {
