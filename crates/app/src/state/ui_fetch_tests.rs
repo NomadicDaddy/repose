@@ -174,12 +174,17 @@ fn the_status_line_stays_on_one_line_after_a_fetch() {
 		rows > 1,
 		"the measurement sees a wrap: {text:?} took {rows} row(s)"
 	);
-	for (total, fetched, matching) in [(4, 1, 0), (400, 123, 0), (400, 123, 12)] {
+	// Each case names its exact lead and fetch count (Roger #37558), so a mislabelled or unfiltered
+	// line cannot pass the width check just by fitting.
+	let cases = [
+		(4, 1, 0, "4 repositories · ", " · 1 fetched, last "),
+		(400, 123, 0, "400 repositories · ", " · 123 fetched, last "),
+		(400, 123, 12, "12 of 400 match · ", " · 123 fetched, last "),
+	];
+	for (total, fetched, matching, lead, fetch) in cases {
 		let (text, rows) = status_rows(total, fetched, matching, false);
-		assert!(
-			text.contains("fetched"),
-			"it says a fetch happened: {text:?}"
-		);
+		assert!(text.starts_with(lead), "it leads with {lead:?}: {text:?}");
+		assert!(text.contains(fetch), "it says {fetch:?}: {text:?}");
 		assert_eq!(
 			rows, 1,
 			"{total} repositories, {fetched} fetched, {matching} matching: {text:?} takes {rows} rows"
