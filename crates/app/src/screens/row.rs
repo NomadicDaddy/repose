@@ -62,14 +62,51 @@ pub fn draw(
 				"worktrees"
 			}
 		);
-		let glyph = if expanded { "▾" } else { "▸" };
-		let text = format!("{glyph} {label}");
+		// The chevron is painted, not a font glyph: the ▸ glyph came out small and above the text's
+		// baseline (design-polish clause 5). A triangle about half the text size, centred on the
+		// lowercase body of "<n> worktrees", pointing right when closed and down when open.
 		let size = FontId::new(TEXT_SMALL, FontFamily::Proportional);
-		let galley = painter.layout_no_wrap(text, size, INFO);
-		let w = galley.size().x;
-		let pos = pos2(right - w, rect.center().y - galley.size().y / 2.0);
-		text_right = pos.x;
-		let hit = Rect::from_min_size(pos, galley.size()).expand(4.0);
+		let galley = painter.layout_no_wrap(label, size, INFO);
+		let tri = TEXT_SMALL * 0.55;
+		let gap = 4.0;
+		let w = tri + gap + galley.size().x;
+		let pos = pos2(
+			right - galley.size().x,
+			rect.center().y - galley.size().y / 2.0,
+		);
+		let baseline = galley.rows.first().and_then(|r| {
+			r.row
+				.glyphs
+				.first()
+				.map(|g| (r.pos.y + g.pos.y, g.font_ascent))
+		});
+		let centre_y = match baseline {
+			Some((base, ascent)) => pos.y + base - ascent / 3.0,
+			None => pos.y + galley.size().y / 2.0,
+		};
+		let cx = pos.x - gap - tri / 2.0;
+		let half = tri / 2.0;
+		let points = if expanded {
+			vec![
+				pos2(cx - half, centre_y - half * 0.6),
+				pos2(cx + half, centre_y - half * 0.6),
+				pos2(cx, centre_y + half * 0.6),
+			]
+		} else {
+			vec![
+				pos2(cx - half * 0.6, centre_y - half),
+				pos2(cx - half * 0.6, centre_y + half),
+				pos2(cx + half * 0.6, centre_y),
+			]
+		};
+		let start = pos2(right - w, pos.y);
+		text_right = start.x;
+		let hit = Rect::from_min_max(start, pos + galley.size()).expand(4.0);
+		painter.add(egui::Shape::convex_polygon(
+			points,
+			INFO,
+			egui::Stroke::NONE,
+		));
 		painter.galley(pos, galley, INFO);
 		let r = ui.interact(
 			hit,
