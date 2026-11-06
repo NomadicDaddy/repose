@@ -129,7 +129,7 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 				return;
 			}
 			ui.label(
-				RichText::new(format!("{} lines", lines.len()))
+				RichText::new(super::count_label(lines.len(), "line", "lines"))
 					.size(TEXT_SMALL)
 					.color(MUTED),
 			);

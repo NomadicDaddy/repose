@@ -39,10 +39,11 @@ pub(super) fn draw_row(ui: &Ui, rect: Rect, src: &Source<'_>, row: &Row) {
 	match row {
 		Row::Separator { skipped, heading } => {
 			p.rect_filled(rect, 0.0, BG_RAISED);
+			let lines = super::count_label(*skipped as usize, "unchanged line", "unchanged lines");
 			let text = if heading.is_empty() {
-				format!("⋯  {skipped} unchanged lines")
+				format!("⋯  {lines}")
 			} else {
-				format!("⋯  {skipped} unchanged lines   {heading}")
+				format!("⋯  {lines}   {heading}")
 			};
 			p.text(
 				pos2(rect.left() + 8.0, rect.center().y),

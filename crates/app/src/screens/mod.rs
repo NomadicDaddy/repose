@@ -24,6 +24,12 @@ use repose_core::model::ChangeKind;
 
 use crate::theme::{ACCENT, DANGER, INFO, MUTED, WARN};
 
+/// A count with its noun: `count_label(1, "file", "files")` is `1 file`, any other count takes the
+/// plural. The one place every screen's singular/plural rule lives (Morticia L-1 on c556623).
+fn count_label(count: usize, one: &str, many: &str) -> String {
+	format!("{count} {}", if count == 1 { one } else { many })
+}
+
 /// The colour of a change's kind letter, shared by the Changes badge and the History file rows so
 /// a colour is changed in one place.
 fn change_kind_colour(kind: ChangeKind) -> eframe::egui::Color32 {
@@ -33,5 +39,18 @@ fn change_kind_colour(kind: ChangeKind) -> eframe::egui::Color32 {
 		ChangeKind::Deleted | ChangeKind::Conflicted => DANGER,
 		ChangeKind::Renamed => INFO,
 		ChangeKind::Untracked => MUTED,
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn a_count_takes_the_singular_only_for_one() {
+		assert_eq!(super::count_label(1, "file", "files"), "1 file");
+		assert_eq!(super::count_label(0, "file", "files"), "0 files");
+		assert_eq!(
+			super::count_label(12, "unchanged line", "unchanged lines"),
+			"12 unchanged lines"
+		);
 	}
 }

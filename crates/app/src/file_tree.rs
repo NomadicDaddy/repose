@@ -74,22 +74,9 @@ pub fn size_label(bytes: u64) -> String {
 	}
 }
 
-/// The Files header's count: `1 file`, `0 files`, `12 files` (design-polish clause 2).
-pub fn files_label(count: usize) -> String {
-	let noun = if count == 1 { "file" } else { "files" };
-	format!("{count} {noun}")
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[test]
-	fn the_files_count_is_singular_for_one() {
-		assert_eq!(files_label(1), "1 file");
-		assert_eq!(files_label(0), "0 files");
-		assert_eq!(files_label(12), "12 files");
-	}
 
 	fn entry(path: &str) -> TreeEntry {
 		TreeEntry {

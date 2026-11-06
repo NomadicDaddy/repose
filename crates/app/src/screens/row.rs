@@ -53,15 +53,7 @@ pub fn draw(
 	let mut text_right = right;
 	let mut chevron_clicked = false;
 	if !repo.worktrees.is_empty() {
-		let label = format!(
-			"{} {}",
-			repo.worktrees.len(),
-			if repo.worktrees.len() == 1 {
-				"worktree"
-			} else {
-				"worktrees"
-			}
-		);
+		let label = super::count_label(repo.worktrees.len(), "worktree", "worktrees");
 		// The chevron is painted, not a font glyph: the ▸ glyph came out small and above the text's
 		// baseline (design-polish clause 5). A triangle about half the text size, centred on the
 		// lowercase body of "<n> worktrees", pointing right when closed and down when open.

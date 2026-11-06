@@ -24,9 +24,8 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 		ui.add_space(6.0);
 		ui.label(
 			RichText::new(format!(
-				"This cannot be undone. {} {} in {}:",
-				total,
-				if total == 1 { "path" } else { "paths" },
+				"This cannot be undone. {} in {}:",
+				super::count_label(total, "path", "paths"),
 				pending.repo.display()
 			))
 			.color(TEXT),

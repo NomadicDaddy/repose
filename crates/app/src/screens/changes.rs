@@ -127,8 +127,8 @@ fn count_pill(ui: &mut Ui, n: usize) {
 	let galley = ui.painter().layout_no_wrap(n.to_string(), font, ACCENT);
 	let size = galley.size() + vec2(12.0, 4.0);
 	let (rect, pill) = ui.allocate_exact_size(size, Sense::hover());
-	let noun = if n == 1 { "file" } else { "files" };
-	a11y::text(ui, pill.id, rect, egui::Role::Label, &format!("{n} {noun}"));
+	let name = super::count_label(n, "file", "files");
+	a11y::text(ui, pill.id, rect, egui::Role::Label, &name);
 	ui.painter().rect(
 		rect,
 		9.0,

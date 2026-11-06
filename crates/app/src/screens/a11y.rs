@@ -94,9 +94,11 @@ pub(super) fn repo_name(repo: &RepoSummary) -> String {
 
 /// The worktree chevron, named by what a click does.
 pub(super) fn chevron_name(expanded: bool, count: usize) -> String {
-	let noun = if count == 1 { "worktree" } else { "worktrees" };
 	let verb = if expanded { "Collapse" } else { "Expand" };
-	format!("{verb} {count} {noun}")
+	format!(
+		"{verb} {}",
+		super::count_label(count, "worktree", "worktrees")
+	)
 }
 
 /// A branch row: name, current, upstream and the saved counts.
@@ -158,9 +160,10 @@ pub(super) fn diff_line(l: &DiffLine) -> String {
 
 /// A separator between hunks, as painted.
 pub(super) fn separator(skipped: u32, heading: &str) -> String {
+	let lines = super::count_label(skipped as usize, "unchanged line", "unchanged lines");
 	if heading.is_empty() {
-		format!("{skipped} unchanged lines")
+		lines
 	} else {
-		format!("{skipped} unchanged lines, {heading}")
+		format!("{lines}, {heading}")
 	}
 }

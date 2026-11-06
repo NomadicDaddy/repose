@@ -22,8 +22,7 @@ pub(super) fn status_line(
 		.unwrap_or_default();
 	let lead = match matched {
 		Some(n) => format!("{n} of {count} match"),
-		None if count == 1 => "1 repository".to_string(),
-		None => format!("{count} repositories"),
+		None => super::count_label(count, "repository", "repositories"),
 	};
 	let missing = match state.missing_roots.len() {
 		0 => String::new(),
