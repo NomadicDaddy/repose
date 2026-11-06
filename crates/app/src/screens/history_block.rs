@@ -90,22 +90,23 @@ fn commit_file_row(
 		// letter beside proportional text still sat a point high, since the two fonts' baselines
 		// differ when both are centred (design-polish clause 6, seen in the 1.1.1 captures).
 		let path_font = egui::FontId::proportional(TEXT_BASE);
-		let row_h = ui.fonts_mut(|fonts| fonts.row_height(&path_font))
-			+ 2.0 * ui.spacing().button_padding.y;
-		ui.set_min_height(row_h);
 		// A proportional letter varies in width (M against T), so it gets a slot as wide as the
 		// widest change letter, and every path starts in one column (Morticia L-4 on d2b5f6e).
-		let slot = ui.fonts_mut(|fonts| {
+		// The row's height comes from the laid-out letters, as the path label's does: the font's
+		// own row height differs from a galley's by a fraction of a point, which left the letter
+		// a pixel high at 1.5 pixels per point (1.1.1 round-2 captures).
+		let (slot, text_h) = ui.fonts_mut(|fonts| {
 			"MADRUCT"
 				.chars()
 				.map(|c| {
 					fonts
 						.layout_no_wrap(c.to_string(), path_font.clone(), egui::Color32::WHITE)
 						.size()
-						.x
 				})
-				.fold(0.0_f32, f32::max)
+				.fold((0.0_f32, 0.0_f32), |(w, h), s| (w.max(s.x), h.max(s.y)))
 		});
+		let row_h = text_h + 2.0 * ui.spacing().button_padding.y;
+		ui.set_min_height(row_h);
 		ui.add_sized(
 			[slot, row_h],
 			egui::Label::new(

@@ -76,23 +76,29 @@ fn baseline_of(shapes: &[egui::epaint::ClippedShape], label: &str) -> Option<f32
 /// Design-polish clause 6: in an expanded commit, the change letter sits on the path's baseline.
 #[test]
 fn the_change_letter_sits_on_the_paths_baseline() {
-	let ctx = egui::Context::default();
-	crate::theme::apply(&ctx);
-	let mut state = expanded(Some(Ok(vec![CommitFile {
-		path: "src/new.rs".into(),
-		kind: ChangeKind::Renamed,
-		from: Some("src/old.rs".into()),
-	}])));
-	let shapes = frame(&ctx, &mut state, Vec::new());
-	let letter = baseline_of(&shapes, "R").unwrap_or_else(|| panic!("no letter"));
-	let path =
-		baseline_of(&shapes, "src/new.rs  ←  src/old.rs").unwrap_or_else(|| panic!("no path"));
-	// Within half a point: the 1.1.1 captures at 150% showed a 1 px tolerance still let the
-	// letter sit about 2 screen pixels high when it was monospace and the path proportional.
-	assert!(
-		(letter - path).abs() <= 0.5,
-		"letter baseline {letter} against path baseline {path}"
-	);
+	// 1.5 pixels per point is a 150% Windows desktop at repose's default zoom. There a 0.03 pt
+	// gap crossed a pixel boundary and showed as 1 px in the 1.1.1 round-2 captures, so the
+	// baselines must match at each zoom, not merely come within a point.
+	for zoom in [1.0, 1.5, 2.25] {
+		let ctx = egui::Context::default();
+		crate::theme::apply(&ctx);
+		ctx.set_zoom_factor(zoom);
+		let mut state = expanded(Some(Ok(vec![CommitFile {
+			path: "src/new.rs".into(),
+			kind: ChangeKind::Renamed,
+			from: Some("src/old.rs".into()),
+		}])));
+		// The zoom takes effect on the next pass.
+		frame(&ctx, &mut state, Vec::new());
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		let letter = baseline_of(&shapes, "R").unwrap_or_else(|| panic!("no letter"));
+		let path =
+			baseline_of(&shapes, "src/new.rs  ←  src/old.rs").unwrap_or_else(|| panic!("no path"));
+		assert!(
+			(letter - path).abs() <= 0.001,
+			"zoom {zoom}: letter baseline {letter} against path baseline {path}"
+		);
+	}
 }
 
 /// Morticia L-4 on d2b5f6e: with the letter in the proportional path font, M, A, D and R differ in
