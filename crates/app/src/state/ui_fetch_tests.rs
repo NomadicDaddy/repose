@@ -120,40 +120,71 @@ fn a_failed_fetch_shows_gits_message_under_fetch_failed_and_not_in_the_commit_bo
 	);
 }
 
-/// Design-polish clause 3: after a fetch the list's status line stays on one line in the fixed
-/// sidebar, with repose's own fonts (theme::apply) and the sweep's case of four repositories and a
-/// local clock. Measured on the painted galley, so a wrap shows as a second row.
-#[test]
-fn the_status_line_stays_on_one_line_after_a_fetch() {
+/// The status line laid out for `total` repositories, `fetched` of them fetched, and a filter that
+/// keeps `matching` of them (0: no filter), with repose's own fonts and a local clock. Returns
+/// the painted text and how many rows its galley takes.
+fn status_rows(total: usize, fetched: usize, matching: usize, missing: bool) -> (String, usize) {
 	let ctx = egui::Context::default();
 	crate::theme::apply(&ctx);
-	let (mut state, path) = with_remote("fetch-line", origin());
-	let more: Vec<_> = ["b-repo", "c-repo", "d-repo"]
-		.iter()
-		.map(|n| repo(n, SystemTime::now()))
+	let mut state = AppState::new(Config::default());
+	let t0 = SystemTime::now();
+	let rows: Vec<_> = (0..total)
+		.map(|i| {
+			let name = if i < matching {
+				format!("match-{i:03}")
+			} else {
+				format!("r-{i:03}")
+			};
+			repo(&name, t0)
+		})
 		.collect();
-	let mut all = state.repos.clone();
-	all.extend(more);
-	state.merge_discovered(all);
+	for r in rows.iter().take(fetched) {
+		state.fetched.insert(r.path.clone(), t0);
+	}
+	state.merge_discovered(rows);
 	state.utc_offset = Some(-360);
-	state.checked_at = Some(SystemTime::now());
-	state.finish_write(outcome(&path, None), &ctx);
+	state.checked_at = Some(t0);
+	if matching > 0 {
+		state.filter = "match".to_string();
+		state.filter_changed();
+	}
+	if missing {
+		state.missing_roots = vec![PathBuf::from("D:/a/root/that/is/not/there/any/more")];
+	}
 	let shapes = frame(&ctx, &mut state, Vec::new());
-	let rows: Vec<(String, usize)> = shapes
+	shapes
 		.iter()
-		.filter_map(|s| match &s.shape {
-			egui::epaint::Shape::Text(t) if t.galley.text().contains(" repositories · ") => {
+		.find_map(|s| match &s.shape {
+			egui::epaint::Shape::Text(t) if t.galley.text().contains(" · Checked ") => {
 				Some((t.galley.text().to_string(), t.galley.rows.len()))
 			}
 			_ => None,
 		})
-		.collect();
-	assert_eq!(rows.len(), 1, "one status line: {rows:?}");
+		.unwrap_or_else(|| panic!("no status line"))
+}
+
+/// Design-polish clause 3: after a fetch the list's status line stays on one line in the fixed
+/// 300 px sidebar, measured on the painted galley with repose's own fonts. The sweep's case, then
+/// three-digit counts (Morticia L-2) and a filtered line with them (L-3).
+#[test]
+fn the_status_line_stays_on_one_line_after_a_fetch() {
+	// Control: the same measurement sees a wrap, here from a missing root's long note.
+	let (text, rows) = status_rows(4, 1, 0, true);
 	assert!(
-		rows[0].0.contains("fetched"),
-		"it says a fetch happened: {rows:?}"
+		rows > 1,
+		"the measurement sees a wrap: {text:?} took {rows} row(s)"
 	);
-	assert_eq!(rows[0].1, 1, "it fits on one line: {rows:?}");
+	for (total, fetched, matching) in [(4, 1, 0), (400, 123, 0), (400, 123, 12)] {
+		let (text, rows) = status_rows(total, fetched, matching, false);
+		assert!(
+			text.contains("fetched"),
+			"it says a fetch happened: {text:?}"
+		);
+		assert_eq!(
+			rows, 1,
+			"{total} repositories, {fetched} fetched, {matching} matching: {text:?} takes {rows} rows"
+		);
+	}
 }
 
 #[test]
