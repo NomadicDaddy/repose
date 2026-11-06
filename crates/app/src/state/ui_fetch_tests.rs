@@ -120,6 +120,42 @@ fn a_failed_fetch_shows_gits_message_under_fetch_failed_and_not_in_the_commit_bo
 	);
 }
 
+/// Design-polish clause 3: after a fetch the list's status line stays on one line in the fixed
+/// sidebar, with repose's own fonts (theme::apply) and the sweep's case of four repositories and a
+/// local clock. Measured on the painted galley, so a wrap shows as a second row.
+#[test]
+fn the_status_line_stays_on_one_line_after_a_fetch() {
+	let ctx = egui::Context::default();
+	crate::theme::apply(&ctx);
+	let (mut state, path) = with_remote("fetch-line", origin());
+	let more: Vec<_> = ["b-repo", "c-repo", "d-repo"]
+		.iter()
+		.map(|n| repo(n, SystemTime::now()))
+		.collect();
+	let mut all = state.repos.clone();
+	all.extend(more);
+	state.merge_discovered(all);
+	state.utc_offset = Some(-360);
+	state.checked_at = Some(SystemTime::now());
+	state.finish_write(outcome(&path, None), &ctx);
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let rows: Vec<(String, usize)> = shapes
+		.iter()
+		.filter_map(|s| match &s.shape {
+			egui::epaint::Shape::Text(t) if t.galley.text().contains(" repositories · ") => {
+				Some((t.galley.text().to_string(), t.galley.rows.len()))
+			}
+			_ => None,
+		})
+		.collect();
+	assert_eq!(rows.len(), 1, "one status line: {rows:?}");
+	assert!(
+		rows[0].0.contains("fetched"),
+		"it says a fetch happened: {rows:?}"
+	);
+	assert_eq!(rows[0].1, 1, "it fits on one line: {rows:?}");
+}
+
 #[test]
 fn a_successful_fetch_says_fetched_and_its_time() {
 	let ctx = egui::Context::default();
@@ -137,7 +173,7 @@ fn a_successful_fetch_says_fetched_and_its_time() {
 		"HH:MM after Fetched: {header:?}"
 	);
 	assert!(
-		has(&shapes, "Saved refs; 1 fetched, last "),
+		has(&shapes, " · 1 fetched, last "),
 		"the list line no longer says no fetch: {all:?}"
 	);
 	assert!(!has(&shapes, "0123abc · Saved refs; no fetch"));

@@ -27,8 +27,10 @@ pub(super) fn refs_note(state: &AppState, repo: &Path) -> String {
 pub(super) fn list_note(state: &AppState) -> String {
 	match state.fetched.values().max() {
 		None => "Saved refs; no fetch".to_string(),
+		// After a fetch the count already says where the numbers came from, so "Saved refs; " goes:
+		// with it the line wrapped in the fixed sidebar (design-polish clause 3).
 		Some(last) => format!(
-			"Saved refs; {} fetched, last {}",
+			"{} fetched, last {}",
 			state.fetched.len(),
 			clock(*last, state.utc_offset)
 		),
