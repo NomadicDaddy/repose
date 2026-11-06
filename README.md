@@ -25,6 +25,9 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 
 ## Build, run and install
 
+- After cloning, run `git config core.hooksPath scripts/smokestack/hooks` once. It turns on the
+  leak guard: a pre-commit hook that refuses a commit whose staged changes look like a secret.
+  The hooks are copies delivered by smokestack, and a clone does not set the path by itself.
 - `pwsh scripts/qc.ps1` runs the full gate (format, clippy, tests, cargo audit, release build,
   the 300-line check, which counts every line including blank ones, and the notices check) and stages the release files in `target/dist`:
   `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. It then prints
