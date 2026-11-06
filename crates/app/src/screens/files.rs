@@ -5,7 +5,7 @@ use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::model::{BranchState, TreeEntry};
 
 use super::menu::{self, Action};
-use crate::file_tree::{Folder, size_label};
+use crate::file_tree::{Folder, files_label, size_label};
 use crate::platform::Platform;
 use crate::state::{AppState, FileRev, FilesState, OpenFile};
 use crate::theme::*;
@@ -115,7 +115,7 @@ fn header(ui: &mut Ui, f: &FilesState, back_to_head: &mut bool) {
 		);
 		if f.loaded.as_ref() == Some(&f.rev) && f.error.is_none() {
 			ui.label(
-				RichText::new(format!("{} files", f.tree.file_count()))
+				RichText::new(files_label(f.tree.file_count()))
 					.size(TEXT_SMALL)
 					.color(MUTED),
 			);
