@@ -85,6 +85,22 @@ fn a_long_header_path_wraps_only_at_separators() {
 		"the path really wraps here, onto {} lines: {pieces:?}",
 		lines.len()
 	);
+	// The wrapped lines sit as close as lines of text, not a widget row apart: the 1.1.1
+	// captures at --scale 1.5 showed them about 58 px apart (clause 8, found in clause 9).
+	let piece_height = shapes
+		.iter()
+		.find_map(|s| match &s.shape {
+			egui::epaint::Shape::Text(t) if t.galley.text() == pieces[0].0 => {
+				Some(t.galley.size().y)
+			}
+			_ => None,
+		})
+		.unwrap_or_else(|| panic!("no piece galley"));
+	let step = (lines[1] - lines[0]) as f32;
+	assert!(
+		step <= piece_height * 1.25,
+		"wrapped lines {step} px apart for {piece_height} px text"
+	);
 }
 
 /// A state with one row, selected, and the path of that row.

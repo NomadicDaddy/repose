@@ -61,18 +61,25 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 /// its separator, in a wrapping row with no gaps. A plain label broke inside a folder name
 /// (design-polish clause 8). A single folder wider than the pane still overflows on its own line.
 fn path_line(ui: &mut Ui, path: &str) {
-	ui.horizontal_wrapped(|ui| {
-		ui.spacing_mut().item_spacing.x = 0.0;
-		let mut piece = String::new();
-		for c in path.chars() {
-			piece.push(c);
-			if c == '\\' || c == '/' {
-				path_piece(ui, &std::mem::take(&mut piece));
+	// No gaps between pieces, and no widget-row minimum between wrapped lines: without these the
+	// lines sat a widget row apart, 26 px for 13 px text (seen at --scale 1.5). The wrapped layout
+	// reads its row height when it starts, so the spacing is set in a scope around it.
+	ui.scope(|ui| {
+		let spacing = ui.spacing_mut();
+		spacing.item_spacing = egui::vec2(0.0, 0.0);
+		spacing.interact_size.y = 0.0;
+		ui.horizontal_wrapped(|ui| {
+			let mut piece = String::new();
+			for c in path.chars() {
+				piece.push(c);
+				if c == '\\' || c == '/' {
+					path_piece(ui, &std::mem::take(&mut piece));
+				}
 			}
-		}
-		if !piece.is_empty() {
-			path_piece(ui, &piece);
-		}
+			if !piece.is_empty() {
+				path_piece(ui, &piece);
+			}
+		});
 	});
 }
 
