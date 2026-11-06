@@ -87,8 +87,10 @@ fn the_change_letter_sits_on_the_paths_baseline() {
 	let letter = baseline_of(&shapes, "R").unwrap_or_else(|| panic!("no letter"));
 	let path =
 		baseline_of(&shapes, "src/new.rs  ←  src/old.rs").unwrap_or_else(|| panic!("no path"));
+	// Within half a point: the 1.1.1 captures at 150% showed a 1 px tolerance still let the
+	// letter sit about 2 screen pixels high when it was monospace and the path proportional.
 	assert!(
-		(letter - path).abs() <= 1.0,
+		(letter - path).abs() <= 0.5,
 		"letter baseline {letter} against path baseline {path}"
 	);
 }

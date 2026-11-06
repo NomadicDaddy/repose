@@ -1,7 +1,7 @@
 //! An expanded commit in the History pane: its message, its files with their change letters,
 //! and the actions on them.
 
-use eframe::egui::{self, FontFamily, RichText, Ui};
+use eframe::egui::{self, RichText, Ui};
 use repose_core::model::{ChangeKind, Commit, CommitFile, DiffSource, RepoSummary};
 
 use crate::platform::Platform;
@@ -86,15 +86,16 @@ fn commit_file_row(
 	ui.horizontal(|ui| {
 		// egui centres each widget on the row height known when it is placed, and the letter comes
 		// before the taller, padded path label, so it sat 4.5 px high. Give the row the path
-		// label's height first, and the letter the path's size (design-polish clause 6).
+		// label's height first, and draw the letter in the path's own font and size: a monospace
+		// letter beside proportional text still sat a point high, since the two fonts' baselines
+		// differ when both are centred (design-polish clause 6, seen in the 1.1.1 captures).
 		let path_font = egui::FontId::proportional(TEXT_BASE);
 		let row_h = ui.fonts_mut(|fonts| fonts.row_height(&path_font))
 			+ 2.0 * ui.spacing().button_padding.y;
 		ui.set_min_height(row_h);
 		ui.label(
 			RichText::new(f.kind.letter())
-				.family(FontFamily::Monospace)
-				.size(TEXT_BASE)
+				.font(path_font)
 				.color(crate::screens::change_kind_colour(f.kind)),
 		);
 		let text = match &f.from {
