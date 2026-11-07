@@ -46,14 +46,24 @@ pub(super) fn frame(
 	state: &mut AppState,
 	events: Vec<Event>,
 ) -> Vec<ClippedShape> {
+	frame_on(ctx, state, events, &Headless)
+}
+
+/// [`frame`] on a given platform, for a test that checks what the frame asked it to open.
+pub(super) fn frame_on(
+	ctx: &egui::Context,
+	state: &mut AppState,
+	events: Vec<Event>,
+	platform: &dyn Platform,
+) -> Vec<ClippedShape> {
 	let input = egui::RawInput {
 		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
 		events,
 		..Default::default()
 	};
 	let mut out = ctx.run_ui(input, |root| {
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
+		repo_list::show(root, state, platform);
+		detail::show(root, state, platform);
 	});
 	// No renderer takes the font texture here; epaint insists the deltas are cleared, not dropped.
 	out.textures_delta.clear();

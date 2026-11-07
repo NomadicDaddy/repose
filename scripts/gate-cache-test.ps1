@@ -66,7 +66,8 @@ try {
     Check '...and leaves no record' (-not (Test-Path -LiteralPath (Get-GateCacheFile 'demo step')))
 
     # The input list alone decides a hit: a file named by itself in the list misses when it
-    # changes, and a sibling the list leaves out does not, even if the step's body reads it.
+    # changes, and a file the list leaves out does not. The cache never looks at what the
+    # step's body reads, which is how a body could read a file its key misses.
     $script:sibling = 0
     function RunSibling([string[]] $paths) {
         Invoke-GateStep -Name 'sibling step' -Paths $paths -Facts @('tool 1') -Body {
@@ -81,6 +82,18 @@ try {
     $ok = RunSibling @('src'); Check 'dropping a file from the list is a new key' ($ok -and $sibling -eq 3)
     Set-Content -LiteralPath (Join-Path $GateRoot 'LICENSE') -Value 'licence 3'
     $ok = RunSibling @('src'); Check 'a sibling the list leaves out does not change the key' ($ok -and $sibling -eq 3)
+
+    # So qc.ps1's notices list must cover every path the generator reads under the repository
+    # root, by name or by a folder above it (audit-qc-pipeline-1794018419). The read paths are
+    # the literal part of each `Join-Path $root '...'` in the generator.
+    $reads = @(Select-String -LiteralPath (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Pattern 'Join-Path \$root [''"]([^''"$]+)' -AllMatches |
+        ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value.TrimEnd('/') } | Sort-Object -Unique)
+    $listLine = Select-String -LiteralPath (Join-Path $PSScriptRoot 'qc.ps1') -Pattern '^\$noticeInputs = @\(([^)]*)\)' | Select-Object -First 1
+    $listed = @($listLine.Matches[0].Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") })
+    Check 'the generator read paths are found, LICENSE among them' ($reads.Count -ge 4 -and $reads -contains 'LICENSE')
+    $uncovered = @($reads | Where-Object { $r = $_; -not ($listed | Where-Object { $r -eq $_ -or $r.StartsWith("$_/") }) })
+    $missing = if ($uncovered) { " (missing: $($uncovered -join ', '))" } else { '' }
+    Check "qc.ps1's notices list covers every path the generator reads$missing" ($uncovered.Count -eq 0)
 } finally {
     Remove-Item -LiteralPath $GateRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

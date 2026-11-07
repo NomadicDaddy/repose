@@ -7,15 +7,17 @@
 //! fail here. Each test first Tabs until focus sits on the row it names, checked against the
 //! rectangle egui reports for the focused widget, and shows that nothing happened before the key.
 
-use std::path::PathBuf;
+use std::cell::RefCell;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::{ChangeKind, Commit, CommitFile, DiffSource, FileChange};
 
-use super::ui_harness::{frame, key, repo, tab, text_at};
+use super::ui_harness::{frame, frame_on, key, repo, tab, text_at};
 use super::{AppState, FileContent, FileRev, FileViewState, HistoryState, OpenFile, View};
+use crate::platform::Platform;
 
 /// Tabs until the focused widget's rectangle holds where the frame painted `label`, and
 /// panics if 60 presses never get there.
@@ -191,8 +193,31 @@ fn enter_on_a_focused_file_view_line_makes_it_current() {
 	);
 }
 
+/// A platform that records every folder, file, editor or terminal a frame asked it to open.
+#[derive(Default)]
+struct Recording(RefCell<Vec<PathBuf>>);
+
+impl Platform for Recording {
+	fn open_folder(&self, dir: &Path) -> Result<(), String> {
+		self.0.borrow_mut().push(dir.to_path_buf());
+		Ok(())
+	}
+	fn reveal_file(&self, file: &Path) -> Result<(), String> {
+		self.0.borrow_mut().push(file.to_path_buf());
+		Ok(())
+	}
+	fn open_in_editor(&self, _c: &str, target: &Path, _l: Option<usize>) -> Result<(), String> {
+		self.0.borrow_mut().push(target.to_path_buf());
+		Ok(())
+	}
+	fn open_terminal(&self, _c: &str, dir: &Path) -> Result<(), String> {
+		self.0.borrow_mut().push(dir.to_path_buf());
+		Ok(())
+	}
+}
+
 #[test]
-fn enter_on_a_focused_repository_row_selects_it() {
+fn enter_on_a_focused_repository_row_selects_it_and_opens_nothing() {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
 	let first = repo("activate-a", SystemTime::now());
@@ -207,6 +232,19 @@ fn enter_on_a_focused_repository_row_selects_it() {
 		Some(&a),
 		"focus alone moved the selection"
 	);
-	frame(&ctx, &mut state, key(egui::Key::Enter));
+	let platform = Recording::default();
+	frame_on(&ctx, &mut state, key(egui::Key::Enter), &platform);
 	assert_eq!(state.selected.as_ref(), Some(&b));
+	assert_eq!(
+		*platform.0.borrow(),
+		Vec::<PathBuf>::new(),
+		"a focused row's Enter opened something"
+	);
+	// The control: with nothing focused, Enter is the list's own key and opens the selected
+	// repository's folder, so the recording platform can see an open when one happens.
+	if let Some(id) = ctx.memory(|m| m.focused()) {
+		ctx.memory_mut(|m| m.surrender_focus(id));
+	}
+	frame_on(&ctx, &mut state, key(egui::Key::Enter), &platform);
+	assert_eq!(*platform.0.borrow(), vec![b]);
 }
