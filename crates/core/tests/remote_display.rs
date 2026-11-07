@@ -24,6 +24,11 @@ fn an_scp_remote_loses_a_token_in_its_query_or_fragment() {
 			format!("git@[2001:db8::1]:group/repo.git?token={token}"),
 			"git@[2001:db8::1]:group/repo.git",
 		),
+		// A backslash after the colon is not a drive: git reads this as ssh (Roger #38171).
+		(
+			format!("git@host.invalid:\\repo.git?access_token={token}"),
+			"git@host.invalid:\\repo.git",
+		),
 	];
 	for (url, shown) in &cases {
 		let got = display_url(url);

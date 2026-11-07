@@ -203,11 +203,12 @@ pub fn no_page_reason(url: &str) -> NoPage {
 }
 
 /// A scheme-less remote that git reads as a path on disk, not the scp form `[user@]host:path`:
-/// a Windows drive (`C:\` or `C:/`), anything starting with a slash, backslash or dot, a bare or
-/// relative name with no colon, or one whose text before its first colon holds a slash.
+/// a Windows drive (one letter before the first colon, `C:\` or `C:/`), anything starting with a
+/// slash, backslash or dot, a bare or relative name with no colon, or one whose text before its
+/// first colon holds a slash. A backslash after a longer prefix doesn't make a path:
+/// `git@host:\repo.git` is still an ssh remote to git (Roger #38171).
 fn is_local_path(url: &str) -> bool {
-	url.contains(":\\")
-		|| url.starts_with(['/', '\\', '.'])
+	url.starts_with(['/', '\\', '.'])
 		|| url
 			.split_once(':')
 			.is_none_or(|(before, _)| before.len() == 1 || before.contains('/'))
