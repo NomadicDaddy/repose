@@ -124,8 +124,7 @@ fn history(state: &mut AppState, expanded: Option<usize>) -> PathBuf {
 	path
 }
 
-#[test]
-fn enter_on_a_focused_commit_row_opens_and_closes_it() {
+fn opens_and_closes_a_commit_row(k: egui::Key) {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
 	let path = history(&mut state, None);
@@ -133,27 +132,40 @@ fn enter_on_a_focused_commit_row_opens_and_closes_it() {
 	tab_to(&ctx, &mut state, "commit 1");
 	let expanded = |s: &AppState| s.history.get(&path).and_then(|h| h.expanded.clone());
 	assert_eq!(expanded(&state), None, "focus alone opened a commit");
-	frame(&ctx, &mut state, key(egui::Key::Enter));
-	assert_eq!(expanded(&state), Some(commit(1).hash));
-	frame(&ctx, &mut state, key(egui::Key::Enter));
+	frame(&ctx, &mut state, key(k));
+	assert_eq!(expanded(&state), Some(commit(1).hash), "{k:?}");
+	frame(&ctx, &mut state, key(k));
 	assert_eq!(
 		expanded(&state),
 		None,
-		"a second Enter closes it, as a second click does"
+		"a second {k:?} closes it, as a second click does"
 	);
 }
 
 #[test]
-fn enter_on_a_focused_commit_file_row_opens_its_diff_at_the_commit() {
+fn enter_on_a_focused_commit_row_opens_and_closes_it() {
+	opens_and_closes_a_commit_row(egui::Key::Enter);
+}
+
+#[test]
+fn space_on_a_focused_commit_row_opens_and_closes_it() {
+	opens_and_closes_a_commit_row(egui::Key::Space);
+}
+
+fn opens_a_commit_file_row(k: egui::Key) {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
 	history(&mut state, Some(0));
 	frame(&ctx, &mut state, Vec::new());
 	tab_to(&ctx, &mut state, "src/lib.rs");
 	assert!(state.diff.is_none(), "focus alone opened a diff");
-	frame(&ctx, &mut state, key(egui::Key::Enter));
+	frame(&ctx, &mut state, key(k));
 	let open = state.diff.as_ref().map(|d| &d.open);
-	assert_eq!(open.map(|o| o.display.as_str()), Some("src/lib.rs"));
+	assert_eq!(
+		open.map(|o| o.display.as_str()),
+		Some("src/lib.rs"),
+		"{k:?}"
+	);
 	assert_eq!(
 		open.map(|o| &o.source),
 		Some(&DiffSource::Commit(commit(0).hash))
@@ -161,7 +173,16 @@ fn enter_on_a_focused_commit_file_row_opens_its_diff_at_the_commit() {
 }
 
 #[test]
-fn enter_on_a_focused_file_view_line_makes_it_current() {
+fn enter_on_a_focused_commit_file_row_opens_its_diff_at_the_commit() {
+	opens_a_commit_file_row(egui::Key::Enter);
+}
+
+#[test]
+fn space_on_a_focused_commit_file_row_opens_its_diff_at_the_commit() {
+	opens_a_commit_file_row(egui::Key::Space);
+}
+
+fn makes_a_file_view_line_current(k: egui::Key) {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
 	let path = changed_repo(&mut state);
@@ -185,12 +206,22 @@ fn enter_on_a_focused_file_view_line_makes_it_current() {
 	tab_to(&ctx, &mut state, "line 2");
 	let current = |s: &AppState| s.file_view.as_ref().and_then(|f| f.current_line);
 	assert_eq!(current(&state), None, "focus alone set the current line");
-	frame(&ctx, &mut state, key(egui::Key::Enter));
+	frame(&ctx, &mut state, key(k));
 	assert_eq!(
 		current(&state),
 		Some(3),
-		"line 2 is the third line, numbered from 1"
+		"{k:?}: line 2 is the third line, numbered from 1"
 	);
+}
+
+#[test]
+fn enter_on_a_focused_file_view_line_makes_it_current() {
+	makes_a_file_view_line_current(egui::Key::Enter);
+}
+
+#[test]
+fn space_on_a_focused_file_view_line_makes_it_current() {
+	makes_a_file_view_line_current(egui::Key::Space);
 }
 
 /// A platform that records every folder, file, editor or terminal a frame asked it to open.
@@ -216,35 +247,49 @@ impl Platform for Recording {
 	}
 }
 
-#[test]
-fn enter_on_a_focused_repository_row_selects_it_and_opens_nothing() {
-	let ctx = egui::Context::default();
+/// Two repositories with the first selected, focus on the second, then `k` on it: it becomes the
+/// selection and nothing opens. Then the unfocused-Enter control, which should open the
+/// second's folder on `platform`; returns that path for the caller to check.
+fn selects_a_repository_row(ctx: &egui::Context, k: egui::Key, platform: &Recording) -> PathBuf {
 	let mut state = AppState::new(Config::default());
 	let first = repo("activate-a", SystemTime::now());
 	let second = repo("activate-b", SystemTime::now());
 	let (a, b) = (first.path.clone(), second.path.clone());
 	state.merge_discovered(vec![first, second]);
 	state.select(a.clone());
-	frame(&ctx, &mut state, Vec::new());
-	tab_to(&ctx, &mut state, "activate-b");
+	frame(ctx, &mut state, Vec::new());
+	tab_to(ctx, &mut state, "activate-b");
 	assert_eq!(
 		state.selected.as_ref(),
 		Some(&a),
 		"focus alone moved the selection"
 	);
-	let platform = Recording::default();
-	frame_on(&ctx, &mut state, key(egui::Key::Enter), &platform);
-	assert_eq!(state.selected.as_ref(), Some(&b));
+	frame_on(ctx, &mut state, key(k), platform);
+	assert_eq!(state.selected.as_ref(), Some(&b), "{k:?}");
 	assert_eq!(
 		*platform.0.borrow(),
 		Vec::<PathBuf>::new(),
-		"a focused row's Enter opened something"
+		"{k:?} opened something"
 	);
 	// The control: with nothing focused, Enter is the list's own key and opens the selected
 	// repository's folder, so the recording platform can see an open when one happens.
 	if let Some(id) = ctx.memory(|m| m.focused()) {
 		ctx.memory_mut(|m| m.surrender_focus(id));
 	}
-	frame_on(&ctx, &mut state, key(egui::Key::Enter), &platform);
+	frame_on(ctx, &mut state, key(egui::Key::Enter), platform);
+	b
+}
+
+#[test]
+fn space_on_a_focused_repository_row_selects_it_and_opens_nothing() {
+	let platform = Recording::default();
+	let b = selects_a_repository_row(&egui::Context::default(), egui::Key::Space, &platform);
+	assert_eq!(*platform.0.borrow(), vec![b]);
+}
+
+#[test]
+fn enter_on_a_focused_repository_row_selects_it_and_opens_nothing() {
+	let platform = Recording::default();
+	let b = selects_a_repository_row(&egui::Context::default(), egui::Key::Enter, &platform);
 	assert_eq!(*platform.0.borrow(), vec![b]);
 }
