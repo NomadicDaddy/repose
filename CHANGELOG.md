@@ -12,16 +12,16 @@ All notable changes to repose are recorded here. The format follows
   grammar's `LICENSE.txt` changes. Before, editing only those files kept the step cached, so a
   stale `THIRD-PARTY-NOTICES.md` could pass the gate. The gate's self-test now checks that the
   step's input list covers every file the notices generator reads from the repository.
-- Tests pin what Enter and Space do on every painted row that Tab reaches: a changed file opens
-  its diff, a commit opens and closes, a commit's file opens that file's diff at the commit, a
+- Tests pin what Enter does on every painted row that Tab reaches: a changed file opens its
+  diff, a commit opens and closes, a commit's file opens that file's diff at the commit, a
   file-view line becomes the current line, and a repository becomes the selection without
-  opening anything.
+  opening anything. Space is tested on a changed file only.
 
 ### Correction to 1.1.1's notes
 
 - 1.1.1's known limitations said Enter doesn't open a changed file, commit or repository that
-  Tab has reached. That was wrong: in 1.1.1 as released, Enter and Space already do what a click
-  does on each of them, and the tests above passed on its unchanged code.
+  Tab has reached. That was wrong: in 1.1.1 as released, Enter already does what a click does on
+  each of them, and the tests above passed on its unchanged code.
 
 ### Known limitations
 
