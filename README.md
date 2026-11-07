@@ -7,7 +7,7 @@ one, a linear commit history with the files each commit touched, read-only diffs
 highlighting, and staging and committing from the same window. It is not an editor and it is not
 Electron.
 
-Status: 1.1.1 is the current release. Built with eframe/egui. See `CHANGELOG.md` for what it does. The specification is
+Status: 1.1.2 is the current release. Built with eframe/egui. See `CHANGELOG.md` for what it does. The specification is
 in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only, under `.aidd/`).
 
 ## Prerequisites

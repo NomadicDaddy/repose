@@ -4,7 +4,7 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.2] - 2026-11-07
 
 ### Development
 
@@ -22,6 +22,13 @@ All notable changes to repose are recorded here. The format follows
 - 1.1.1's known limitations said Enter doesn't open a changed file, commit or repository that
   Tab has reached. That was wrong: in 1.1.1 as released, Enter and Space already do what a click
   does on each of them, and the tests above passed on its unchanged code.
+
+### Known limitations
+
+- Development: the other findings from 1.1.1's QC_PIPELINE draft are still open for a later
+  release. A gate step whose command can't start is recorded as a pass; the test step's cache key
+  leaves out the machine's global git configuration; the warm test suite takes about 105 s; and
+  pushes to the public repository run no checks. None of them changes what repose does.
 
 ## [1.1.1] - 2026-11-07
 
