@@ -64,6 +64,23 @@ try {
     Remove-Item -LiteralPath (Join-Path $GateRoot 'out.exe')
     $ok = Run 0 @('tool 2') 'out.exe'; Check 'a missing artifact is a miss, and a pass that produced none fails' (-not $ok -and $runs -eq 19)
     Check '...and leaves no record' (-not (Test-Path -LiteralPath (Get-GateCacheFile 'demo step')))
+
+    # The input list alone decides a hit: a file named by itself in the list misses when it
+    # changes, and a sibling the list leaves out does not, even if the step's body reads it.
+    $script:sibling = 0
+    function RunSibling([string[]] $paths) {
+        Invoke-GateStep -Name 'sibling step' -Paths $paths -Facts @('tool 1') -Body {
+            $script:sibling++
+            $global:LASTEXITCODE = 0
+        } 6>$null
+    }
+    Set-Content -LiteralPath (Join-Path $GateRoot 'LICENSE') -Value 'licence 1'
+    $ok = RunSibling @('src', 'LICENSE'); Check 'a step keyed on a named file runs first' ($ok -and $sibling -eq 1)
+    Set-Content -LiteralPath (Join-Path $GateRoot 'LICENSE') -Value 'licence 2'
+    $ok = RunSibling @('src', 'LICENSE'); Check 'a changed file the list names by itself is a miss' ($ok -and $sibling -eq 2)
+    $ok = RunSibling @('src'); Check 'dropping a file from the list is a new key' ($ok -and $sibling -eq 3)
+    Set-Content -LiteralPath (Join-Path $GateRoot 'LICENSE') -Value 'licence 3'
+    $ok = RunSibling @('src'); Check 'a sibling the list leaves out does not change the key' ($ok -and $sibling -eq 3)
 } finally {
     Remove-Item -LiteralPath $GateRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

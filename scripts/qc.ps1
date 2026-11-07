@@ -69,13 +69,15 @@ CachedStep 'file length (300 physical lines)' (@('crates') + $gateScripts) @() {
     foreach ($f in $long) { Write-Host ("FAILED: {0} has {1} lines" -f $f.FullName, @(Get-Content $f.FullName).Count) }
     $global:LASTEXITCODE = [int] ($long.Count -gt 0)
 }
-# The notices depend on the manifests, lockfile, licence folder, the notices file and script, and
-# the toolchain, whose standard-library notice the file records by hash.
+# The notices depend on the manifests, lockfile, the two licence texts the generator copies in
+# whole (LICENSE and the vendored PowerShell grammar's LICENSE.txt), the licence folder, the
+# notices file and script, and the toolchain, whose standard-library notice the file records by
+# hash.
 $sysroot = "$(rustc --print sysroot 2>$null)".Trim()
 $stdNotice = Join-Path $sysroot 'share\doc\rust\COPYRIGHT-library.html'
 $stdHash = if (Test-Path -LiteralPath $stdNotice) { (Get-FileHash -LiteralPath $stdNotice -Algorithm SHA256).Hash } else { 'missing' }
 $manifests = @(Get-ChildItem -Path (Join-Path $root 'crates') -Recurse -Filter Cargo.toml | ForEach-Object { $_.FullName.Substring($root.Length + 1) })
-$noticeInputs = @('Cargo.toml', 'Cargo.lock', 'licenses', 'THIRD-PARTY-NOTICES.md', 'scripts/third-party-notices.ps1') + $manifests + $gateScripts
+$noticeInputs = @('Cargo.toml', 'Cargo.lock', 'LICENSE', 'licenses', 'crates/app/syntaxes/PowerShell/LICENSE.txt', 'THIRD-PARTY-NOTICES.md', 'scripts/third-party-notices.ps1') + $manifests + $gateScripts
 CachedStep 'third-party notices current' $noticeInputs ($rustFacts + "rust-std notice $stdHash") {
     pwsh -NoProfile -File (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Check
 }
