@@ -36,8 +36,9 @@ The release-readiness table for 1.1.2 had these lines Red or not checked, and Ph
 each one:
 
 - **C3, audits current** (#39397): of the 28 audits aidd counts as applicable, 24 are fresh.
-  ASSERTIONS, AUDIT_METHODOLOGY and SEVERITY_CLASSIFICATION have never reported, and
-  FEASIBILITY ran and found itself not applicable. 1.1.2 changes no app code.
+  ASSERTIONS, AUDIT_METHODOLOGY and SEVERITY_CLASSIFICATION have no report in the current
+  audit-report folder, and FEASIBILITY's report says it could not run (no pending proposal or
+  decision). 1.1.2 changes no app code.
 - **C5, roadmap and priorities** (#39398): the records and roadmap entries reconcile, but `.aidd`
   is untracked, so no history shows whether a priority changed since 1.1.1.
 - **F5, installer and first run** (#39399): `scripts/install-user.ps1` has still been run only on
