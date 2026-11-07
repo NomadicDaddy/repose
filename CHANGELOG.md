@@ -4,6 +4,25 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Development
+
+- The gate's licence-notices check now runs again when `LICENSE` or the vendored PowerShell
+  grammar's `LICENSE.txt` changes. Before, editing only those files kept the step cached, so a
+  stale `THIRD-PARTY-NOTICES.md` could pass the gate. The gate's self-test now checks that the
+  step's input list covers every file the notices generator reads from the repository.
+- Tests pin what Enter and Space do on every painted row that Tab reaches: a changed file opens
+  its diff, a commit opens and closes, a commit's file opens that file's diff at the commit, a
+  file-view line becomes the current line, and a repository becomes the selection without
+  opening anything.
+
+### Correction to 1.1.1's notes
+
+- 1.1.1's known limitations said Enter doesn't open a changed file, commit or repository that
+  Tab has reached. That was wrong: in 1.1.1 as released, Enter and Space already do what a click
+  does on each of them, and the tests above passed on its unchanged code.
+
 ## [1.1.1] - 2026-11-07
 
 ### Added
