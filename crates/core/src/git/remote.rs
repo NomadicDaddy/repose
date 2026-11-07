@@ -63,11 +63,16 @@ pub fn origin(remotes: &[RemoteEntry]) -> Option<&RemoteEntry> {
 /// A remote URL as the header may paint it: `scheme://user:token@host/path` loses everything
 /// before the `@` in its authority, because git keeps a configured token there verbatim and a
 /// selected repository must not put it on screen or into a screenshot (Morticia and Roger on
-/// 462cf80). The scp form `git@host:path` keeps its user, which is a login name, not a secret.
+/// 462cf80). The scp form `git@host:path` keeps its user, which is a login name, not a secret,
+/// but loses any query or fragment, where a token can ride as well (`?access_token=`); a local
+/// path is shown whole, since `#` and `?` are legal in a folder name (Morticia #37950).
 /// Copy remote URL still hands over the verbatim URL behind its explicit action.
 pub fn display_url(url: &str) -> String {
 	let Some((scheme, rest)) = url.split_once("://") else {
-		return url.to_string();
+		if is_local_path(url) {
+			return url.to_string();
+		}
+		return url.find(['?', '#']).map_or(url, |i| &url[..i]).to_string();
 	};
 	// The RFC authority first: it ends at the first slash, question mark or hash, and everything
 	// up to its last at-sign is userinfo. A query is never searched for an at-sign, so a pathless
@@ -190,17 +195,22 @@ pub fn no_page_reason(url: &str) -> NoPage {
 			NoPage::Refused
 		};
 	}
-	let local = !url.is_empty()
-		&& (url.contains(":\\")
-			|| url.starts_with(['/', '\\', '.'])
-			|| url
-				.split_once(':')
-				.is_none_or(|(before, _)| before.len() == 1 || before.contains('/')));
-	if local {
+	if !url.is_empty() && is_local_path(url) {
 		NoPage::LocalPath
 	} else {
 		NoPage::Refused
 	}
+}
+
+/// A scheme-less remote that git reads as a path on disk, not the scp form `[user@]host:path`:
+/// a Windows drive (`C:\` or `C:/`), anything starting with a slash, backslash or dot, a bare or
+/// relative name with no colon, or one whose text before its first colon holds a slash.
+fn is_local_path(url: &str) -> bool {
+	url.contains(":\\")
+		|| url.starts_with(['/', '\\', '.'])
+		|| url
+			.split_once(':')
+			.is_none_or(|(before, _)| before.len() == 1 || before.contains('/'))
 }
 
 /// The host of an ssh-style authority without its port. A bracketed IPv6 address keeps its
