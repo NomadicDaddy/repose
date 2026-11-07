@@ -30,6 +30,19 @@ All notable changes to repose are recorded here. The format follows
   leaves out the machine's global git configuration; the warm test suite takes about 105 s; and
   pushes to the public repository run no checks. None of them changes what repose does.
 
+### Accepted at this release
+
+The release-readiness table for 1.1.2 had these lines Red or not checked, and Phillip accepted
+each one:
+
+- **C3, audits current** (#39397): of the 28 audits aidd counts as applicable, 24 are fresh.
+  ASSERTIONS, AUDIT_METHODOLOGY and SEVERITY_CLASSIFICATION have never reported, and
+  FEASIBILITY ran and found itself not applicable. 1.1.2 changes no app code.
+- **C5, roadmap and priorities** (#39398): the records and roadmap entries reconcile, but `.aidd`
+  is untracked, so no history shows whether a priority changed since 1.1.1.
+- **F5, installer and first run** (#39399): `scripts/install-user.ps1` has still been run only on
+  the development machine; there is no clean-machine install record.
+
 ## [1.1.1] - 2026-11-07
 
 ### Added
