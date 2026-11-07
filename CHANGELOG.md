@@ -4,6 +4,54 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-07
+
+### Added
+
+- With a filter typed in Find a repository, the list's status line says how many repositories
+  match ("1 of 4 match"). When the filter hides the repository the right pane is showing, the
+  pane says so under its name ("Hidden from the list by the filter").
+
+### Fixed
+
+- A diff whose first change is at the top of the file no longer opens with a
+  "0 unchanged lines" separator; a separator shows only when it hides lines.
+- Counts read correctly for one: "1 file", "1 line", "1 unchanged line", "1 path",
+  "1 worktree", "1 repository".
+- The list's status line stays on one line after a fetch; it now reads "1 fetched, last HH:MM"
+  once something has been fetched, and "Saved refs; no fetch" before.
+- The worktree chevron beside "1 worktree" is drawn to the text's size and sits on its line;
+  it had been a small character above it.
+- In an expanded commit, the change letter ("R", "M") sits on the same line as its file's path.
+- The question shown when closing with an unsaved commit message has room around its text and
+  buttons, and names each repository first, with its path below.
+- A long repository path in the header wraps at a folder separator rather than inside a folder
+  name.
+- A remote written the scp way (`git@host:path`) no longer shows a `?` or `#` part in the header,
+  where a token such as `?access_token=` could ride. A local path is still shown whole, since
+  those characters are legal in a folder name.
+
+### Development
+
+- Commits are checked by a leak guard (a pre-commit hook delivered by smokestack) that refuses
+  staged changes that look like secrets. After cloning, run
+  `git config core.hooksPath scripts/smokestack/hooks` once to turn it on (README, "Build, run
+  and install").
+- `.records/` is no longer ignored: repose keeps its records under `.aidd/`.
+- Tests lay out the list's status line with repose's own fonts and check its exact wording and
+  that it stays on one line, at three-digit counts and with a filter typed.
+
+### Known limitations
+
+- Changed files, commits and repositories can be reached with Tab, but Enter doesn't open them;
+  only a click does. This has been so since 1.0.0; a fix is planned for 1.1.2.
+- Development: the gate's licence-notices check is cached on a key that leaves out `LICENSE`
+  and the vendored PowerShell licence, so editing only those files can leave
+  `THIRD-PARTY-NOTICES.md` stale on a passing gate. 1.1.1 changes neither file. It is to be
+  fixed after 1.1.1.
+- Development: the release audit run completed 7 of its 8 audits; QC_PIPELINE, which checks the
+  gate itself, did not complete. Its draft findings are filed for after 1.1.1.
+
 ## [1.1.0] - 2026-11-05
 
 ### Added
