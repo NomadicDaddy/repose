@@ -85,7 +85,8 @@ try {
 
     # So qc.ps1's notices list must cover every path the generator reads under the repository
     # root, by name or by a folder above it (audit-qc-pipeline-1794018419). The read paths are
-    # the literal part of each `Join-Path $root '...'` in the generator.
+    # the literal part of each `Join-Path $root '...'` in the generator. A read written another
+    # way (a bare relative path, which works after its `Set-Location $root`) escapes this check.
     $reads = @(Select-String -LiteralPath (Join-Path $PSScriptRoot 'third-party-notices.ps1') -Pattern 'Join-Path \$root [''"]([^''"$]+)' -AllMatches |
         ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1].Value.TrimEnd('/') } | Sort-Object -Unique)
     $listLine = Select-String -LiteralPath (Join-Path $PSScriptRoot 'qc.ps1') -Pattern '^\$noticeInputs = @\(([^)]*)\)' | Select-Object -First 1
