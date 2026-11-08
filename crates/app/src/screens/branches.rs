@@ -5,7 +5,7 @@
 use eframe::egui::{self, FontFamily, FontId, Key, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{Branch, HeadState};
 
-use super::row::{frame, pill};
+use super::row::{fit, frame, pill};
 use super::{a11y, fetch, menu};
 use crate::state::AppState;
 use crate::theme::*;
@@ -119,7 +119,21 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 	let mono = |size: f32| FontId::new(size, FontFamily::Monospace);
 	let mut x = rect.left() + 10.0;
 	let name_color = if branch.current { TEXT_BRIGHT } else { TEXT };
-	let name = painter.layout_no_wrap(branch.name.clone(), mono(TEXT_ROW_NAME), name_color.get());
+	// The name keeps room for the hash and the hash stops at the pills; each is cut with an
+	// ellipsis rather than running under them (audit-web-design-guidelines-1794001253).
+	let hash_full = painter.layout_no_wrap(
+		branch.short_hash.clone(),
+		mono(TEXT_ROW_BRANCH),
+		MUTED.get(),
+	);
+	let name_room = (right - x - hash_full.size().x - 12.0).max(0.0);
+	let name = fit(
+		&painter,
+		&branch.name,
+		mono(TEXT_ROW_NAME),
+		name_color,
+		name_room,
+	);
 	let name_w = name.size().x;
 	painter.galley(
 		pos2(x, rect.center().y - name.size().y / 2.0),
@@ -127,10 +141,12 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 		name_color.get(),
 	);
 	x += name_w + 12.0;
-	let hash = painter.layout_no_wrap(
-		branch.short_hash.clone(),
+	let hash = fit(
+		&painter,
+		&branch.short_hash,
 		mono(TEXT_ROW_BRANCH),
-		MUTED.get(),
+		MUTED,
+		(right - x).max(0.0),
 	);
 	let hash_w = hash.size().x;
 	painter.galley(
@@ -157,6 +173,8 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 			MUTED.get(),
 		);
 	}
+	// A cut name stays readable in full on hover.
+	let response = response.on_hover_text(&branch.name);
 	// Read-only: the only action is copying the name (clause 3), so the row is a list item, not
 	// a button.
 	a11y::control(

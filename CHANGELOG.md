@@ -27,6 +27,9 @@ All notable changes to repose are recorded here. The format follows
 
 ### Fixed
 
+- A long file name in Changes, and a long branch name in Branches, is now cut with an ellipsis
+  before the row's letter or pills. Before, it ran under them and was clipped at the row's edge.
+  The full path or name shows on hover.
 - The Find box's hint reads "name or path…" with an ellipsis, as the rest of the app does, not
   three full stops.
 - A screen reader now hears each pane's loading text: Reading diff, Laying out, Reading tree,

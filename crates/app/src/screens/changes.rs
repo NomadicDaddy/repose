@@ -4,7 +4,7 @@
 use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::{ChangeKind, DiffSource, FileChange, RepoSummary};
 
-use super::row::frame;
+use super::row::{fit, frame};
 use super::{a11y, menu};
 use crate::platform::Platform;
 use crate::state::{AppState, OpenDiff, WriteKind};
@@ -171,7 +171,17 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	} else {
 		TEXT
 	};
-	let name = painter.layout_no_wrap(file.file_name().to_string(), name_font, name_color.get());
+	// The name and the folder stop short of the kind letter's slot and are cut with an ellipsis,
+	// as repository rows and commit subjects are; the tooltip carries the full path
+	// (audit-web-design-guidelines-1794001253, row clipping).
+	let text_right = rect.right() - 30.0;
+	let name = fit(
+		&painter,
+		file.file_name(),
+		name_font,
+		name_color,
+		(text_right - x).max(0.0),
+	);
 	let name_width = name.size().x;
 	painter.galley(
 		pos2(x, rect.center().y - name.size().y / 2.0),
@@ -189,11 +199,17 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		Some(from) => format!("{}  ←  {from}", file.folder()),
 		None => file.folder().to_string(),
 	};
-	painter.text(
-		pos2(x + name_width + 10.0, rect.center().y),
-		Align2::LEFT_CENTER,
-		folder,
+	let folder_x = x + name_width + 10.0;
+	let folder = fit(
+		&painter,
+		&folder,
 		FontId::new(TEXT_SMALL, FontFamily::Proportional),
+		MUTED,
+		(text_right - folder_x).max(0.0),
+	);
+	painter.galley(
+		pos2(folder_x, rect.center().y - folder.size().y / 2.0),
+		folder,
 		MUTED.get(),
 	);
 	painter.text(
@@ -203,6 +219,11 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		FontId::new(TEXT_BASE, FontFamily::Monospace),
 		super::change_kind_colour(file.kind).get(),
 	);
+	let tooltip = match &file.from {
+		Some(from) => format!("{}\nrenamed from {from}", file.path),
+		None => file.path.clone(),
+	};
+	let response = response.on_hover_text(tooltip);
 	a11y::control(
 		&response,
 		egui::Role::Button,

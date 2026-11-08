@@ -62,6 +62,8 @@ mod ui_repo_list_tests;
 #[cfg(test)]
 mod ui_row_activation_tests;
 #[cfg(test)]
+mod ui_row_clip_tests;
+#[cfg(test)]
 mod ui_row_focus_tests;
 #[cfg(test)]
 mod ui_tests;
