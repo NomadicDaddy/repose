@@ -10,8 +10,9 @@
 //! interval: it runs from one `ui()` start to the next, and with vsync each start follows a
 //! present, so it covers everything the frame before cost, including tessellation and the GPU
 //! submit after `ui()`. It is counted against that earlier frame, the one whose render it
-//! covers. The last frame's interval would end after the report, so it is not in it. The other
-//! series is the CPU time inside `ui()` alone (Roger and Morticia on c70d37d and fd6f7c2).
+//! covers. One frame with no wheel input follows the last wheel frame, so that frame's interval
+//! is taken too and every moving frame has both series. The other series is the CPU time inside
+//! `ui()` alone (Roger and Morticia on c70d37d, fd6f7c2 and c69a098).
 //!
 //! The window is on Phillip's desk, so any real input during the run ends it with a failed
 //! report: a key, text, a button, a wheel turn, or the pointer moving from where it rested
@@ -96,7 +97,10 @@ impl LanesProbe {
 	/// History pane with one row's turn of the wheel.
 	pub fn inject(&mut self, raw: &mut RawInput) {
 		self.check_real_input(&raw.events);
-		if !matches!(self.phase, Phase::Scrolling) || self.interrupted.is_some() {
+		// After the last wheel frame comes one frame with no input of the probe's own: its start
+		// ends the last wheel frame's interval (Roger on c69a098).
+		let wheel = matches!(self.phase, Phase::Scrolling) && self.scrolled < SCROLL_FRAMES;
+		if !wheel || self.interrupted.is_some() {
 			return;
 		}
 		let screen = raw.screen_rect.unwrap_or(egui::Rect::ZERO);
@@ -172,6 +176,10 @@ impl LanesProbe {
 				}
 				None
 			}
+			Phase::Scrolling if self.scrolled >= SCROLL_FRAMES => {
+				// The observation frame: begin() has taken the last wheel frame's interval.
+				Some(self.report())
+			}
 			Phase::Scrolling => {
 				self.scrolled += 1;
 				let offset = crate::screens::detail::scroll_offset(ctx);
@@ -181,7 +189,7 @@ impl LanesProbe {
 					self.cpu.push(cpu);
 				}
 				self.last_moved = moved;
-				(self.scrolled >= SCROLL_FRAMES).then(|| self.report())
+				None
 			}
 		}
 	}

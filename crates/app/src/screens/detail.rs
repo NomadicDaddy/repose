@@ -202,7 +202,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	close_guard::show(&ctx, state);
 }
 
-fn offset_key() -> egui::Id {
+pub(crate) fn offset_key() -> egui::Id {
 	egui::Id::unique("detail-pane-scroll-offset")
 }
 

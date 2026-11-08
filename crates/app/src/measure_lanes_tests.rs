@@ -3,7 +3,7 @@
 use eframe::egui::{self, Event, RawInput, pos2};
 use repose_core::config::Config;
 
-use super::{LanesProbe, percentile, report};
+use super::{LanesProbe, Phase, SCROLL_FRAMES, percentile, report};
 use crate::state::AppState;
 
 #[test]
@@ -80,5 +80,50 @@ fn real_input_during_the_run_ends_it_with_a_failed_report() {
 	assert_eq!(
 		typed.as_deref(),
 		Some("error\treal input during the run: a key\n")
+	);
+}
+
+/// Roger on fd6f7c2 and c69a098: each interval belongs to the frame whose render it covers, so
+/// every moving frame has one interval and one ui() time, the last wheel frame included, and a
+/// frame whose view did not move contributes neither.
+#[test]
+fn every_moving_frame_has_one_interval_and_one_ui_time() {
+	let ctx = egui::Context::default();
+	let state = AppState::new(Config::default());
+	let mut probe = LanesProbe::new("unused.txt".into());
+	probe.phase = Phase::Scrolling;
+	probe.idle = vec![16.0; 60];
+	let mut report = None;
+	let mut moving = 0;
+	let mut offset = 0.0_f32;
+	for frame in 0..=SCROLL_FRAMES {
+		// Every third wheel frame leaves the view where it was; the observation frame does too.
+		if frame < SCROLL_FRAMES && frame % 3 != 2 {
+			offset += 38.0;
+			moving += 1;
+		}
+		ctx.data_mut(|d| d.insert_temp(crate::screens::detail::offset_key(), offset));
+		let mut raw = RawInput::default();
+		probe.inject(&mut raw);
+		assert_eq!(
+			raw.events.len(),
+			if frame < SCROLL_FRAMES { 2 } else { 0 },
+			"frame {frame}: the observation frame adds no input"
+		);
+		probe.begin();
+		report = probe.end(&state, &ctx);
+		assert_eq!(report.is_some(), frame == SCROLL_FRAMES, "frame {frame}");
+	}
+	// The first wheel frame has no offset before it to compare with, so it is never counted.
+	let counted = moving - 1;
+	assert_eq!(probe.cpu.len(), counted, "one ui() time per moving frame");
+	assert_eq!(
+		probe.present.len(),
+		counted,
+		"and one interval each, the last included"
+	);
+	assert!(
+		report.is_some_and(|r| r.contains(&format!("moving_frames\t{counted}\n"))),
+		"the report counts them"
 	);
 }
