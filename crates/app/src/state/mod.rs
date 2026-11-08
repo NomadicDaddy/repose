@@ -58,6 +58,8 @@ mod ui_labels_tests;
 #[cfg(test)]
 mod ui_lanes_tests;
 #[cfg(test)]
+mod ui_list_measure_tests;
+#[cfg(test)]
 mod ui_live_tests;
 #[cfg(test)]
 mod ui_origin_link_tests;
