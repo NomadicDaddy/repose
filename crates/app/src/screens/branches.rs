@@ -45,10 +45,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	ui.label(
 		RichText::new(format!(
 			"{} · {}",
-			match branches.list.len() {
-				1 => "1 local branch".to_string(),
-				n => format!("{n} local branches"),
-			},
+			super::count_label(branches.list.len(), "local branch", "local branches"),
 			fetch::refs_note(state, &repo.path)
 		))
 		.size(TEXT_SMALL)

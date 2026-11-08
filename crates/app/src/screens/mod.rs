@@ -47,6 +47,15 @@ mod tests {
 	#[test]
 	fn a_count_takes_the_singular_only_for_one() {
 		assert_eq!(super::count_label(1, "file", "files"), "1 file");
+		// The Branches header's pair (audit-code-quality-1794002861).
+		assert_eq!(
+			super::count_label(1, "local branch", "local branches"),
+			"1 local branch"
+		);
+		assert_eq!(
+			super::count_label(3, "local branch", "local branches"),
+			"3 local branches"
+		);
 		assert_eq!(super::count_label(0, "file", "files"), "0 files");
 		assert_eq!(
 			super::count_label(12, "unchanged line", "unchanged lines"),
