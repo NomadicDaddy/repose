@@ -16,7 +16,7 @@ files, read-only diffs and files with highlighting, and a commit box. Scope sett
 | Changes            | View, stage, unstage, discard and commit. No push or pull (ADR-003).   |
 | Files              | Read-only diffs and a read-only file viewer. Editing is VS Code's.     |
 | Discovery          | Scan configured roots; worktrees grouped under their main repository.  |
-| History            | Linear log with expandable commits and an Outgoing changes group.      |
+| History            | Linear log, expandable commits, Outgoing group, optional lanes.        |
 | Refresh            | File-system watcher with debounce, plus Refresh and a backstop timer.  |
 | Actions            | Explorer, VS Code, terminal, copy path, hash and remote URL.           |
 | Platform           | Windows 11 first; nothing that blocks Linux or macOS.                  |
@@ -57,8 +57,14 @@ never a fetch from its remote. Machine-readable forms only:
 - History: `git log -z --format=<fields with %x00 separators> --max-count=100 --skip=<n>` and
   `git log -1 -z --name-status --diff-merges=first-parent --format=` for a commit's files on
   expand, so a merge commit lists its first-parent changes instead of nothing.
-- Outgoing: the ahead count from the status call's `branch.ab`; no upstream means no Outgoing
-  group. No separate `rev-list` spawn.
+  With Lanes on, the page is `git log -z --format=<fields, with %P parents and %D ref names>
+  --branches --tags --remotes --parents --topo-order HEAD --`: every branch and tag, children
+  before parents, and no stash or notes refs.
+- Outgoing: one extra spawn with the first page, `git log -z --format=%H <upstream>..HEAD`, read
+  as a set of hashes (`git/log.rs` read_outgoing; assertions.md A5). After a merge the top
+  `ahead` rows of the log are not the unpushed commits, so the ahead count from `branch.ab` is
+  not used for this. There is no spawn and no Outgoing group without a counted upstream, and a
+  failed read keeps the last known set and shows its error.
 - Branches: `git for-each-ref --format=<refname:short, objectname:short, upstream:short,
   upstream:track, HEAD with %00 separators> refs/heads` for the read-only Branches tab, with
   `git rev-parse --short HEAD` only when no branch is current, to name a detached HEAD. The
@@ -83,7 +89,9 @@ never a fetch from its remote. Machine-readable forms only:
 Why not libgit2 or gitoxide: parity. Hooks under `core.hooksPath`, ignore rules, `core.longpaths`,
 credential helpers and config all behave as they do in the terminal and in VS Code, which is the
 view being replicated, and the Summon team's `.githooks` deliveries run unchanged. The cost is
-process spawns: about 75 at startup. A bounded pool of 8 keeps that under the 3 s budget on the
+process spawns: about 75 at startup. Two bounded pools of 8 (`git/pool.rs`), one for reads and
+one for writes, so a commit waiting on a hook never holds a read permit, keep that under the 3 s
+budget on the
 development machine (VS Code spawns the same status command, with `GIT_OPTIONAL_LOCKS=0`, which
 repose copies). If a
 later measurement shows the pool is the limit, the first optimisation is per-repository
@@ -259,9 +267,10 @@ idle measurements are reused only for the same executable, measurement script an
 only when both were measured, and with their original time stated. `cargo audit` and the
 staging always run, `-NoCache` forces every step, and `scripts/gate-cache-test.ps1` runs first
 in every gate. The release table cites its log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
-of running repose. Hooks are a smokestack delivery and
-Alice's; until one exists for a Rust repository, commits of source wait for it or run the gate by
-hand and say so.
+of running repose. The hooks are smokestack deliveries under `scripts/smokestack/hooks`: a
+leak-guard pre-commit, with post-merge, post-checkout and reference-transaction hooks beside it.
+A clone turns them on with `git config core.hooksPath scripts/smokestack/hooks` (README, "Build,
+run and install").
 
 ## Open decisions
 

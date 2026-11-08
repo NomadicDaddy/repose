@@ -44,6 +44,11 @@ All notable changes to repose are recorded here. The format follows
 
 ### Development
 
+- The technical spec now describes what ships:
+  - the Outgoing group comes from one extra `git log <upstream>..HEAD` read, not the ahead count;
+  - git runs through two pools of eight, one for reads and one for writes;
+  - the smokestack hooks live under `scripts/smokestack/hooks`;
+  - History also has the lanes read.
 - The gate now fails a step whose command can't start, such as cargo missing from `PATH`. Before,
   that step was recorded as a pass. The gate's self-test checks this.
 - The test step's cache key now includes a hash of the machine's global and system Git
