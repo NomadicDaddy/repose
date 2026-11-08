@@ -37,8 +37,8 @@ pub fn unpinned(pins: &[PathBuf], path: &Path) -> Vec<PathBuf> {
 /// it. The new text goes to a sibling file first and then replaces the config in one rename, so a
 /// failed write leaves the old file whole; the error names the file.
 pub fn save(path: &Path, pins: &[PathBuf]) -> Result<(), ConfigError> {
-	let io = |e| ConfigError::Io(path.to_path_buf(), e);
-	let text = fs::read_to_string(path).map_err(io)?;
+	let text = fs::read_to_string(path).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
+	let write = |e| ConfigError::Write(path.to_path_buf(), e);
 	let mut doc: toml_edit::DocumentMut = text
 		.parse()
 		.map_err(|e: toml_edit::TomlError| ConfigError::Edit(path.to_path_buf(), e.to_string()))?;
@@ -48,10 +48,10 @@ pub fn save(path: &Path, pins: &[PathBuf]) -> Result<(), ConfigError> {
 	}
 	doc["pinned_repositories"] = toml_edit::value(list);
 	let staged = path.with_extension("toml.saving");
-	fs::write(&staged, doc.to_string()).map_err(io)?;
+	fs::write(&staged, doc.to_string()).map_err(write)?;
 	fs::rename(&staged, path).map_err(|e| {
 		let _ = fs::remove_file(&staged);
-		io(e)
+		write(e)
 	})
 }
 

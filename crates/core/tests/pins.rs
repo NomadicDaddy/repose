@@ -112,10 +112,12 @@ fn a_failed_pin_save_leaves_the_file_as_it_was() {
 	fs::set_permissions(&path, locked).expect("read-only");
 	let result = pins::save(&path, &[PathBuf::from("D:\\applications\\repose")]);
 	fs::set_permissions(&path, original).expect("writable again");
-	match result {
-		Err(ConfigError::Io(p, _)) => assert_eq!(p, path),
-		other => panic!("expected an Io error naming the file, got {other:?}"),
+	match &result {
+		Err(ConfigError::Write(p, _)) => assert_eq!(p, &path),
+		other => panic!("expected a Write error naming the file, got {other:?}"),
 	}
+	let message = result.err().map(|e| e.to_string()).unwrap_or_default();
+	assert!(message.starts_with("could not write "), "{message}");
 	assert_eq!(fs::read_to_string(&path).expect("text"), WRITTEN);
 	assert!(!path.with_extension("toml.saving").exists());
 }

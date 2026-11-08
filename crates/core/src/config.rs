@@ -75,6 +75,8 @@ impl Default for Config {
 #[derive(Debug)]
 pub enum ConfigError {
 	Io(PathBuf, std::io::Error),
+	/// Writing the file failed: the first-run defaults, or a pin save's write or rename.
+	Write(PathBuf, std::io::Error),
 	Parse(PathBuf, toml::de::Error),
 	/// The file could not be parsed for an in-place edit (a pin save).
 	Edit(PathBuf, String),
@@ -85,6 +87,7 @@ impl std::fmt::Display for ConfigError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Io(p, e) => write!(f, "could not read {}: {e}", p.display()),
+			Self::Write(p, e) => write!(f, "could not write {}: {e}", p.display()),
 			Self::Parse(p, e) => write!(f, "could not parse {}: {e}", p.display()),
 			Self::Edit(p, e) => write!(f, "could not update {}: {e}", p.display()),
 			Self::BadCommand(c) => {
@@ -111,10 +114,10 @@ pub fn load_or_create(path: &Path) -> Result<Config, ConfigError> {
 	if !path.exists() {
 		let config = Config::default();
 		if let Some(dir) = path.parent() {
-			fs::create_dir_all(dir).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
+			fs::create_dir_all(dir).map_err(|e| ConfigError::Write(path.to_path_buf(), e))?;
 		}
 		let text = toml::to_string_pretty(&config).unwrap_or_default();
-		fs::write(path, text).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
+		fs::write(path, text).map_err(|e| ConfigError::Write(path.to_path_buf(), e))?;
 		return Ok(config);
 	}
 	let text = fs::read_to_string(path).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
