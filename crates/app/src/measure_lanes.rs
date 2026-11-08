@@ -1,11 +1,17 @@
 //! `--measure-lanes <file>` (branch-graph-lanes clause 4): with lanes on and History open, wait
 //! for the first page, take idle frames to find the display's refresh interval, then turn the
-//! wheel over the History pane one row a frame through 100 rows, a repaint every frame, and
-//! write what each frame cost. Real wheel events go in through eframe's raw-input hook, so the
-//! lanes draw the way a user's scroll draws them.
+//! wheel over the History pane one row a frame, 50 rows down and 50 back up, a repaint every
+//! frame, and write what each frame cost. Real wheel events go in through eframe's raw-input
+//! hook, so the lanes draw the way a user's scroll draws them. Only frames in which the pane's
+//! scroll offset moved are counted, so frames redrawing an unchanged view cannot pad the
+//! figures (Morticia L-1 on c70d37d).
 //!
-//! The pass rule, fixed before any run (Morticia #39826): the p95 CPU time inside a frame is
-//! under the refresh interval, and the p95 present-to-present interval is within 10% of it.
+//! Two series per counted frame: the present-to-present interval, which covers everything the
+//! frame cost including tessellation and the GPU submit after `ui()`, and the CPU time inside
+//! `ui()` alone.
+//!
+//! The pass rule, fixed before any run (Morticia #39826): at least 70 counted frames, the p95
+//! `ui()` time under the refresh interval, and the p95 present interval within 10% of it.
 //! Frames over 1.5 intervals are counted as missed and reported either way.
 
 use std::path::{Path, PathBuf};
@@ -18,8 +24,10 @@ use crate::theme::{COMMIT_ROW_HEIGHT, SIDEBAR_WIDTH};
 
 /// Frames with no input, to read the refresh interval from.
 const IDLE_FRAMES: usize = 60;
-/// Frames of wheel input: one row each through a first page of 100.
+/// Frames of wheel input: one row each, half down and half back up, within a first page of 100.
 const SCROLL_FRAMES: usize = 100;
+/// Counted (moving) frames a valid run needs.
+const MIN_MOVING: usize = 70;
 /// The page has not landed after this long: the run is written as failed.
 const WAIT_LIMIT_S: u64 = 120;
 
@@ -40,6 +48,11 @@ pub struct LanesProbe {
 	present: Vec<f64>,
 	cpu: Vec<f64>,
 	page: Vec<(&'static str, String)>,
+	/// Wheel frames so far, counted or not.
+	scrolled: usize,
+	last_offset: Option<f32>,
+	/// This frame's present interval, kept until the frame shows whether it moved.
+	pending: Option<f64>,
 }
 
 impl LanesProbe {
@@ -55,6 +68,9 @@ impl LanesProbe {
 			present: Vec::new(),
 			cpu: Vec::new(),
 			page: Vec::new(),
+			scrolled: 0,
+			last_offset: None,
+			pending: None,
 		}
 	}
 
@@ -72,10 +88,17 @@ impl LanesProbe {
 			(screen.left() + SIDEBAR_WIDTH + screen.right()) / 2.0,
 			screen.center().y,
 		);
+		// A negative delta scrolls down; the second half comes back up.
+		let row = COMMIT_ROW_HEIGHT + 6.0;
+		let delta = if self.scrolled < SCROLL_FRAMES / 2 {
+			-row
+		} else {
+			row
+		};
 		raw.events.push(Event::PointerMoved(at));
 		raw.events.push(Event::MouseWheel {
 			unit: MouseWheelUnit::Point,
-			delta: vec2(0.0, -(COMMIT_ROW_HEIGHT + 6.0)),
+			delta: vec2(0.0, delta),
 			phase: egui::TouchPhase::Move,
 			modifiers: egui::Modifiers::default(),
 			source: egui::MouseWheelSource::Wheel,
@@ -89,7 +112,7 @@ impl LanesProbe {
 			let ms = ms(now - last);
 			match self.phase {
 				Phase::Idle => self.idle.push(ms),
-				Phase::Scrolling => self.present.push(ms),
+				Phase::Scrolling => self.pending = Some(ms),
 				Phase::Waiting => {}
 			}
 		}
@@ -110,8 +133,16 @@ impl LanesProbe {
 				None
 			}
 			Phase::Scrolling => {
-				self.cpu.push(cpu);
-				(self.cpu.len() >= SCROLL_FRAMES).then(|| self.report())
+				self.scrolled += 1;
+				let offset = crate::screens::detail::scroll_offset(ctx);
+				let moved = self.last_offset.is_some() && offset != self.last_offset;
+				self.last_offset = offset;
+				let present = self.pending.take();
+				if moved && let Some(present) = present {
+					self.present.push(present);
+					self.cpu.push(cpu);
+				}
+				(self.scrolled >= SCROLL_FRAMES).then(|| self.report())
 			}
 		}
 	}
@@ -146,7 +177,13 @@ impl LanesProbe {
 	}
 
 	fn report(&self) -> String {
-		report(&self.page, &self.idle, &self.present, &self.cpu)
+		report(
+			&self.page,
+			&self.idle,
+			self.scrolled,
+			&self.present,
+			&self.cpu,
+		)
 	}
 }
 
@@ -166,9 +203,16 @@ fn percentile(values: &[f64], p: f64) -> f64 {
 	v.get(rank - 1).copied().unwrap_or(0.0)
 }
 
-/// The tab-separated report: the page lines, the refresh interval, both frame series as
-/// p50, p95 and max, the missed frames, and the verdict under the module's pass rule.
-fn report(page: &[(&str, String)], idle: &[f64], present: &[f64], cpu: &[f64]) -> String {
+/// The tab-separated report: the page lines, the refresh interval, the wheel frames and how
+/// many of them moved, both counted series as p50, p95 and max, the missed frames, and the
+/// verdict under the module's pass rule.
+fn report(
+	page: &[(&str, String)],
+	idle: &[f64],
+	frames: usize,
+	present: &[f64],
+	cpu: &[f64],
+) -> String {
 	let refresh = percentile(idle, 0.5);
 	let stats = |v: &[f64]| {
 		let max = v.iter().copied().fold(0.0, f64::max);
@@ -176,12 +220,15 @@ fn report(page: &[(&str, String)], idle: &[f64], present: &[f64], cpu: &[f64]) -
 		format!("{}\t{}\t{}", p(0.5), p(0.95), fmt(max))
 	};
 	let missed = present.iter().filter(|&&p| p > refresh * 1.5).count();
-	let pass = percentile(cpu, 0.95) < refresh && percentile(present, 0.95) <= refresh * 1.1;
+	let pass = present.len() >= MIN_MOVING
+		&& percentile(cpu, 0.95) < refresh
+		&& percentile(present, 0.95) <= refresh * 1.1;
 	let mut out: String = page.iter().map(|(k, v)| format!("{k}\t{v}\n")).collect();
 	out.push_str(&format!("refresh_ms\t{}\n", fmt(refresh)));
-	out.push_str(&format!("frames\t{}\n", present.len()));
+	out.push_str(&format!("wheel_frames\t{frames}\n"));
+	out.push_str(&format!("moving_frames\t{}\n", present.len()));
 	out.push_str(&format!("present_ms_p50_p95_max\t{}\n", stats(present)));
-	out.push_str(&format!("cpu_ms_p50_p95_max\t{}\n", stats(cpu)));
+	out.push_str(&format!("ui_cpu_ms_p50_p95_max\t{}\n", stats(cpu)));
 	out.push_str(&format!("missed\t{missed}\n"));
 	out.push_str(&format!("pass\t{}\n", if pass { "yes" } else { "no" }));
 	out
@@ -199,15 +246,18 @@ mod tests {
 		assert_eq!(percentile(&[], 0.5), 0.0);
 	}
 
-	/// The report's shape, and the pass rule both ways: a run at the refresh rate passes, and
-	/// one whose p95 frame takes two intervals fails with its misses counted.
+	/// The report's shape, and the pass rule each way it can fail: a run at the refresh rate
+	/// passes; one whose p95 frame takes two intervals fails with its misses counted; and one
+	/// with too few moving frames fails however fast they were.
 	#[test]
 	fn the_report_applies_the_pass_rule_it_states() {
 		let page = [("commits", "100".to_string())];
 		let idle = vec![16.67; 60];
-		let good = report(&page, &idle, &vec![16.7; 100], &vec![3.0; 100]);
+		let good = report(&page, &idle, 100, &vec![16.7; 100], &vec![3.0; 100]);
 		assert!(
-			good.starts_with("commits\t100\nrefresh_ms\t16.67\nframes\t100\n"),
+			good.starts_with(
+				"commits\t100\nrefresh_ms\t16.67\nwheel_frames\t100\nmoving_frames\t100\n"
+			),
 			"{good}"
 		);
 		assert!(
@@ -216,10 +266,15 @@ mod tests {
 		);
 		let mut slow = vec![16.7; 90];
 		slow.extend(vec![33.4; 10]);
-		let bad = report(&page, &idle, &slow, &vec![3.0; 100]);
+		let bad = report(&page, &idle, 100, &slow, &vec![3.0; 100]);
 		assert!(
 			bad.contains("missed\t10\n") && bad.ends_with("pass\tno\n"),
 			"{bad}"
+		);
+		let few = report(&page, &idle, 100, &vec![16.7; 69], &vec![3.0; 69]);
+		assert!(
+			few.contains("moving_frames\t69\n") && few.ends_with("pass\tno\n"),
+			"{few}"
 		);
 	}
 }

@@ -184,7 +184,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					}
 				}
 			});
-			egui::ScrollArea::vertical()
+			let scrolled = egui::ScrollArea::vertical()
 				.auto_shrink([false, false])
 				.show(ui, |ui| match state.view {
 					View::Changes => {
@@ -195,7 +195,18 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 					View::Files => files::show(ui, state, platform),
 					View::Branches => branches::show(ui, state),
 				});
+			// `--measure-lanes` counts only the frames in which this offset moved.
+			ui.data_mut(|d| d.insert_temp(offset_key(), scrolled.state.clamped_offset().y));
 		});
 	confirm::show(&ctx, state);
 	close_guard::show(&ctx, state);
+}
+
+fn offset_key() -> egui::Id {
+	egui::Id::unique("detail-pane-scroll-offset")
+}
+
+/// The detail pane's vertical scroll offset as the last frame left it.
+pub fn scroll_offset(ctx: &egui::Context) -> Option<f32> {
+	ctx.data(|d| d.get_temp(offset_key()))
 }

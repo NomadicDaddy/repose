@@ -89,13 +89,16 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   start), and keep running. The gate's idle memory sample uses it.
 - `--measure-lanes <file>`: with `--select <repo> --view history`, turn lanes on and wait for the
   first page. Then take 60 idle frames to find the refresh interval, and turn the mouse wheel
-  over History one row a frame for 100 frames. The tab-separated file holds:
+  over History one row a frame, 50 rows down and 50 back up. Only frames in which the view
+  moved are counted. The tab-separated file holds:
   - the first-page time, split into `git log` and layout;
   - the widest lane count;
-  - the present intervals and CPU time per frame (p50, p95, max);
+  - how many wheel frames moved;
+  - the present intervals and the CPU time inside `ui()` (p50, p95, max);
   - the missed frames, and whether the run passed.
 
-  repose then exits. The pass rule is in `crates/app/src/measure_lanes.rs`.
+  repose then exits, non-zero when the run failed or the file could not be written. The pass
+  rule is in `crates/app/src/measure_lanes.rs`.
 
 - `--help` or `-h`: print these flags and exit with code 0.
 

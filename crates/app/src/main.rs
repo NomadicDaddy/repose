@@ -133,9 +133,13 @@ impl eframe::App for App {
 		if let Some(probe) = &mut self.lanes_probe
 			&& let Some(report) = probe.end(&self.state, &ctx)
 		{
-			let _ = std::fs::write(probe.out(), &report);
 			print!("{report}");
-			std::process::exit(i32::from(report.starts_with("error")));
+			// The file is the evidence: a failed write exits non-zero, as an error run does.
+			let written = std::fs::write(probe.out(), &report);
+			if let Err(e) = &written {
+				eprintln!("repose: could not write {}: {e}", probe.out().display());
+			}
+			std::process::exit(i32::from(written.is_err() || report.starts_with("error")));
 		}
 	}
 }
