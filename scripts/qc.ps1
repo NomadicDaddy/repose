@@ -41,6 +41,21 @@ function CachedStep($name, [string[]] $paths, [string[]] $facts, [scriptblock] $
     if (-not (Invoke-GateStep -Name $name -Paths $paths -Facts $facts -Body $body -Artifact $artifact -NoCache:$NoCache)) { $script:exit = 1 }
 }
 Step 'gate cache self-test' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'gate-cache-test.ps1') }
+# The delivered leak guard is tested on every gate, in every clone, whether or not the hooks are
+# installed (audit-secret-handling-retention-1794018053). It runs under Git's own bash, the one the
+# hooks use, found beside git: a bare `bash` can be WSL's. Never cached: it is quick, and its
+# input includes the machine's git.
+$gitBash = $null
+$gitDir = Split-Path -Parent "$((Get-Command git -ErrorAction SilentlyContinue).Source)"
+while ($gitDir -and -not $gitBash) {
+    $gitBash = @('usr\bin\bash.exe', 'bin\bash.exe') | ForEach-Object { Join-Path $gitDir $_ } |
+        Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $gitDir = Split-Path -Parent $gitDir
+}
+Step 'leak guard self-test' {
+    if (-not $gitBash) { throw "no bash.exe beside git" }
+    & $gitBash (Join-Path $PSScriptRoot 'check-leak-guard.sh')
+}
 CachedStep 'cargo fmt --check' $rustInputs $rustFacts { cargo fmt --all -- --check }
 CachedStep 'cargo clippy' $rustInputs $rustFacts { cargo clippy --workspace --all-targets -- -D warnings }
 # The tests drive the installed Git, so its version is part of their inputs. So is the machine's

@@ -81,6 +81,11 @@ All notable changes to repose are recorded here. The format follows
   three-changes fixture.
 - A core test reads a branch whose remote-tracking branch is one commit ahead as 0 ahead and 1
   behind, from saved refs.
+- The gate now tests the leak guard on every run, whether or not the hooks are installed.
+  `scripts/check-leak-guard.sh` runs the delivered guard in a scratch repository: a clean
+  staging passes; a token shape, a PEM key block and a private literal from a fixture pattern
+  file are refused without being printed; and a configured pattern file that is missing refuses
+  even clean content. It runs under Git's own bash, found beside git.
 
 ## [1.1.2] - 2026-11-07
 
