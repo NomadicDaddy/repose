@@ -5,7 +5,7 @@ use eframe::egui::{self, RichText, Ui};
 use repose_core::model::{ChangeKind, Commit, CommitFile, DiffSource, RepoSummary};
 
 use crate::platform::Platform;
-use crate::screens::menu;
+use crate::screens::{a11y, menu};
 use crate::state::{AppState, OpenDiff};
 use crate::theme::*;
 
@@ -59,7 +59,8 @@ fn files_status<'a>(
 		Some(Ok([])) => ("No files changed".to_string(), MUTED),
 		Some(Ok(list)) => return Some(list),
 	};
-	ui.label(RichText::new(text).size(TEXT_SMALL).color(colour));
+	let shown = ui.label(RichText::new(&text).size(TEXT_SMALL).color(colour));
+	a11y::live(&shown, &text);
 	None
 }
 

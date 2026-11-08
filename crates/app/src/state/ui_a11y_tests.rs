@@ -28,7 +28,7 @@ pub(super) struct A11yNode {
 	selected: Option<bool>,
 	pub(super) focusable: bool,
 	/// The node announces changes politely (a status line).
-	polite: bool,
+	pub(super) polite: bool,
 }
 
 /// One frame with AccessKit on, returning every node in the tree update it produced.

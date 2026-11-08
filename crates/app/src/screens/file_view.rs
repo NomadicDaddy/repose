@@ -82,7 +82,7 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 	} = v;
 	match content {
 		FileContent::Loading => {
-			ui.label(RichText::new("Reading file…").color(MUTED));
+			a11y::loading_label(ui, "Reading file…");
 		}
 		FileContent::TooLarge(size) => {
 			ui.label(

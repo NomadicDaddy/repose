@@ -100,12 +100,17 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		}
 	}
 	if commits.is_empty() && loading {
-		ui.label(RichText::new("Reading history…").color(MUTED));
+		a11y::loading_label(ui, "Reading history…");
 	}
 	if !exhausted {
 		ui.add_space(8.0);
 		let label = if loading { "Loading…" } else { "Load more" };
-		if ui.add_enabled(!loading, egui::Button::new(label)).clicked() {
+		let more = ui.add_enabled(!loading, egui::Button::new(label));
+		// The button keeps its role; while a page loads, a polite region beside it says so.
+		if loading {
+			a11y::live_beside(ui, more.id.with("loading"), more.rect, "Loading…");
+		}
+		if more.clicked() {
 			state.load_more_history(&repo.path, &ctx);
 		}
 	}

@@ -24,7 +24,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	}
 	let Some(branches) = b.branches.clone() else {
 		if b.loading {
-			ui.label(RichText::new("Reading branches…").color(MUTED));
+			a11y::loading_label(ui, "Reading branches…");
 		}
 		return;
 	};

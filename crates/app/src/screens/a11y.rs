@@ -6,8 +6,10 @@
 //! `Context::accesskit_node_builder`: in the tree, but never focusable, so the diff adds no Tab
 //! stops. Tooltips are left as they are.
 
-use eframe::egui::{Id, Rect, Response, Role, Ui, WidgetInfo, accesskit};
+use eframe::egui::{Id, Rect, Response, RichText, Role, Ui, WidgetInfo, accesskit};
 use repose_core::model::{Branch, ChangeKind, Commit, DiffLine, FileChange, LineKind, RepoSummary};
+
+use crate::theme::MUTED;
 
 /// A painted control: its role, its name and, for a row that can be selected, open or current,
 /// whether it is.
@@ -166,4 +168,12 @@ pub(super) fn separator(skipped: u32, heading: &str) -> String {
 	} else {
 		format!("{lines}, {heading}")
 	}
+}
+
+/// A pane's muted loading text ("Reading diff…"), drawn and made a polite live region in one
+/// step so the visible and the announced text cannot drift apart (audit-web-design-guidelines,
+/// pane loading labels).
+pub(super) fn loading_label(ui: &mut Ui, text: &str) {
+	let shown = ui.label(RichText::new(text).color(MUTED));
+	live(&shown, text);
 }

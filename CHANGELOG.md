@@ -27,6 +27,11 @@ All notable changes to repose are recorded here. The format follows
 
 ### Fixed
 
+- The Find box's hint reads "name or path…" with an ellipsis, as the rest of the app does, not
+  three full stops.
+- A screen reader now hears each pane's loading text: Reading diff, Laying out, Reading tree,
+  Reading file, Reading history, Reading branches, a commit's Reading files, and Load more's
+  Loading. Before, only the status line and the commit messages were announced.
 - Escape on the discard confirmation or the unsaved-message question now closes only that
   dialog. Before, the same key press also closed the diff or file open behind it.
 - Reveal in Explorer on a file too large to diff, a changed file's Open, and Enter on the

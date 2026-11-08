@@ -4,6 +4,7 @@
 use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::model::{BranchState, TreeEntry};
 
+use super::a11y;
 use super::menu::{self, Action};
 use crate::file_tree::{Folder, size_label};
 use crate::platform::Platform;
@@ -54,7 +55,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		return;
 	}
 	if f.loaded.as_ref() != Some(&f.rev) {
-		ui.label(RichText::new("Reading tree…").color(MUTED));
+		a11y::loading_label(ui, "Reading tree…");
 		return;
 	}
 	if f.tree.file_count() == 0 {

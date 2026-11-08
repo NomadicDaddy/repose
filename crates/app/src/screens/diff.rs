@@ -5,8 +5,8 @@
 use eframe::egui::{self, FontFamily, Key, RichText, Sense, Ui, vec2};
 use repose_core::model::DiffSource;
 
-use super::crumb;
 use super::diff_draw::{Source, describe_row, draw_row};
+use super::{a11y, crumb};
 use crate::diff_rows::Row;
 use crate::platform::Platform;
 use crate::state::{AppState, DiffContent, DiffState};
@@ -50,7 +50,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	} = d;
 	match content {
 		DiffContent::Loading => {
-			ui.label(RichText::new("Reading diff…").color(MUTED));
+			a11y::loading_label(ui, "Reading diff…");
 		}
 		DiffContent::TooLarge(size) => {
 			ui.label(
@@ -92,7 +92,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			// Rows are built on the reader thread (open, reload and the Inline toggle alike), so
 			// the UI thread never runs the word diff; until they arrive the old layout stands.
 			if rows.len() != files.len() || *rows_inline != *inline {
-				ui.label(RichText::new("Laying out…").size(TEXT_SMALL).color(MUTED));
+				let shown = ui.label(RichText::new("Laying out…").size(TEXT_SMALL).color(MUTED));
+				a11y::live(&shown, "Laying out…");
 			}
 			for (i, (file, file_rows)) in files.iter().zip(rows.iter()).enumerate() {
 				let src = Source {
