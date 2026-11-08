@@ -1,11 +1,14 @@
 //! WCAG 2 contrast, and the guard that keeps syntax colours readable on every background a span
 //! is drawn over (audit-web-design-guidelines-1793709090: the Base16 Ocean Dark colours were
-//! copied without checking them against the diff and word-mark fills).
+//! copied without checking them against the diff and word-mark fills). Each theme is checked
+//! against its own fills; the caller names the theme, because the syntax colours are worked out
+//! on the reader thread, which draws nothing.
 
 use eframe::egui::Color32;
 
 use super::tokens::{
-	ACCENT_BG, ADDED_BG, ADDED_MARK, BG_APP, BG_PANEL, BG_RAISED, REMOVED_BG, REMOVED_MARK, TEXT,
+	ACCENT_BG, ADDED_BG, ADDED_MARK, BG_APP, BG_PANEL, BG_RAISED, Colour, REMOVED_BG, REMOVED_MARK,
+	TEXT,
 };
 
 /// The AA ratio for normal-size text.
@@ -13,7 +16,7 @@ pub const AA: f64 = 4.5;
 
 /// Every fill a syntax-coloured span can sit on: the panes, the current file line, added and
 /// removed lines, and the word marks inside them.
-pub const SPAN_BACKGROUNDS: [(&str, Color32); 8] = [
+pub const SPAN_BACKGROUNDS: [(&str, Colour); 8] = [
 	("BG_APP", BG_APP),
 	("BG_PANEL", BG_PANEL),
 	("BG_RAISED", BG_RAISED),
@@ -42,30 +45,32 @@ pub fn contrast(a: Color32, b: Color32) -> f64 {
 	(x.max(y) + 0.05) / (x.min(y) + 0.05)
 }
 
-/// The lowest contrast `c` has against any span background.
-pub fn worst(c: Color32) -> f64 {
+/// The lowest contrast `c` has against any of one theme's span backgrounds.
+pub fn worst(c: Color32, light: bool) -> f64 {
 	SPAN_BACKGROUNDS
 		.iter()
-		.map(|(_, bg)| contrast(c, *bg))
+		.map(|(_, bg)| contrast(c, bg.of(light)))
 		.fold(f64::INFINITY, f64::min)
 }
 
-/// `c` itself when it reads at AA on every span background; otherwise the least blend toward
-/// TEXT that does, in 5% steps, so a failing colour keeps as much of its hue as it can.
-pub fn readable(c: Color32) -> Color32 {
+/// `c` itself when it reads at AA on every span background of the theme; otherwise the least
+/// blend toward that theme's TEXT that does, in 5% steps, so a failing colour keeps as much of its
+/// hue as it can.
+pub fn readable(c: Color32, light: bool) -> Color32 {
+	let text = TEXT.of(light);
 	for step in 0..=20u8 {
 		let t = f32::from(step) / 20.0;
 		let mix = |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * t).round() as u8;
 		let candidate = Color32::from_rgb(
-			mix(c.r(), TEXT.r()),
-			mix(c.g(), TEXT.g()),
-			mix(c.b(), TEXT.b()),
+			mix(c.r(), text.r()),
+			mix(c.g(), text.g()),
+			mix(c.b(), text.b()),
 		);
-		if worst(candidate) >= AA {
+		if worst(candidate, light) >= AA {
 			return candidate;
 		}
 	}
-	TEXT
+	text
 }
 
 #[cfg(test)]
@@ -81,25 +86,28 @@ mod tests {
 	#[test]
 	fn the_shipped_comment_grey_fails_and_the_guard_lifts_it() {
 		assert!(
-			worst(OCEAN_COMMENT) < AA,
+			worst(OCEAN_COMMENT, false) < AA,
 			"control: the raw grey fails somewhere"
 		);
-		let fixed = readable(OCEAN_COMMENT);
+		let fixed = readable(OCEAN_COMMENT, false);
 		assert!(
-			worst(fixed) >= AA,
+			worst(fixed, false) >= AA,
 			"{fixed:?} is {:.2}:1 at worst",
-			worst(fixed)
+			worst(fixed, false)
 		);
 		assert_ne!(fixed, OCEAN_COMMENT);
-		assert_eq!(
-			readable(TEXT),
-			TEXT,
-			"a colour that already reads is left alone"
-		);
+		for light in [false, true] {
+			let text = TEXT.of(light);
+			assert_eq!(
+				readable(text, light),
+				text,
+				"a colour that already reads is left alone"
+			);
+		}
 	}
 
 	#[test]
-	fn every_real_span_reads_at_aa_on_every_background() {
+	fn every_real_span_reads_at_aa_on_every_background_in_both_themes() {
 		let lines = [
 			"// a comment",
 			"/// a doc comment",
@@ -111,16 +119,24 @@ mod tests {
 		for line in &spans {
 			for span in line {
 				for (name, bg) in SPAN_BACKGROUNDS {
-					let ratio = contrast(span.color, bg);
-					assert!(ratio >= AA, "{:?} on {name} is {ratio:.2}:1", span.color);
+					for (theme, fg, bg) in [
+						("dark", span.color.dark, bg.dark),
+						("light", span.color.light, bg.light),
+					] {
+						let ratio = contrast(fg, bg);
+						assert!(ratio >= AA, "{theme} {fg:?} on {name} is {ratio:.2}:1");
+					}
 				}
 				checked += 1;
 			}
 		}
 		assert!(checked >= 8, "the fixture produced real spans ({checked})");
-		// Recognition is unchanged: the comment and the keyword still get different colours.
+		// Recognition is unchanged: the comment and the keyword still get different colours, in
+		// each theme.
 		let comment = spans[0].first().map(|s| s.color);
 		let keyword = spans[2].first().map(|s| s.color);
-		assert!(comment.is_some() && keyword.is_some() && comment != keyword);
+		assert!(comment.is_some() && keyword.is_some());
+		assert!(comment.map(|c| c.dark) != keyword.map(|c| c.dark));
+		assert!(comment.map(|c| c.light) != keyword.map(|c| c.light));
 	}
 }

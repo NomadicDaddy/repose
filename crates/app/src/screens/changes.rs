@@ -124,7 +124,9 @@ fn group(
 
 fn count_pill(ui: &mut Ui, n: usize) {
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
-	let galley = ui.painter().layout_no_wrap(n.to_string(), font, ACCENT);
+	let galley = ui
+		.painter()
+		.layout_no_wrap(n.to_string(), font, ACCENT.get());
 	let size = galley.size() + vec2(12.0, 4.0);
 	let (rect, pill) = ui.allocate_exact_size(size, Sense::hover());
 	let name = super::count_label(n, "file", "files");
@@ -136,8 +138,11 @@ fn count_pill(ui: &mut Ui, n: usize) {
 		egui::Stroke::new(1.0, ACCENT_LINE),
 		StrokeKind::Inside,
 	);
-	ui.painter()
-		.galley(pos2(rect.left() + 6.0, rect.top() + 2.0), galley, ACCENT);
+	ui.painter().galley(
+		pos2(rect.left() + 6.0, rect.top() + 2.0),
+		galley,
+		ACCENT.get(),
+	);
 }
 
 fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChange) {
@@ -166,12 +171,12 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	} else {
 		TEXT
 	};
-	let name = painter.layout_no_wrap(file.file_name().to_string(), name_font, name_color);
+	let name = painter.layout_no_wrap(file.file_name().to_string(), name_font, name_color.get());
 	let name_width = name.size().x;
 	painter.galley(
 		pos2(x, rect.center().y - name.size().y / 2.0),
 		name,
-		name_color,
+		name_color.get(),
 	);
 	if file.kind == ChangeKind::Deleted {
 		let y = rect.center().y;
@@ -189,14 +194,14 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		Align2::LEFT_CENTER,
 		folder,
 		FontId::new(TEXT_SMALL, FontFamily::Proportional),
-		MUTED,
+		MUTED.get(),
 	);
 	painter.text(
 		pos2(rect.right() - 10.0, rect.center().y),
 		Align2::RIGHT_CENTER,
 		file.kind.letter(),
 		FontId::new(TEXT_BASE, FontFamily::Monospace),
-		super::change_kind_colour(file.kind),
+		super::change_kind_colour(file.kind).get(),
 	);
 	a11y::control(
 		&response,

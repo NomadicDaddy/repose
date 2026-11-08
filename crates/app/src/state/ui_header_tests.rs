@@ -33,7 +33,7 @@ fn a_long_header_path_wraps_only_at_separators() {
 	state.requested_selection = Some(long.clone());
 	assert!(state.merge_discovered(vec![row]), "the row is selected");
 	let ctx = egui::Context::default();
-	crate::theme::apply(&ctx);
+	crate::theme::apply(&ctx, repose_core::config::Theme::Dark);
 	let shapes = frame(&ctx, &mut state, Vec::new());
 	let full = long.display().to_string();
 	// The pieces a separator-only wrap may cut the path into: each folder with its separator.

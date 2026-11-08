@@ -81,7 +81,7 @@ fn the_change_letter_sits_on_the_paths_baseline() {
 	// baselines must match at each zoom, not merely come within a point.
 	for zoom in [1.0, 1.5, 2.25] {
 		let ctx = egui::Context::default();
-		crate::theme::apply(&ctx);
+		crate::theme::apply(&ctx, repose_core::config::Theme::Dark);
 		ctx.set_zoom_factor(zoom);
 		let mut state = expanded(Some(Ok(vec![CommitFile {
 			path: "src/new.rs".into(),
@@ -106,7 +106,7 @@ fn the_change_letter_sits_on_the_paths_baseline() {
 #[test]
 fn the_paths_of_an_expanded_commit_start_in_one_column() {
 	let ctx = egui::Context::default();
-	crate::theme::apply(&ctx);
+	crate::theme::apply(&ctx, repose_core::config::Theme::Dark);
 	let file = |path: &str, kind| CommitFile {
 		path: path.into(),
 		kind,

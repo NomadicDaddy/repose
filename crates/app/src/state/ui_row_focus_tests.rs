@@ -20,7 +20,8 @@ const FILE_LINE: f32 = 20.0;
 
 type Drawn = Vec<(Rect, Color32, Stroke)>;
 
-fn with(rects: &Drawn, fill: Color32, line: Color32) -> Option<Rect> {
+fn with(rects: &Drawn, fill: impl Into<Color32>, line: impl Into<Color32>) -> Option<Rect> {
+	let (fill, line) = (fill.into(), line.into());
 	rects
 		.iter()
 		.find(|(_, f, s)| {
@@ -36,7 +37,7 @@ fn tab_past_selected(
 	ctx: &egui::Context,
 	state: &mut AppState,
 	height: f32,
-	selected_fill: Color32,
+	selected_fill: impl Into<Color32> + Copy,
 ) -> (Rect, Drawn) {
 	let mut both = None;
 	for _ in 0..40 {
@@ -92,7 +93,7 @@ fn change_rows_show_focus_apart_from_selection_and_hover() {
 	let selected = with(&drawn, ACCENT_BG, ACCENT_LINE)
 		.unwrap_or_else(|| panic!("no selected change row: {drawn:?}"));
 	assert!(
-		drawn.iter().all(|(_, _, s)| s.color != ACCENT),
+		drawn.iter().all(|(_, _, s)| s.color != ACCENT.get()),
 		"no focus before Tab"
 	);
 	let (both, drawn) = tab_past_selected(&ctx, &mut state, CHANGE_ROW, ACCENT_BG);
@@ -146,7 +147,7 @@ fn commit_rows_show_focus_apart_from_the_open_commit_and_hover() {
 	let opened = with(&drawn, ACCENT_BG, ACCENT_LINE)
 		.unwrap_or_else(|| panic!("no open commit row: {drawn:?}"));
 	assert!(
-		drawn.iter().all(|(_, _, s)| s.color != ACCENT),
+		drawn.iter().all(|(_, _, s)| s.color != ACCENT.get()),
 		"no focus before Tab"
 	);
 	let (both, drawn) = tab_past_selected(&ctx, &mut state, COMMIT_ROW, ACCENT_BG);
@@ -191,7 +192,7 @@ fn file_view_lines_show_focus_apart_from_the_current_line_and_hover() {
 	let current = with(&drawn, ACCENT_BG, Color32::TRANSPARENT)
 		.unwrap_or_else(|| panic!("no current line: {drawn:?}"));
 	assert!(
-		drawn.iter().all(|(_, _, s)| s.color != ACCENT),
+		drawn.iter().all(|(_, _, s)| s.color != ACCENT.get()),
 		"no focus before Tab"
 	);
 	let (both, drawn) = tab_past_selected(&ctx, &mut state, FILE_LINE, ACCENT_BG);

@@ -11,7 +11,12 @@ use super::AppState;
 use super::ui_harness::{accent_outlines, frame, repo, row_rects, tab};
 use crate::theme::{ACCENT, ACCENT_BG, ACCENT_LINE, BG_HOVER, ROW_HEIGHT};
 
-fn with(rects: &[(Rect, Color32, Stroke)], fill: Color32, line: Color32) -> Option<Rect> {
+fn with(
+	rects: &[(Rect, Color32, Stroke)],
+	fill: impl Into<Color32>,
+	line: impl Into<Color32>,
+) -> Option<Rect> {
+	let (fill, line) = (fill.into(), line.into());
 	rects
 		.iter()
 		.find(|(_, f, s)| {
@@ -37,7 +42,7 @@ fn a_focused_row_draws_an_accent_outline_distinct_from_selection_and_hover() {
 	let selected = with(&drawn, ACCENT_BG, ACCENT_LINE)
 		.unwrap_or_else(|| panic!("no selected row with the accent fill and soft line: {drawn:?}"));
 	assert!(
-		drawn.iter().all(|(_, _, s)| s.color != ACCENT),
+		drawn.iter().all(|(_, _, s)| s.color != ACCENT.get()),
 		"no row shows the focus outline before Tab: {drawn:?}"
 	);
 	// Tab walks the Refresh button and the Find box, then reaches the first row, which is also
@@ -103,7 +108,7 @@ fn tab_reaches_the_worktree_chevron_and_outlines_it() {
 	let parent_rect = with(&rows, ACCENT_BG, ACCENT_LINE)
 		.unwrap_or_else(|| panic!("the parent row keeps its soft line: {rows:?}"));
 	assert!(
-		rows.iter().all(|(_, _, s)| s.color != ACCENT),
+		rows.iter().all(|(_, _, s)| s.color != ACCENT.get()),
 		"no row holds focus while the chevron does: {rows:?}"
 	);
 	let outlines = accent_outlines(&drawn);

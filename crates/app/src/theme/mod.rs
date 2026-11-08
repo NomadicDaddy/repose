@@ -1,42 +1,67 @@
-//! The dark theme: tokens from look.jpg and the two fonts. Screens use these names and never a
-//! colour literal.
+//! The dark and light themes: tokens (dark from look.jpg) and the two fonts. Screens use these
+//! names and never a colour literal.
 
 pub mod contrast;
 pub mod fonts;
 pub mod tokens;
 
 use eframe::egui;
+use repose_core::config::Theme;
 
 pub use tokens::*;
 
-pub fn apply(ctx: &egui::Context) {
+/// Fonts, both themes' visuals and spacing, and which theme to draw: `system` follows the Windows
+/// app theme, which winit reports at start-up and whenever it changes (light-theme clause 2).
+pub fn apply(ctx: &egui::Context, choice: Theme) {
 	ctx.set_fonts(fonts::definitions());
-	let mut visuals = egui::Visuals::dark();
-	visuals.panel_fill = BG_APP;
-	visuals.window_fill = BG_PANEL;
-	visuals.extreme_bg_color = BG_APP;
-	visuals.faint_bg_color = BG_RAISED;
-	visuals.override_text_color = Some(TEXT);
-	visuals.selection.bg_fill = ACCENT_BG;
-	visuals.selection.stroke = egui::Stroke::new(1.0, ACCENT_LINE);
-	visuals.hyperlink_color = ACCENT;
-	visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, LINE_SOFT);
-	visuals.widgets.noninteractive.bg_fill = BG_PANEL;
-	visuals.widgets.inactive.bg_fill = BG_RAISED;
-	visuals.widgets.inactive.weak_bg_fill = BG_RAISED;
-	visuals.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, LINE);
-	visuals.widgets.hovered.bg_fill = BG_HOVER;
-	visuals.widgets.hovered.weak_bg_fill = BG_HOVER;
-	visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, LINE_STRONG);
-	visuals.widgets.active.bg_fill = ACCENT_BG;
-	visuals.widgets.active.weak_bg_fill = ACCENT_BG;
-	visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, ACCENT_LINE);
-	ctx.set_theme(egui::Theme::Dark);
-	ctx.set_visuals(visuals);
+	ctx.set_visuals_of(egui::Theme::Dark, visuals(false));
+	ctx.set_visuals_of(egui::Theme::Light, visuals(true));
+	ctx.set_theme(match choice {
+		Theme::System => egui::ThemePreference::System,
+		Theme::Dark => egui::ThemePreference::Dark,
+		Theme::Light => egui::ThemePreference::Light,
+	});
 	ctx.all_styles_mut(|style| {
 		style.spacing.item_spacing = egui::vec2(8.0, 6.0);
 		style.spacing.button_padding = egui::vec2(10.0, 5.0);
 	});
+}
+
+/// At the start of every frame: the tokens this thread paints with follow the theme egui is
+/// drawing now, so a switch takes effect on the next frame with no state reset.
+pub fn begin_frame(ctx: &egui::Context) {
+	set_light(ctx.theme() == egui::Theme::Light);
+}
+
+/// egui's own widgets in one theme's tokens.
+fn visuals(light: bool) -> egui::Visuals {
+	let pick = |c: Colour| c.of(light);
+	let stroke = |c: Colour| egui::Stroke::new(1.0, pick(c));
+	let mut v = if light {
+		egui::Visuals::light()
+	} else {
+		egui::Visuals::dark()
+	};
+	v.panel_fill = pick(BG_APP);
+	v.window_fill = pick(BG_PANEL);
+	v.extreme_bg_color = pick(BG_APP);
+	v.faint_bg_color = pick(BG_RAISED);
+	v.override_text_color = Some(pick(TEXT));
+	v.selection.bg_fill = pick(ACCENT_BG);
+	v.selection.stroke = stroke(ACCENT_LINE);
+	v.hyperlink_color = pick(ACCENT);
+	v.widgets.noninteractive.bg_stroke = stroke(LINE_SOFT);
+	v.widgets.noninteractive.bg_fill = pick(BG_PANEL);
+	v.widgets.inactive.bg_fill = pick(BG_RAISED);
+	v.widgets.inactive.weak_bg_fill = pick(BG_RAISED);
+	v.widgets.inactive.bg_stroke = stroke(LINE);
+	v.widgets.hovered.bg_fill = pick(BG_HOVER);
+	v.widgets.hovered.weak_bg_fill = pick(BG_HOVER);
+	v.widgets.hovered.bg_stroke = stroke(LINE_STRONG);
+	v.widgets.active.bg_fill = pick(ACCENT_BG);
+	v.widgets.active.weak_bg_fill = pick(ACCENT_BG);
+	v.widgets.active.bg_stroke = stroke(ACCENT_LINE);
+	v
 }
 
 /// How long after the first rows the animation setting is asked for, so its pwsh starts after

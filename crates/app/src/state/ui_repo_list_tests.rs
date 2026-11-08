@@ -64,7 +64,7 @@ fn open_state(ctx: &egui::Context, state: &mut AppState) -> (Vec<String>, Option
 #[test]
 fn the_chevron_is_sized_and_aligned_with_its_text() {
 	let ctx = egui::Context::default();
-	crate::theme::apply(&ctx);
+	crate::theme::apply(&ctx, repose_core::config::Theme::Dark);
 	let mut state = with_worktrees();
 	let shapes = frame(&ctx, &mut state, Vec::new());
 	let all = texts(&shapes);

@@ -40,6 +40,8 @@ pub(super) fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yN
 		..Default::default()
 	};
 	let mut out = ctx.run_ui(input, |root| {
+		// As main.rs does: the tokens follow the theme this frame draws.
+		crate::theme::begin_frame(root.ctx());
 		repo_list::show(root, state, &Headless);
 		detail::show(root, state, &Headless);
 	});

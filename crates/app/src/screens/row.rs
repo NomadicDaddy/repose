@@ -58,7 +58,7 @@ pub fn draw(
 		// baseline (design-polish clause 5). A triangle about half the text size, centred on the
 		// lowercase body of "<n> worktrees", pointing right when closed and down when open.
 		let size = FontId::new(TEXT_SMALL, FontFamily::Proportional);
-		let galley = painter.layout_no_wrap(label, size, INFO);
+		let galley = painter.layout_no_wrap(label, size, INFO.get());
 		let tri = TEXT_SMALL * 0.55;
 		let gap = 4.0;
 		let w = tri + gap + galley.size().x;
@@ -96,10 +96,10 @@ pub fn draw(
 		let hit = Rect::from_min_max(start, pos + galley.size()).expand(4.0);
 		painter.add(egui::Shape::convex_polygon(
 			points,
-			INFO,
+			INFO.get(),
 			egui::Stroke::NONE,
 		));
-		painter.galley(pos, galley, INFO);
+		painter.galley(pos, galley, INFO.get());
 		let r = ui.interact(
 			hit,
 			ui.scope_id().with((repo.path.as_os_str(), "chevron")),
@@ -107,7 +107,12 @@ pub fn draw(
 		);
 		// The chevron is in the Tab order too, so it shows the same focus outline as a row.
 		if r.has_focus() {
-			painter.rect_stroke(hit, 3.0, egui::Stroke::new(1.0, ACCENT), StrokeKind::Inside);
+			painter.rect_stroke(
+				hit,
+				3.0,
+				egui::Stroke::new(1.0, ACCENT.get()),
+				StrokeKind::Inside,
+			);
 		}
 		let name = a11y::chevron_name(expanded, repo.worktrees.len());
 		a11y::control(&r, egui::Role::DisclosureTriangle, None, &name);
@@ -121,7 +126,7 @@ pub fn draw(
 		name_color,
 		width,
 	);
-	painter.galley(pos2(x, rect.top() + 7.0), name, name_color);
+	painter.galley(pos2(x, rect.top() + 7.0), name, name_color.get());
 	let branch = fit(
 		&painter,
 		&repo.branch_line(),
@@ -129,7 +134,7 @@ pub fn draw(
 		MUTED,
 		width,
 	);
-	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED);
+	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED.get());
 	let tooltip = tooltip_text(repo);
 	let response = response.on_hover_text(tooltip);
 	let mut spoken = a11y::repo_name(repo);
@@ -153,8 +158,8 @@ pub(super) fn frame(
 	painter: &egui::Painter,
 	rect: Rect,
 	radius: f32,
-	fill: Option<egui::Color32>,
-	line: Option<egui::Color32>,
+	fill: Option<Colour>,
+	line: Option<Colour>,
 	focused: bool,
 ) {
 	let outline = if focused { Some(ACCENT) } else { line };
@@ -162,14 +167,14 @@ pub(super) fn frame(
 		painter.rect(
 			rect,
 			radius,
-			fill.unwrap_or(egui::Color32::TRANSPARENT),
-			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c)),
+			fill.map_or(egui::Color32::TRANSPARENT, Colour::get),
+			outline.map_or(egui::Stroke::NONE, |c| egui::Stroke::new(1.0, c.get())),
 			StrokeKind::Inside,
 		);
 	}
 }
 
-fn badges(repo: &RepoSummary) -> Vec<(String, egui::Color32)> {
+fn badges(repo: &RepoSummary) -> Vec<(String, Colour)> {
 	let mut out = Vec::new();
 	if repo.error.is_some() {
 		out.push(("error".to_string(), DANGER));
@@ -202,9 +207,10 @@ pub(super) fn fit(
 	painter: &egui::Painter,
 	text: &str,
 	font: FontId,
-	color: egui::Color32,
+	color: impl Into<egui::Color32>,
 	width: f32,
 ) -> std::sync::Arc<egui::Galley> {
+	let color = color.into();
 	let whole = painter.layout_no_wrap(text.to_string(), font.clone(), color);
 	if whole.size().x <= width {
 		return whole;
@@ -240,16 +246,17 @@ pub(super) fn pill(
 	right: f32,
 	cy: f32,
 	text: &str,
-	color: egui::Color32,
+	color: impl Into<egui::Color32>,
 ) -> f32 {
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
+	let color = color.into();
 	let galley = painter.layout_no_wrap(text.to_string(), font, color);
 	let size = galley.size() + vec2(12.0, 4.0);
 	let rect = Rect::from_min_size(pos2(right - size.x, cy - size.y / 2.0), size);
 	painter.rect(
 		rect,
 		9.0,
-		BG_APP,
+		BG_APP.get(),
 		egui::Stroke::new(1.0, color.gamma_multiply(0.6)),
 		StrokeKind::Inside,
 	);

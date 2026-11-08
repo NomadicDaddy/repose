@@ -6,6 +6,14 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A light theme. The window follows the Windows app mode and switches when you change it; an
+  open diff keeps its scroll and selection. `theme = "dark"` or `theme = "light"` in config.toml
+  keeps one theme, and the default is `system`. Every text colour reads at 4.5:1 or more on every
+  light background, and the selection and focus outlines at 3:1. Diffs and the file view use a
+  light syntax theme in light mode.
+
 ### Fixed
 
 - Escape on the discard confirmation or the unsaved-message question now closes only that

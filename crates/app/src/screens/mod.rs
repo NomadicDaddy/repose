@@ -32,7 +32,7 @@ fn count_label(count: usize, one: &str, many: &str) -> String {
 
 /// The colour of a change's kind letter, shared by the Changes badge and the History file rows so
 /// a colour is changed in one place.
-fn change_kind_colour(kind: ChangeKind) -> eframe::egui::Color32 {
+fn change_kind_colour(kind: ChangeKind) -> crate::theme::Colour {
 	match kind {
 		ChangeKind::Modified | ChangeKind::TypeChanged => WARN,
 		ChangeKind::Added | ChangeKind::IntentToAdd => ACCENT,

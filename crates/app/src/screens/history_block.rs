@@ -19,7 +19,7 @@ pub(super) fn expanded_block(
 ) {
 	let mut action = None;
 	egui::Frame::new()
-		.fill(BG_PANEL)
+		.fill(BG_PANEL.get())
 		.inner_margin(10.0)
 		.corner_radius(RADIUS)
 		.show(ui, |ui| {

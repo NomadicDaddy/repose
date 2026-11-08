@@ -125,7 +125,7 @@ fn a_failed_fetch_shows_gits_message_under_fetch_failed_and_not_in_the_commit_bo
 /// the painted text and how many rows its galley takes.
 fn status_rows(total: usize, fetched: usize, matching: usize, missing: bool) -> (String, usize) {
 	let ctx = egui::Context::default();
-	crate::theme::apply(&ctx);
+	crate::theme::apply(&ctx, repose_core::config::Theme::Dark);
 	let mut state = AppState::new(Config::default());
 	let t0 = SystemTime::now();
 	let rows: Vec<_> = (0..total)

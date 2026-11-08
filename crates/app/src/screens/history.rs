@@ -149,13 +149,13 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 		Align2::LEFT_CENTER,
 		&c.short,
 		FontId::new(TEXT_MONO, FontFamily::Monospace),
-		INFO,
+		INFO.get(),
 	);
 	let meta = format!("{} · {}", c.author, relative(c.time, now, &c.date));
 	let meta_galley = painter.layout_no_wrap(
 		meta,
 		FontId::new(TEXT_SMALL, FontFamily::Proportional),
-		MUTED,
+		MUTED.get(),
 	);
 	let meta_w = meta_galley.size().x;
 	painter.galley(
@@ -164,7 +164,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 			rect.center().y - meta_galley.size().y / 2.0,
 		),
 		meta_galley,
-		MUTED,
+		MUTED.get(),
 	);
 	let subject_left = x + 70.0;
 	let subject_width = (rect.right() - 20.0 - meta_w - subject_left).max(40.0);
@@ -175,7 +175,7 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	let subject = fit(&painter, &c.subject, font, TEXT, subject_width);
 	let cut = subject.text() != c.subject;
 	let subject_y = rect.center().y - subject.size().y / 2.0;
-	painter.galley(pos2(subject_left, subject_y), subject, TEXT);
+	painter.galley(pos2(subject_left, subject_y), subject, TEXT.get());
 	let tooltip = if cut {
 		format!("{}\n{}", c.subject, iso_tooltip(c))
 	} else {

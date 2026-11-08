@@ -62,6 +62,7 @@ pub(super) fn frame_on(
 		..Default::default()
 	};
 	let mut out = ctx.run_ui(input, |root| {
+		crate::theme::begin_frame(root.ctx());
 		repo_list::show(root, state, platform);
 		detail::show(root, state, platform);
 	});
@@ -70,8 +71,7 @@ pub(super) fn frame_on(
 	out.shapes
 }
 
-/// Every piece of text the frame painted, in paint order, for a test about what a header or a
-/// row says rather than where it sits.
+/// Every text the frame painted, in paint order, for a test of what a row says, not where.
 pub(super) fn texts(shapes: &[ClippedShape]) -> Vec<String> {
 	shapes
 		.iter()
@@ -173,7 +173,7 @@ pub(super) fn row_rects(shapes: &[ClippedShape]) -> Vec<(Rect, Color32, Stroke)>
 pub(super) fn accent_outlines(shapes: &[ClippedShape]) -> Vec<Rect> {
 	sidebar_rects(shapes)
 		.into_iter()
-		.filter(|(_, _, s)| s.color == ACCENT && s.width == 1.0)
+		.filter(|(_, _, s)| s.color == ACCENT.get() && s.width == 1.0)
 		.map(|(r, _, _)| r)
 		.collect()
 }

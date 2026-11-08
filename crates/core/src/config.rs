@@ -11,7 +11,20 @@ pub struct Config {
 	pub roots: Vec<PathBuf>,
 	pub exclude: Vec<String>,
 	pub depth: u32,
+	/// `system` follows the Windows app theme, and `dark` or `light` overrides it.
+	pub theme: Theme,
 	pub commands: Commands,
+}
+
+/// The colour theme the window draws (light-theme clause 2). Any other value is a parse error
+/// naming the file, as for every other key.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+	#[default]
+	System,
+	Dark,
+	Light,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -49,6 +62,7 @@ impl Default for Config {
 				.map(|s| s.to_string())
 				.collect(),
 			depth: 3,
+			theme: Theme::System,
 			commands: Commands::default(),
 		}
 	}
@@ -142,6 +156,17 @@ mod tests {
 		let text = toml::to_string_pretty(&Config::default()).unwrap_or_default();
 		let back: Config = toml::from_str(&text).ok().unwrap_or_default();
 		assert_eq!(back, Config::default());
+	}
+
+	#[test]
+	fn the_theme_key_takes_system_dark_or_light_and_refuses_anything_else() {
+		let read = |text: &str| toml::from_str::<Config>(text).map(|c| c.theme);
+		assert_eq!(read("").ok(), Some(Theme::System), "missing is system");
+		assert_eq!(read("theme = \"system\"").ok(), Some(Theme::System));
+		assert_eq!(read("theme = \"dark\"").ok(), Some(Theme::Dark));
+		assert_eq!(read("theme = \"light\"").ok(), Some(Theme::Light));
+		assert!(read("theme = \"Light\"").is_err(), "values are lowercase");
+		assert!(read("theme = \"sepia\"").is_err());
 	}
 
 	#[test]

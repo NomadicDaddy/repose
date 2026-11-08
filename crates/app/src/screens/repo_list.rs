@@ -17,7 +17,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	egui::Panel::left("repositories")
 		.exact_size(SIDEBAR_WIDTH)
 		.resizable(false)
-		.frame(egui::Frame::new().fill(BG_PANEL).inner_margin(10.0))
+		.frame(egui::Frame::new().fill(BG_PANEL.get()).inner_margin(10.0))
 		.show(root, |ui| {
 			header(ui, state);
 			ui.add_space(4.0);

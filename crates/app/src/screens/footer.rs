@@ -24,7 +24,7 @@ pub fn show(root: &mut Ui) {
 		.resizable(false)
 		.frame(
 			egui::Frame::new()
-				.fill(BG_PANEL)
+				.fill(BG_PANEL.get())
 				.stroke(egui::Stroke::new(1.0, LINE_SOFT))
 				.inner_margin(egui::Margin::symmetric(10, 0)),
 		)

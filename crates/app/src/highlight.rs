@@ -1,30 +1,32 @@
 //! Syntax colour for diff and file lines: syntect with the fancy-regex engine, two-face's extra
 //! syntaxes (TypeScript, TOML and more) plus the vendored PowerShell grammar under
-//! `crates/app/syntaxes/PowerShell` (two-face 0.4.5 has none; see SOURCE.md there), a dark base16
-//! theme, chosen by file extension. An unknown extension gets no spans and draws as plain text.
+//! `crates/app/syntaxes/PowerShell` (two-face 0.4.5 has none; see SOURCE.md there), and the
+//! Base16 Ocean themes, dark and light, chosen by file extension. Each line is parsed once and
+//! each span carries its colour in both themes, so a theme switch repaints an open diff or file
+//! without reading it again (light-theme clause 4). An unknown extension gets no spans and draws
+//! as plain text.
 //! Computed on the reader thread alongside the rows, never while drawing; lines over
 //! MAX_COLOUR_BYTES are left plain.
 
-use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::OnceLock;
 
-use eframe::egui::Color32;
-
-use crate::theme::contrast::readable;
-use syntect::easy::HighlightLines;
+use crate::syntax_palette::Palette;
+use crate::theme::Colour;
+use syntect::easy::ScopeRangeIterator;
 use syntect::highlighting::Theme;
-use syntect::parsing::{SyntaxDefinition, SyntaxReference, SyntaxSet};
+use syntect::parsing::{ParseState, ScopeStack, SyntaxDefinition, SyntaxReference, SyntaxSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Span {
 	pub range: Range<usize>,
-	pub color: Color32,
+	pub color: Colour,
 }
 
 struct Engine {
 	syntaxes: SyntaxSet,
-	theme: Theme,
+	dark: Theme,
+	light: Theme,
 }
 
 /// The MIT grammar from SublimeText/PowerShell; provenance and the one local edit in SOURCE.md.
@@ -34,8 +36,11 @@ fn engine() -> &'static Engine {
 	static ENGINE: OnceLock<Engine> = OnceLock::new();
 	ENGINE.get_or_init(|| Engine {
 		syntaxes: syntaxes(),
-		theme: two_face::theme::extra()
+		dark: two_face::theme::extra()
 			.get(two_face::theme::EmbeddedThemeName::Base16OceanDark)
+			.clone(),
+		light: two_face::theme::extra()
+			.get(two_face::theme::EmbeddedThemeName::Base16OceanLight)
 			.clone(),
 	})
 }
@@ -83,45 +88,55 @@ pub const MAX_COLOUR_BYTES: usize = 4 * 1024;
 /// so a block comment that opens on one line stays a comment on the next; it does not carry
 /// across hunks, which is the usual compromise for a diff. The `_newlines` syntaxes expect each
 /// line to end in a newline (a `#` comment would otherwise swallow the rest of the hunk, Morticia
-/// M-1 on e8e10ad), so one is supplied and the ranges are clipped back to the text.
+/// M-1 on e8e10ad), so one is supplied and the ranges are clipped back to the text. A span is
+/// left out only where both themes draw their plain foreground.
 pub fn colour_lines(path: &str, lines: &[&str]) -> Vec<Vec<Span>> {
 	let Some(syntax) = syntax_for(path) else {
 		return lines.iter().map(|_| Vec::new()).collect();
 	};
 	let e = engine();
-	let mut h = HighlightLines::new(syntax, &e.theme);
-	let plain = e.theme.settings.foreground;
-	// The theme's colours are lifted to AA on every span background (theme/contrast.rs). A theme
-	// has a handful of colours, so each is worked out once per call, not once per span.
-	let mut fixed: HashMap<(u8, u8, u8), Color32> = HashMap::new();
+	let mut dark = Palette::new(&e.dark, false);
+	let mut light = Palette::new(&e.light, true);
+	let mut parse = ParseState::new(syntax);
+	let mut stack = ScopeStack::new();
 	lines
 		.iter()
 		.map(|line| {
 			if line.len() > MAX_COLOUR_BYTES {
 				// The parser never sees this line, so whatever it opened or closed is unknown;
 				// start the lines after it from a clean state rather than the one before it.
-				h = HighlightLines::new(syntax, &e.theme);
+				parse = ParseState::new(syntax);
+				stack = ScopeStack::new();
 				return Vec::new();
 			}
 			let with_newline = format!("{line}\n");
-			let Ok(ranges) = h.highlight_line(&with_newline, &e.syntaxes) else {
+			let Ok(ops) = parse.parse_line(&with_newline, &e.syntaxes) else {
 				return Vec::new();
 			};
-			let mut spans = Vec::new();
-			let mut pos = 0usize;
-			for (style, text) in ranges {
-				let end = (pos + text.len()).min(line.len());
-				if end > pos && Some(style.foreground) != plain {
-					let c = style.foreground;
-					let color = *fixed
-						.entry((c.r, c.g, c.b))
-						.or_insert_with(|| readable(Color32::from_rgb(c.r, c.g, c.b)));
-					spans.push(Span {
-						range: pos..end,
-						color,
-					});
+			let mut spans: Vec<Span> = Vec::new();
+			// Each op applies before the text after it, so its range takes the stack as it stands.
+			for (range, op) in ScopeRangeIterator::new(&ops, &with_newline) {
+				if stack.apply(op).is_err() {
+					return Vec::new();
 				}
-				pos = end;
+				let range = range.start.min(line.len())..range.end.min(line.len());
+				if range.is_empty() {
+					continue;
+				}
+				let (d, l) = (dark.colour(&stack), light.colour(&stack));
+				if d.is_none() && l.is_none() {
+					continue;
+				}
+				let color = Colour {
+					dark: d.unwrap_or(dark.text),
+					light: l.unwrap_or(light.text),
+				};
+				match spans.last_mut() {
+					Some(last) if last.range.end == range.start && last.color == color => {
+						last.range.end = range.end;
+					}
+					_ => spans.push(Span { range, color }),
+				}
 			}
 			spans
 		})
@@ -227,7 +242,7 @@ mod tests {
 		] {
 			let out = colour_lines(path, &[comment, code]);
 			assert!(!out[0].is_empty(), "{path}: the comment line is coloured");
-			let comment_colour = out[0].first().map_or(Color32::TRANSPARENT, |s| s.color);
+			let comment_colour = out[0].first().map(|s| s.color);
 			assert!(
 				out[0].iter().all(|s| s.range.end <= comment.len()),
 				"ranges clipped to the text: {:?}",
@@ -236,7 +251,7 @@ mod tests {
 			let next_all_comment = !out[1].is_empty()
 				&& out[1]
 					.iter()
-					.all(|s| s.color == comment_colour && s.range == (0..code.len()));
+					.all(|s| Some(s.color) == comment_colour && s.range == (0..code.len()));
 			assert!(!next_all_comment, "{path}: {:?}", out[1]);
 			assert!(!out[1].is_empty(), "{path}: the code line is coloured");
 		}

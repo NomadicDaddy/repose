@@ -61,6 +61,8 @@ mod ui_row_activation_tests;
 mod ui_row_focus_tests;
 #[cfg(test)]
 mod ui_tests;
+#[cfg(test)]
+mod ui_theme_tests;
 mod writes;
 
 use std::collections::{HashMap, HashSet};

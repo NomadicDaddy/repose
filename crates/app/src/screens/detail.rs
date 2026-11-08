@@ -98,7 +98,7 @@ fn path_piece(ui: &mut Ui, piece: &str) {
 pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let ctx = root.ctx().clone();
 	egui::CentralPanel::default()
-		.frame(egui::Frame::new().fill(BG_APP).inner_margin(16.0))
+		.frame(egui::Frame::new().fill(BG_APP.get()).inner_margin(16.0))
 		.show(root, |ui| {
 			let Some(repo) = state.selected_repo().cloned() else {
 				ui.label(RichText::new("Choose a repository to inspect it.").color(MUTED));

@@ -50,7 +50,7 @@ pub(super) fn draw_row(ui: &Ui, rect: Rect, src: &Source<'_>, row: &Row) {
 				Align2::LEFT_CENTER,
 				text,
 				FontId::new(TEXT_SMALL, FontFamily::Proportional),
-				MUTED,
+				MUTED.get(),
 			);
 		}
 		Row::Pair {
@@ -103,8 +103,8 @@ pub(super) fn describe_row(ui: &Ui, id: egui::Id, rect: Rect, src: &Source<'_>, 
 
 fn colours(kind: LineKind) -> (Color32, Color32) {
 	match kind {
-		LineKind::Added => (ADDED_BG, ADDED_MARK),
-		LineKind::Removed => (REMOVED_BG, REMOVED_MARK),
+		LineKind::Added => (ADDED_BG.get(), ADDED_MARK.get()),
+		LineKind::Removed => (REMOVED_BG.get(), REMOVED_MARK.get()),
 		LineKind::Context => (Color32::TRANSPARENT, Color32::TRANSPARENT),
 	}
 }
@@ -169,7 +169,7 @@ fn gutter(p: &egui::Painter, left: f32, rect: Rect, no: Option<u32>) {
 			Align2::RIGHT_CENTER,
 			n.to_string(),
 			FontId::new(TEXT_MONO - 1.0, FontFamily::Monospace),
-			MUTED,
+			MUTED.get(),
 		);
 	}
 }
@@ -188,7 +188,7 @@ fn text_cell(
 	p.galley(
 		pos2(rect.left() + 6.0, rect.center().y - galley.size().y / 2.0),
 		galley,
-		TEXT,
+		TEXT.get(),
 	);
 }
 
@@ -226,7 +226,7 @@ fn marked_job(text: &str, marks: &[Range<usize>], mark_bg: Color32, spans: &[Spa
 		let color = spans
 			.get(si)
 			.filter(|s| s.range.start <= a && b <= s.range.end)
-			.map_or(TEXT, |s| s.color);
+			.map_or(TEXT.get(), |s| s.color.get());
 		let shown = text[a..b].replace('\r', "␍");
 		job.append(
 			&shown,
@@ -265,7 +265,7 @@ mod tests {
 			let word = format!("w{i} ");
 			spans.push(Span {
 				range: pos..pos + 2,
-				color: Color32::from_rgb(10, 20, 30),
+				color: crate::theme::INFO,
 			});
 			pos += word.len();
 		}

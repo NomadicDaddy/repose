@@ -25,6 +25,7 @@ mod highlight;
 mod platform;
 mod screens;
 mod state;
+mod syntax_palette;
 mod theme;
 
 use std::path::{Path, PathBuf};
@@ -52,7 +53,7 @@ impl App {
 		measure: Option<PathBuf>,
 		cfg: config::Config,
 	) -> Self {
-		theme::apply(&cc.egui_ctx);
+		theme::apply(&cc.egui_ctx, cfg.theme);
 		let mut state = state::AppState::new(cfg);
 		state.start_scan(&cc.egui_ctx);
 		Self {
@@ -69,6 +70,7 @@ impl App {
 impl eframe::App for App {
 	fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		let ctx = root.ctx().clone();
+		theme::begin_frame(&ctx);
 		self.state.pump(&ctx);
 		self.state.tick(&ctx);
 		// The bottom row goes first so it spans the window under both panes.
@@ -152,7 +154,8 @@ fn error_window(message: String) -> eframe::Result {
 		"repose-error",
 		options,
 		Box::new(move |cc| {
-			theme::apply(&cc.egui_ctx);
+			// The config may be what failed, so the error window follows the Windows theme.
+			theme::apply(&cc.egui_ctx, config::Theme::System);
 			Ok(Box::new(ErrorApp(message)))
 		}),
 	)
