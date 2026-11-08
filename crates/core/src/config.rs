@@ -160,7 +160,22 @@ mod tests {
 
 	#[test]
 	fn defaults_round_trip() {
-		let text = toml::to_string_pretty(&Config::default()).unwrap_or_default();
+		// The first-run file is this text; an empty one would read back as the defaults too, so
+		// the serialization itself must succeed and carry every key.
+		let text = match toml::to_string_pretty(&Config::default()) {
+			Ok(t) => t,
+			Err(e) => panic!("the defaults do not serialize: {e}"),
+		};
+		for key in [
+			"roots",
+			"exclude",
+			"depth",
+			"theme",
+			"pinned_repositories",
+			"[commands]",
+		] {
+			assert!(text.contains(key), "{key} missing from:\n{text}");
+		}
 		let back: Config = toml::from_str(&text).ok().unwrap_or_default();
 		assert_eq!(back, Config::default());
 	}

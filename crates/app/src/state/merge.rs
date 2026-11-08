@@ -62,6 +62,7 @@ impl AppState {
 			}
 		}
 		self.repos = fresh;
+		self.order_pinned();
 		let mut landed = true;
 		if let Some(wanted) = self.requested_selection.take() {
 			let key = repose_core::model::path_key;

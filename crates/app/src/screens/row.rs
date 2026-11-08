@@ -50,6 +50,11 @@ pub fn draw(
 	for (text, color) in badges(repo) {
 		right = pill(&painter, right, rect.center().y, &text, color) - 6.0;
 	}
+	// A pinned top-level row says so; a worktree under it is lifted with it (repository-pinning).
+	let pinned = indent == 0.0 && state.row_pinned(repo);
+	if pinned {
+		right = pill(&painter, right, rect.center().y, "pinned", ACCENT) - 6.0;
+	}
 	let mut text_right = right;
 	let mut chevron_clicked = false;
 	if !repo.worktrees.is_empty() {
@@ -140,6 +145,9 @@ pub fn draw(
 	let mut spoken = a11y::repo_name(repo);
 	if fetching {
 		spoken.push_str(", fetching");
+	}
+	if pinned {
+		spoken.push_str(", pinned");
 	}
 	a11y::control(&response, egui::Role::Button, Some(selected), &spoken);
 	RowOut {

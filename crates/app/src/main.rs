@@ -231,6 +231,8 @@ fn main() -> eframe::Result {
 			app.diff_loaded = args.measure_diff;
 			// `--lanes` starts the session with lanes on, as the History toggle would.
 			app.state.lanes = args.lanes;
+			// Pins are saved to the config file this session loaded, `--config` included.
+			app.state.config_path = Some(config_path);
 			if let Some(out) = args.measure_lanes {
 				app.state.lanes = true;
 				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out, args.select.clone()));

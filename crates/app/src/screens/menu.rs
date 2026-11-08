@@ -23,6 +23,8 @@ pub(super) enum Action {
 	OpenUrl(String),
 	/// The user's Fetch on a repository (A1, Phillip #35530), queued like a write.
 	Fetch(PathBuf),
+	/// Pin or unpin the row this path belongs to (repository-pinning); no git runs.
+	TogglePin(PathBuf),
 }
 
 /// Shows the menu on a secondary click anywhere on the row, or on the Menu key when the row is
@@ -82,6 +84,11 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, state: &AppState) -> Option<A
 			.color(MUTED),
 	);
 	ui.separator();
+	if let Some(label) = state.pin_label(repo)
+		&& item(ui, label)
+	{
+		return Some(Action::TogglePin(repo.to_path_buf()));
+	}
 	if item(ui, "Open folder in Explorer") {
 		return Some(Action::OpenFolder(repo.to_path_buf()));
 	}
@@ -252,6 +259,7 @@ pub(super) fn perform(
 			state.request_write(repo, WriteKind::Fetch, ctx);
 			Ok(())
 		}
+		Action::TogglePin(path) => state.toggle_pin(&path),
 	};
 	state.notice = result.err();
 }

@@ -28,6 +28,11 @@ All notable changes to repose are recorded here. The format follows
   click on the header or its triangle, and unfolds the same way. The count and Stage all or
   Unstage all stay on the header while it is folded. Each repository keeps its folds until repose
   closes.
+- Pinned repositories. Pin or Unpin from a row's menu (right-click or the Menu key) keeps a
+  repository at the top of the list, marked "pinned", in name order among the pinned ones. A
+  worktree's menu pins its parent. Pins are saved as `pinned_repositories` in the config file
+  in use, and only that key is rewritten, so other keys and comments are kept. A pin whose
+  repository isn't found stays saved. If a save fails, the error shows and nothing changes.
 
 ### Fixed
 

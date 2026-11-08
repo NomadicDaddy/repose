@@ -209,12 +209,18 @@ configurable in `config.toml`.
 roots = ["D:\\applications", "D:\\applications.worktrees", "D:\\bbs", "D:\\amiga", "D:\\infra", "D:\\scripts"]
 exclude = ["node_modules", "target", "dist", ".prevers"]
 depth = 3
+theme = "system"
+pinned_repositories = []
 [commands]
 editor = "code"
 terminal = "wt"
 ```
 
-`--config <path>` overrides the location. There is no settings screen in v1.0 (record
+`--config <path>` overrides the location. A Pin or Unpin from a repository row's menu rewrites
+`pinned_repositories` alone in the file in use, through `toml_edit`, keeping every other key and
+comment, and replaces the file through a sibling `config.toml.saving` and one rename; a failed
+save leaves the old file and the old pins and shows its error (`core::pins`,
+`state/pins.rs`). There is no settings screen in v1.0 (record
 `settings-screen`, v1.1).
 
 ### Budgets

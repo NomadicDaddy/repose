@@ -12,6 +12,7 @@ mod history;
 mod history_tests;
 mod merge;
 mod msg;
+mod pins;
 mod pump;
 mod refresh;
 mod remote;
@@ -64,6 +65,8 @@ mod ui_live_tests;
 #[cfg(test)]
 mod ui_origin_link_tests;
 #[cfg(test)]
+mod ui_pin_tests;
+#[cfg(test)]
 mod ui_repo_list_tests;
 #[cfg(test)]
 mod ui_row_activation_tests;
@@ -100,6 +103,8 @@ pub const BACKSTOP: std::time::Duration = std::time::Duration::from_secs(60);
 
 pub struct AppState {
 	pub config: Config,
+	/// The config.toml in use (`--config` or the default), where a pin is saved; None in tests.
+	pub config_path: Option<PathBuf>,
 	pub repos: Vec<RepoSummary>,
 	pub selected: Option<PathBuf>,
 	pub selected_file: Option<String>,
@@ -191,6 +196,7 @@ impl AppState {
 		let missing_roots = repose_core::config::missing_roots(&config);
 		Self {
 			config,
+			config_path: None,
 			missing_roots,
 			repos: Vec::new(),
 			selected: None,

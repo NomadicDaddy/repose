@@ -69,6 +69,11 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - The window follows the Windows app mode (Settings > Personalization > Colors), light or dark,
   and switches when you change it. To keep one theme, set `theme = "dark"` or `theme = "light"`
   in config.toml. The default is `theme = "system"`.
+- Pin a repository from its row's menu (right-click or the Menu key) to keep it at the top of
+  the list. A worktree row's menu pins its parent. Pins are saved as `pinned_repositories` in
+  the config file in use, `--config` included. Only that key is rewritten, so your other keys and
+  comments stay as they are. A pinned repository that isn't found stays saved, and returns pinned
+  when it is.
 - Ahead and behind counts come from the refs already on disk. repose reaches the network only
   when you click Fetch, in a repository row's menu or the History header. That fetch never asks
   for a sign-in. If the remote wants one, it fails under "Fetch failed" with git's message, and
