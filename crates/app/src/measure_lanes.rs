@@ -6,11 +6,12 @@
 //! scroll offset moved are counted, so frames redrawing an unchanged view cannot pad the
 //! figures (Morticia L-1 on c70d37d).
 //!
-//! Two series per counted frame. The frame interval runs from one `ui()` start to the next.
-//! With vsync each start follows a present, so it covers everything the frame before cost,
-//! including tessellation and the GPU submit after `ui()`. The last frame's own present comes
-//! after the report and is not in it. The other series is the CPU time inside `ui()` alone
-//! (Roger and Morticia on c70d37d).
+//! Two series per counted frame. The frame interval is a start-to-start proxy for the present
+//! interval: it runs from one `ui()` start to the next, and with vsync each start follows a
+//! present, so it covers everything the frame before cost, including tessellation and the GPU
+//! submit after `ui()`. It is counted against that earlier frame, the one whose render it
+//! covers. The last frame's interval would end after the report, so it is not in it. The other
+//! series is the CPU time inside `ui()` alone (Roger and Morticia on c70d37d and fd6f7c2).
 //!
 //! The window is on Phillip's desk, so any real input during the run ends it with a failed
 //! report: a key, text, a button, a wheel turn, or the pointer moving from where it rested
@@ -57,8 +58,9 @@ pub struct LanesProbe {
 	/// Wheel frames so far, counted or not.
 	scrolled: usize,
 	last_offset: Option<f32>,
-	/// This frame's interval, kept until the frame shows whether it moved.
-	pending: Option<f64>,
+	/// Whether the last frame's view moved. The interval measured at the next `ui()` start covers
+	/// that frame's render, so it is counted against that frame (Roger on fd6f7c2).
+	last_moved: bool,
 	/// Where the real pointer rested when first seen; moving from it is real input.
 	rested_at: Option<egui::Pos2>,
 	/// The real input that ended the run, if any.
@@ -80,7 +82,7 @@ impl LanesProbe {
 			page: Vec::new(),
 			scrolled: 0,
 			last_offset: None,
-			pending: None,
+			last_moved: false,
 			rested_at: None,
 			interrupted: None,
 		}
@@ -146,7 +148,8 @@ impl LanesProbe {
 			let ms = ms(now - last);
 			match self.phase {
 				Phase::Idle => self.idle.push(ms),
-				Phase::Scrolling => self.pending = Some(ms),
+				Phase::Scrolling if self.last_moved => self.present.push(ms),
+				Phase::Scrolling => {}
 				Phase::Waiting => {}
 			}
 		}
@@ -174,11 +177,10 @@ impl LanesProbe {
 				let offset = crate::screens::detail::scroll_offset(ctx);
 				let moved = self.last_offset.is_some() && offset != self.last_offset;
 				self.last_offset = offset;
-				let present = self.pending.take();
-				if moved && let Some(present) = present {
-					self.present.push(present);
+				if moved {
 					self.cpu.push(cpu);
 				}
+				self.last_moved = moved;
 				(self.scrolled >= SCROLL_FRAMES).then(|| self.report())
 			}
 		}
@@ -257,13 +259,13 @@ fn report(
 		format!("{}\t{}\t{}", p(0.5), p(0.95), fmt(max))
 	};
 	let missed = present.iter().filter(|&&p| p > refresh * 1.5).count();
-	let pass = present.len() >= MIN_MOVING
+	let pass = cpu.len() >= MIN_MOVING
 		&& percentile(cpu, 0.95) < refresh
 		&& percentile(present, 0.95) <= refresh * 1.1;
 	let mut out: String = page.iter().map(|(k, v)| format!("{k}\t{v}\n")).collect();
 	out.push_str(&format!("refresh_ms\t{}\n", fmt(refresh)));
 	out.push_str(&format!("wheel_frames\t{frames}\n"));
-	out.push_str(&format!("moving_frames\t{}\n", present.len()));
+	out.push_str(&format!("moving_frames\t{}\n", cpu.len()));
 	out.push_str(&format!(
 		"frame_interval_ms_p50_p95_max\t{}\n",
 		stats(present)
