@@ -42,7 +42,15 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 				match page {
 					Some(page) => {
 						let tip = format!("Open {page}");
-						let link = ui.add(egui::Link::new(text.color(ACCENT)));
+						// egui's Link wraps at the pane's width by default, which could break
+						// inside a piece wider than the pane; the breaks are all ours (Roger on
+						// 7a72a92).
+						let link = ui
+							.scope(|ui| {
+								ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+								ui.add(egui::Link::new(text.color(ACCENT)))
+							})
+							.inner;
 						// A screen reader hears the line whole, not broken where it wraps.
 						a11y::control(&link, egui::Role::Link, None, &line);
 						if link.on_hover_text(tip).clicked() {
@@ -73,34 +81,41 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 /// than the pane stays whole on its own line.
 fn wrap_at_separators(ui: &Ui, line: &str, font: &egui::FontId) -> String {
 	let room = ui.available_width();
-	let width = |piece: &str| {
-		ui.painter()
-			.layout_no_wrap(piece.to_string(), font.clone(), egui::Color32::WHITE)
-			.size()
-			.x
-	};
 	let mut out = String::new();
 	let mut used = 0.0;
-	let mut piece = String::new();
-	let mut place = |piece: &str, out: &mut String| {
-		let w = width(piece);
+	for piece in separator_pieces(line) {
+		let w = ui
+			.painter()
+			.layout_no_wrap(piece.clone(), font.clone(), egui::Color32::WHITE)
+			.size()
+			.x;
 		if used > 0.0 && used + w > room {
 			out.push('\n');
 			used = 0.0;
 		}
-		out.push_str(piece);
+		out.push_str(&piece);
 		used += w;
-	};
-	for c in line.chars() {
+	}
+	out
+}
+
+/// `line` cut after each run of separators: "a/b\\c" is "a/", "b\\", "c". A run is one cut, so
+/// "https://" never splits between its slashes (Morticia Low on 7a72a92).
+fn separator_pieces(line: &str) -> Vec<String> {
+	let is_separator = |c: char| c == '/' || c == '\\';
+	let mut pieces = Vec::new();
+	let mut piece = String::new();
+	let mut chars = line.chars().peekable();
+	while let Some(c) = chars.next() {
 		piece.push(c);
-		if c == '/' || c == '\\' {
-			place(&std::mem::take(&mut piece), &mut out);
+		if is_separator(c) && !chars.peek().is_some_and(|&next| is_separator(next)) {
+			pieces.push(std::mem::take(&mut piece));
 		}
 	}
 	if !piece.is_empty() {
-		place(&piece, &mut out);
+		pieces.push(piece);
 	}
-	out
+	pieces
 }
 
 /// The header's path, wrapping only at a separator: one unwrapped piece per folder, each ending in
@@ -255,4 +270,23 @@ pub(crate) fn offset_key() -> egui::Id {
 /// The detail pane's vertical scroll offset as the last frame left it.
 pub fn scroll_offset(ctx: &egui::Context) -> Option<f32> {
 	ctx.data(|d| d.get_temp(offset_key()))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::separator_pieces;
+
+	/// A run of separators is one cut, so a wrap can never split "https://" or a UNC "\server".
+	#[test]
+	fn a_line_is_cut_after_each_run_of_separators() {
+		assert_eq!(
+			separator_pieces("origin · https://host/a/b.git"),
+			["origin · https://", "host/", "a/", "b.git"]
+		);
+		assert_eq!(
+			separator_pieces(r"\\server\share\x"),
+			[r"\\", r"server\", r"share\", "x"]
+		);
+		assert_eq!(separator_pieces("plain"), ["plain"]);
+	}
 }

@@ -212,3 +212,34 @@ fn a_long_origin_wraps_at_separators_and_stays_one_link() {
 	let (_, out) = run(&ctx, &mut state, click(at), 0.5);
 	assert_eq!(opened(&out), [page], "the second line is the same link");
 }
+
+/// Roger on 7a72a92: a single piece wider than the pane stays whole on its own line; egui's Link
+/// adds no break inside it.
+#[test]
+fn an_overwide_piece_of_the_origin_stays_whole() {
+	use eframe::egui::epaint::Shape;
+
+	let huge = "x".repeat(400);
+	let url = format!("https://example.invalid/{huge}/thing.git");
+	let (mut state, _) = with_remotes(&url);
+	let ctx = egui::Context::default();
+	let (shapes, _) = run(&ctx, &mut state, Vec::new(), 0.0);
+	fn origin(shape: &Shape) -> Option<std::sync::Arc<egui::Galley>> {
+		match shape {
+			Shape::Vec(inner) => inner.iter().find_map(origin),
+			Shape::Text(t) if t.galley.text().starts_with("origin · https://") => {
+				Some(t.galley.clone())
+			}
+			_ => None,
+		}
+	}
+	let Some(galley) = shapes.iter().find_map(|c| origin(&c.shape)) else {
+		panic!("no origin line in {:?}", texts(&shapes));
+	};
+	let lines: Vec<&str> = galley.text().split('\n').collect();
+	assert!(
+		lines.iter().any(|l| *l == format!("{huge}/")),
+		"the overwide piece is one whole line: {lines:?}"
+	);
+	assert_eq!(galley.rows.len(), lines.len(), "egui broke inside a piece");
+}
