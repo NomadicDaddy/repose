@@ -24,6 +24,10 @@ All notable changes to repose are recorded here. The format follows
   split into `git log` and layout, then scrolls 100 rows with the mouse wheel and writes each
   frame's interval (from one frame's start to the next) and its CPU time, with a pass verdict.
   Any real input ends the run as failed. The branch-lanes record is measured with it.
+- Each group in Changes (Merge Changes, Staged Changes and Changes) folds to its header with a
+  click on the header or its triangle, and unfolds the same way. The count and Stage all or
+  Unstage all stay on the header while it is folded. Each repository keeps its folds until repose
+  closes.
 
 ### Fixed
 

@@ -1,7 +1,7 @@
 //! The Changes view: Merge Changes, Staged Changes and Changes groups with counts, letter badges,
 //! and hover actions that queue writes.
 
-use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, StrokeKind, Ui, pos2, vec2};
+use eframe::egui::{self, Align2, FontFamily, FontId, RichText, Sense, Ui, pos2, vec2};
 use repose_core::model::{ChangeKind, DiffSource, FileChange, RepoSummary};
 
 use super::row::{fit, frame};
@@ -14,6 +14,10 @@ use crate::theme::*;
 mod actions;
 pub(crate) use actions::ACTIONS_LEFT;
 use actions::hover_actions;
+
+#[path = "changes_header.rs"]
+mod header;
+use header::{count_pill, disclosure};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -84,13 +88,33 @@ fn group(
 	busy: Option<&'static str>,
 ) {
 	ui.add_space(10.0);
+	// Each group folds to its header, for this repository and this session; the count, the busy
+	// label and the group action stay on the header (audit-frontend-1793999566).
+	let fold_id = ui.make_persistent_id(("changes-group", title, g.repo.path.as_os_str()));
+	let mut open = ui.data(|d| d.get_temp::<bool>(fold_id)).unwrap_or(true);
 	ui.horizontal(|ui| {
-		ui.label(
-			RichText::new(title)
-				.size(TEXT_BASE)
-				.color(TEXT_BRIGHT)
-				.strong(),
+		let (tri, tri_response) = ui.allocate_exact_size(vec2(12.0, 16.0), Sense::click());
+		disclosure(ui.painter(), tri.center(), open);
+		let header = ui.add(
+			egui::Button::new(
+				RichText::new(title)
+					.size(TEXT_BASE)
+					.color(TEXT_BRIGHT)
+					.strong(),
+			)
+			.frame(false),
 		);
+		let state_word = if open { "expanded" } else { "collapsed" };
+		a11y::control(
+			&header,
+			egui::Role::DisclosureTriangle,
+			None,
+			&format!("{title}, {state_word}"),
+		);
+		if header.clicked() || tri_response.clicked() {
+			open = !open;
+			ui.data_mut(|d| d.insert_temp(fold_id, open));
+		}
 		count_pill(ui, files.len());
 		if let Some(label) = busy {
 			ui.label(
@@ -114,6 +138,9 @@ fn group(
 			}
 		});
 	});
+	if !open {
+		return;
+	}
 	if files.is_empty() {
 		ui.label(RichText::new("Nothing here").size(TEXT_SMALL).color(MUTED));
 		return;
@@ -121,29 +148,6 @@ fn group(
 	for file in files {
 		file_row(ui, state, g, file);
 	}
-}
-
-fn count_pill(ui: &mut Ui, n: usize) {
-	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
-	let galley = ui
-		.painter()
-		.layout_no_wrap(n.to_string(), font, ACCENT.get());
-	let size = galley.size() + vec2(12.0, 4.0);
-	let (rect, pill) = ui.allocate_exact_size(size, Sense::hover());
-	let name = super::count_label(n, "file", "files");
-	a11y::text(ui, pill.id, rect, egui::Role::Label, &name);
-	ui.painter().rect(
-		rect,
-		9.0,
-		ACCENT_BG,
-		egui::Stroke::new(1.0, ACCENT_LINE),
-		StrokeKind::Inside,
-	);
-	ui.painter().galley(
-		pos2(rect.left() + 6.0, rect.top() + 2.0),
-		galley,
-		ACCENT.get(),
-	);
 }
 
 fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChange) {

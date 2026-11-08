@@ -26,6 +26,8 @@ mod ui_action_failure_tests;
 #[cfg(test)]
 mod ui_branch_menu_tests;
 #[cfg(test)]
+mod ui_changes_fold_tests;
+#[cfg(test)]
 mod ui_close_guard_tests;
 #[cfg(test)]
 mod ui_commit_outcome_tests;
