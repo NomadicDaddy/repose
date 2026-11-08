@@ -15,9 +15,13 @@ on:
 permissions:
     contents: read
 
+# Every push to main finishes its own gate: a push's group is its commit, so a later push neither
+# cancels it nor, while it waits, replaces it (a group keeps one pending run and cancels the
+# older one even without cancel-in-progress). A pull request's group is its ref, and a new push
+# to it cancels the run still going on the old head (Morticia L2, Roger on b3c5a68).
 concurrency:
-    cancel-in-progress: true
-    group: qc-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    group: qc-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
 
 jobs:
     gate:
@@ -43,10 +47,11 @@ jobs:
                   cargo -V
 
             # The advisory check needs cargo-audit, installed per user as README.md's
-            # prerequisites say.
+            # prerequisites say. The tool's version is pinned, as the actions are, to the one the
+            # development machine runs; --locked pins its dependencies to its own lockfile.
             - name: Install cargo-audit
               shell: pwsh
-              run: cargo install cargo-audit --locked
+              run: cargo install cargo-audit --version 0.22.2 --locked
 
             # The gate's own output is the log. QC_EXIT=<code> is its last line, and the step fails
             # with that code.
