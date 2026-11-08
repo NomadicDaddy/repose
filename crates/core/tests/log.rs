@@ -77,9 +77,23 @@ fn pages_bodies_quotes_and_order() {
 fn a_second_page_holds_what_the_first_page_left() {
 	assert_eq!(PAGE, 100, "the page size History and this test share");
 	let repo = TempRepo::new("pages");
+	// One fast-import stream rather than 101 `git commit` spawns, which took this binary from
+	// under a second to about 21 s (audit-qc-pipeline-1794018419). Each commit is empty, a child
+	// of the one before, and a second newer, so the date order is the commit order.
+	let mut stream = String::new();
 	for n in 1..=PAGE + 1 {
-		repo.git(&["commit", "-q", "--allow-empty", "-m", &format!("c{n}")]);
+		let message = format!("c{n}\n");
+		stream += &format!(
+			"commit refs/heads/main\nmark :{n}\ncommitter Test <test@example.invalid> {} +0000\ndata {}\n{message}",
+			1_700_000_000 + n,
+			message.len()
+		);
+		if n > 1 {
+			stream += &format!("from :{}\n", n - 1);
+		}
+		stream += "\n";
 	}
+	repo.git_with_input(&["fast-import", "--quiet"], &stream);
 	let first = read_log(&repo.path, 0).expect("first page");
 	let subjects: Vec<&str> = first.iter().map(|c| c.subject.as_str()).collect();
 	let newest: Vec<String> = (2..=PAGE + 1).rev().map(|n| format!("c{n}")).collect();

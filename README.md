@@ -41,17 +41,22 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   This covers format, clippy, tests, the release build, the 300-line check, the notices check and
   the startup and idle measurements. The inputs are the files under `crates`, the manifests, the
   lockfile, the tool configuration and the gate scripts. They also include the Rust tool versions
-  and the cargo environment variables, the Git version for the tests, and the licence inputs for
-  the notices. The release build's inputs also include the commit and whether tracked files are
+  and the cargo environment variables, the Git version and a hash of the global and system Git
+  configuration for the tests (the code under test runs Git with them), and the licence inputs
+  for the notices. The release build's inputs also include the commit and whether tracked files are
   edited, because the build stamps both into the executable, so a new commit always rebuilds. A
   cached release build also needs `target/release/repose.exe` to still be the executable that
   pass produced. Reused measurements are tied to the executable's bytes and the
   measurement script, and each one says when it was measured. The advisory audit and the release
-  staging always run. `-NoCache` runs every step anyway. `scripts/gate-cache-test.ps1`, run by
-  every gate, checks the cache's hits and misses.
+  staging always run. `-NoCache` runs every step anyway. A step whose command cannot start (cargo
+  missing from `PATH`, say) fails, like one that exits non-zero. `scripts/gate-cache-test.ps1`,
+  run by every gate, checks the cache's hits and misses and that failure.
 - A full uncached gate includes the idle memory run's 60-second sample. Give it at least 600
   seconds before calling it stuck. How long a run takes depends on the machine and on what is
-  cached, so no timing here is a guarantee.
+  cached, so no timing here is a guarantee. On the development machine on 2026-11-08, the test
+  step took 54 seconds on a warm build. Before the log tests built their 101 commits with one
+  `git fast-import`, it took about 105. A command limit for `cargo test --workspace` should still
+  sit well above a minute, and higher when the tests have to compile.
 - `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
   adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with

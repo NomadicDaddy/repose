@@ -20,8 +20,11 @@ $GateRoot = $root
 $exit = 0
 function Step($name, [scriptblock] $body) {
     Write-Host "== $name"
-    & $body
-    if ($LASTEXITCODE -ne 0) { Write-Host "FAILED: $name"; $script:exit = 1 }
+    $global:LASTEXITCODE = 0
+    # As in Invoke-GateStep: a command that cannot start sets no exit code, so the try catches it.
+    $started = $true
+    try { & $body } catch { $started = $false; Write-Host "ERROR: $name could not run: $($_.Exception.Message)" }
+    if ($LASTEXITCODE -ne 0 -or -not $started) { Write-Host "FAILED: $name"; $script:exit = 1 }
 }
 # What every Rust step's result depends on: the sources, assets, manifests, lockfile and tool
 # configuration; the gate scripts themselves; and the toolchain and environment cargo reads.
@@ -40,8 +43,16 @@ function CachedStep($name, [string[]] $paths, [string[]] $facts, [scriptblock] $
 Step 'gate cache self-test' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'gate-cache-test.ps1') }
 CachedStep 'cargo fmt --check' $rustInputs $rustFacts { cargo fmt --all -- --check }
 CachedStep 'cargo clippy' $rustInputs $rustFacts { cargo clippy --workspace --all-targets -- -D warnings }
-# The tests drive the installed Git, so its version is part of their inputs.
-CachedStep 'cargo test' $rustInputs ($rustFacts + "git $(git --version 2>&1)") { cargo test --workspace }
+# The tests drive the installed Git, so its version is part of their inputs. So is the machine's
+# git configuration: the tests' own fixture git calls set it aside (crates/core/tests/support),
+# but the code under test spawns git as the app does, with the developer's global and system
+# config, so a change to either is a miss. Only a hash of each enters the key, never the text.
+$gitFacts = @("git $(git --version 2>&1)")
+foreach ($scope in @('global', 'system')) {
+    $config = [System.Text.Encoding]::UTF8.GetBytes((@(git config "--$scope" --includes --list 2>$null) -join "`n"))
+    $gitFacts += "git $scope config $([System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($config)))"
+}
+CachedStep 'cargo test' $rustInputs ($rustFacts + $gitFacts) { cargo test --workspace }
 # Advisories (quality-gate clause 8, Phillip Yes #31026): cargo-audit is installed per user with
 # `cargo install cargo-audit`. scripts/audit.ps1 runs plain cargo audit (fetch and scan), falls
 # back to the database on disk only when the fetch itself failed, says how old that database is,

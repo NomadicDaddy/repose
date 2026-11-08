@@ -102,9 +102,17 @@ function Invoke-GateStep([string] $Name, [string[]] $Paths, [string[]] $Facts, [
         }
     }
     $global:LASTEXITCODE = 0
-    # Out-Host keeps the step's output on screen and out of this function's return value.
-    & $Body | Out-Host
-    if ($LASTEXITCODE -ne 0) {
+    # A command that cannot start (cargo off PATH, say) sets no exit code. Its error only ends the
+    # body's own statement, so $? after the body still reads True; the try catches it instead.
+    $started = $true
+    try {
+        # Out-Host keeps the step's output on screen and out of this function's return value.
+        & $Body | Out-Host
+    } catch {
+        $started = $false
+        Write-Host "ERROR: $Name could not run: $($_.Exception.Message)"
+    }
+    if ($LASTEXITCODE -ne 0 -or -not $started) {
         Clear-GatePass $Name
         Write-Host "FAILED: $Name"
         return $false

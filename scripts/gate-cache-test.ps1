@@ -65,6 +65,28 @@ try {
     $ok = Run 0 @('tool 2') 'out.exe'; Check 'a missing artifact is a miss, and a pass that produced none fails' (-not $ok -and $runs -eq 19)
     Check '...and leaves no record' (-not (Test-Path -LiteralPath (Get-GateCacheFile 'demo step')))
 
+    # A body whose command cannot start (cargo off PATH, say) raises an error and sets no exit
+    # code. The step must still fail, record nothing and run again on the next gate
+    # (audit-qc-pipeline-1794018419). It runs in a child pwsh as qc.ps1 runs its steps: with
+    # ErrorActionPreference Continue and outside any try, which would catch the error itself.
+    $probe = Join-Path $GateRoot 'unstarted-probe.ps1'
+    Set-Content -LiteralPath $probe -Value @'
+param([string] $GateRoot, [string] $Library)
+$ErrorActionPreference = 'Continue'
+. $Library
+$script:runs = 0
+foreach ($gate in 1, 2) {
+    $ok = Invoke-GateStep -Name 'unstarted step' -Paths @('src') -Facts @('tool 1') -Body {
+        $script:runs++
+        repose-gate-cache-test-no-such-command
+    } 6>$null 2>$null
+    "UNSTARTED $gate ok=$ok runs=$($script:runs) record=$(Test-Path -LiteralPath (Get-GateCacheFile 'unstarted step'))"
+}
+'@
+    $seen = @(pwsh -NoProfile -File $probe $GateRoot (Join-Path $PSScriptRoot 'gate-cache.ps1') 2>$null | Where-Object { "$_" -like 'UNSTARTED *' })
+    Check 'a body whose command cannot start fails the step and leaves no record' ($seen[0] -ceq 'UNSTARTED 1 ok=False runs=1 record=False')
+    Check '...and runs again on the next gate' ($seen[1] -ceq 'UNSTARTED 2 ok=False runs=2 record=False')
+
     # The input list alone decides a hit: a file named by itself in the list misses when it
     # changes, and a file the list leaves out does not. The cache never looks at what the
     # step's body reads, which is how a body could read a file its key misses.

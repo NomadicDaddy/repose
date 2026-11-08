@@ -4,6 +4,17 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Development
+
+- The gate now fails a step whose command can't start, such as cargo missing from `PATH`. Before,
+  that step was recorded as a pass. The gate's self-test checks this.
+- The test step's cache key now includes a hash of the machine's global and system Git
+  configuration, which the tests run Git with. A change to either now reruns the tests.
+- The log tests build their 101 commits with one `git fast-import` instead of 101 `git commit`
+  calls. On a warm build the test step now takes about 54 seconds, down from about 105.
+
 ## [1.1.2] - 2026-11-07
 
 ### Development

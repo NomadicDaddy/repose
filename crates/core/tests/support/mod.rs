@@ -2,8 +2,9 @@
 //! a fixed identity and no hooks, so the tests never touch the developer's config.
 #![allow(clippy::expect_used, dead_code)]
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub struct TempRepo {
 	pub path: PathBuf,
@@ -45,10 +46,35 @@ impl TempRepo {
 		self.git(&["add", "-A"]);
 		self.git(&["commit", "-q", "-m", message]);
 	}
+
+	/// Runs git with `input` on its standard input, as `git` runs it otherwise. One
+	/// `git fast-import` stream builds a long history in one spawn rather than one per commit.
+	pub fn git_with_input(&self, args: &[&str], input: &str) -> String {
+		let mut child = git_command(&self.path, args)
+			.stdin(Stdio::piped())
+			.stdout(Stdio::piped())
+			.spawn()
+			.expect("git runs");
+		child
+			.stdin
+			.take()
+			.expect("stdin")
+			.write_all(input.as_bytes())
+			.expect("git reads its input");
+		let out = child.wait_with_output().expect("git finishes");
+		assert!(out.status.success(), "git {args:?} failed");
+		String::from_utf8_lossy(&out.stdout).to_string()
+	}
 }
 
 pub fn git_in(dir: &Path, args: &[&str]) -> String {
-	let out = Command::new("git")
+	let out = git_command(dir, args).output().expect("git runs");
+	String::from_utf8_lossy(&out.stdout).to_string()
+}
+
+fn git_command(dir: &Path, args: &[&str]) -> Command {
+	let mut command = Command::new("git");
+	command
 		.current_dir(dir)
 		.env("GIT_CONFIG_GLOBAL", "NUL")
 		.env("GIT_CONFIG_SYSTEM", "NUL")
@@ -57,10 +83,8 @@ pub fn git_in(dir: &Path, args: &[&str]) -> String {
 		.env("GIT_COMMITTER_NAME", "Test")
 		.env("GIT_COMMITTER_EMAIL", "test@example.invalid")
 		.args(["-c", "core.hooksPath=/dev/null"])
-		.args(args)
-		.output()
-		.expect("git runs");
-	String::from_utf8_lossy(&out.stdout).to_string()
+		.args(args);
+	command
 }
 
 impl Drop for TempRepo {
