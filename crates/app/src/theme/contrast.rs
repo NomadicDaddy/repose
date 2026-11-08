@@ -14,11 +14,6 @@ use super::tokens::{
 /// The AA ratio for normal-size text.
 pub const AA: f64 = 4.5;
 
-/// The ratio the syntax guard lifts to: AA plus a 0.1 margin, so a lifted colour never sits
-/// exactly at the AA line. The 92a14a6 light captures, taken with this margin, measured the
-/// tightest span at 4.66:1 on REMOVED_MARK.
-pub const LIFT: f64 = AA + 0.1;
-
 /// Every fill a syntax-coloured span can sit on: the panes, the current file line, added and
 /// removed lines, and the word marks inside them.
 pub const SPAN_BACKGROUNDS: [(&str, Colour); 8] = [
@@ -58,7 +53,7 @@ pub fn worst(c: Color32, light: bool) -> f64 {
 		.fold(f64::INFINITY, f64::min)
 }
 
-/// `c` itself when it reads at LIFT on every span background of the theme; otherwise the least
+/// `c` itself when it reads at AA on every span background of the theme; otherwise the least
 /// blend toward that theme's TEXT that does, in 5% steps, so a failing colour keeps as much of its
 /// hue as it can.
 pub fn readable(c: Color32, light: bool) -> Color32 {
@@ -71,7 +66,7 @@ pub fn readable(c: Color32, light: bool) -> Color32 {
 			mix(c.g(), text.g()),
 			mix(c.b(), text.b()),
 		);
-		if worst(candidate, light) >= LIFT {
+		if worst(candidate, light) >= AA {
 			return candidate;
 		}
 	}
@@ -80,7 +75,7 @@ pub fn readable(c: Color32, light: bool) -> Color32 {
 
 #[cfg(test)]
 mod tests {
-	use super::{AA, LIFT, SPAN_BACKGROUNDS, contrast, readable, worst};
+	use super::{AA, SPAN_BACKGROUNDS, contrast, readable, worst};
 	use crate::highlight::colour_lines;
 	use crate::theme::tokens::TEXT;
 	use eframe::egui::Color32;
@@ -96,7 +91,7 @@ mod tests {
 		);
 		let fixed = readable(OCEAN_COMMENT, false);
 		assert!(
-			worst(fixed, false) >= LIFT,
+			worst(fixed, false) >= AA,
 			"{fixed:?} is {:.2}:1 at worst",
 			worst(fixed, false)
 		);
@@ -112,7 +107,7 @@ mod tests {
 	}
 
 	#[test]
-	fn every_real_span_reads_at_the_lift_ratio_on_every_background_in_both_themes() {
+	fn every_real_span_reads_at_aa_on_every_background_in_both_themes() {
 		let lines = [
 			"// a comment",
 			"/// a doc comment",
@@ -129,7 +124,7 @@ mod tests {
 						("light", span.color.light, bg.light),
 					] {
 						let ratio = contrast(fg, bg);
-						assert!(ratio >= LIFT, "{theme} {fg:?} on {name} is {ratio:.2}:1");
+						assert!(ratio >= AA, "{theme} {fg:?} on {name} is {ratio:.2}:1");
 					}
 				}
 				checked += 1;

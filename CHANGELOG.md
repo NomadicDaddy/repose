@@ -14,12 +14,6 @@ All notable changes to repose are recorded here. The format follows
   reads at 4.5:1 or more on every light background, and the selection and focus outlines at 3:1.
   Diffs and the file view use a light syntax theme in light mode.
 
-### Changed
-
-- Syntax colours are now lifted to 4.6:1 against every background they sit on, up from 4.5:1,
-  as a margin, so no colour sits exactly at the AA line. A dark-theme syntax colour that sat
-  between 4.5:1 and 4.6:1 is now slightly lighter.
-
 ### Fixed
 
 - Escape on the discard confirmation or the unsaved-message question now closes only that
