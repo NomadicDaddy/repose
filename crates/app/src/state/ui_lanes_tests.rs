@@ -194,3 +194,35 @@ fn a_select_that_did_not_land_is_refused_not_measured() {
 		"{refused:?}"
 	);
 }
+
+/// Roger on a1e9082: a `--select` that did land, spelled differently, is not refused. The
+/// check compares by `path_key`, as the selection does, so separators, case and a trailing
+/// separator do not matter; the probe goes on waiting for the page instead.
+#[test]
+fn a_select_that_landed_under_another_spelling_is_measured() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let row = repo("landed", std::time::SystemTime::now());
+	let stored = row.path.to_string_lossy().to_string();
+	state.selected = Some(row.path.clone());
+	state.merge_discovered(vec![row]);
+	let swapped: String = stored
+		.chars()
+		.map(|c| match c {
+			'/' => '\\',
+			'\\' => '/',
+			other => other,
+		})
+		.collect();
+	let spelled = format!("{}\\", swapped.to_uppercase());
+	assert_ne!(spelled, stored, "the spelling really differs");
+	let mut probe =
+		crate::measure_lanes::LanesProbe::new("unused.txt".into(), Some(spelled.into()));
+	state.scanning = false;
+	probe.begin();
+	assert_eq!(
+		probe.end(&state, &ctx),
+		None,
+		"not refused; it waits for the page"
+	);
+}

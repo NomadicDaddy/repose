@@ -27,6 +27,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use eframe::egui::{self, Event, MouseWheelUnit, RawInput, pos2, vec2};
+use repose_core::model::path_key;
 
 use crate::state::AppState;
 use crate::theme::{COMMIT_ROW_HEIGHT, SIDEBAR_WIDTH};
@@ -209,9 +210,11 @@ impl LanesProbe {
 		}
 		let repo = state.selected_repo()?.path.clone();
 		// A `--select` that did not land leaves another repository selected once discovery ends;
-		// measuring that one would report the wrong repository (EXIT #39863).
+		// measuring that one would report the wrong repository (EXIT #39863). The paths compare
+		// by the same key the selection itself lands by, so any spelling that lands also passes
+		// here (Roger on a1e9082).
 		if let Some(want) = &self.want
-			&& !same_path(&repo, want)
+			&& path_key(&repo) != path_key(want)
 		{
 			if state.scanning {
 				return None;
@@ -253,16 +256,6 @@ impl LanesProbe {
 			&self.cpu,
 		)
 	}
-}
-
-/// Windows paths compare without regard to ASCII case or a trailing separator.
-fn same_path(a: &Path, b: &Path) -> bool {
-	let norm = |p: &Path| {
-		p.to_string_lossy()
-			.trim_end_matches(['\\', '/'])
-			.to_ascii_lowercase()
-	};
-	norm(a) == norm(b)
 }
 
 fn ms(d: std::time::Duration) -> f64 {
