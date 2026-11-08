@@ -20,6 +20,10 @@ All notable changes to repose are recorded here. The format follows
   screen reader hears too. An opened commit's details sit between rows, and the lanes break
   around them. The setting lasts until repose closes. With Lanes off, History is the
   linear view of the current branch, as before.
+- `--measure-lanes <file>` measures History with lanes on. It records the first page's time,
+  split into `git log` and layout, then scrolls 100 rows with the mouse wheel and writes each
+  frame's present interval and CPU time with a pass verdict. The branch-lanes record is
+  measured with it.
 
 ### Fixed
 

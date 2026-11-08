@@ -121,6 +121,7 @@ fn no_flags_gives_the_defaults() {
 			scale: None,
 			measure_startup: None,
 			measure_diff: None,
+			measure_lanes: None,
 		}
 	);
 }
@@ -145,6 +146,8 @@ fn every_flag_carries_its_value() {
 		"m.txt",
 		"--measure-diff",
 		"d.txt",
+		"--measure-lanes",
+		"l.txt",
 	]);
 	assert_eq!(a.config, Some(PathBuf::from("c.toml")));
 	assert_eq!(a.select, Some(PathBuf::from("D:\\r")));
@@ -155,6 +158,7 @@ fn every_flag_carries_its_value() {
 	assert_eq!(a.scale, Some(1.25));
 	assert_eq!(a.measure_startup, Some(PathBuf::from("m.txt")));
 	assert_eq!(a.measure_diff, Some(PathBuf::from("d.txt")));
+	assert_eq!(a.measure_lanes, Some(PathBuf::from("l.txt")));
 }
 
 #[test]

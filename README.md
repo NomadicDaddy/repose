@@ -87,6 +87,15 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `--measure-diff <file>`: once the open diff has loaded, write one tab-separated line to the
   file (`diff-loaded`, the repository, the path, the hunk count and the milliseconds since
   start), and keep running. The gate's idle memory sample uses it.
+- `--measure-lanes <file>`: with `--select <repo> --view history`, turn lanes on and wait for the
+  first page. Then take 60 idle frames to find the refresh interval, and turn the mouse wheel
+  over History one row a frame for 100 frames. The tab-separated file holds:
+  - the first-page time, split into `git log` and layout;
+  - the widest lane count;
+  - the present intervals and CPU time per frame (p50, p95, max);
+  - the missed frames, and whether the run passed.
+
+  repose then exits. The pass rule is in `crates/app/src/measure_lanes.rs`.
 
 - `--help` or `-h`: print these flags and exit with code 0.
 

@@ -33,12 +33,17 @@ pub struct HistoryState {
 	/// One lane row per commit while the lanes view is on and its pages have landed; empty
 	/// otherwise, and then the rows draw without a graph.
 	pub graph: Vec<GraphRow>,
+	/// The last page's `git log` time and the layout time after it landed, for
+	/// `--measure-lanes`, which splits the first-page time between git and repose.
+	pub timing: Option<(f64, f64)>,
 }
 
 pub struct PageResult {
 	pub commits: Vec<Commit>,
 	/// Read with the first page only; None means there is no counted upstream.
 	pub outgoing: Option<Result<HashSet<String>, String>>,
+	/// How long the `git log` call for this page took, for `--measure-lanes`.
+	pub git_ms: f64,
 }
 
 pub enum HistoryMsg {
@@ -185,6 +190,7 @@ impl AppState {
 				h.loading = false;
 				match result {
 					Ok(page) => {
+						let git_ms = page.git_ms;
 						h.error = None;
 						if page.commits.len() < PAGE {
 							h.exhausted = true;
@@ -210,11 +216,14 @@ impl AppState {
 						}
 						// The whole list is laid out again: a lane that a later page continues must
 						// keep its column, and the layout is one pass over the commits.
+						let started = std::time::Instant::now();
 						h.graph = if lanes {
 							layout(&h.commits)
 						} else {
 							Vec::new()
 						};
+						let layout_ms = started.elapsed().as_secs_f64() * 1000.0;
+						h.timing = Some((git_ms, layout_ms));
 					}
 					Err(e) => h.error = Some(e),
 				}
@@ -247,14 +256,21 @@ fn spawn_page(req: PageRequest, tx: Sender<Msg>, ctx: egui::Context) {
 			upstream,
 			scope,
 		} = req;
+		let started = std::time::Instant::now();
 		let result = read_log(&repo, skip, scope)
 			.map(|commits| {
+				// The log call alone, before the outgoing read.
+				let git_ms = started.elapsed().as_secs_f64() * 1000.0;
 				// The outgoing set is extra; a failure to read it leaves the page standing.
 				let outgoing = match (skip, &upstream) {
 					(0, Some(u)) => Some(read_outgoing(&repo, u).map_err(|e| e.to_string())),
 					_ => None,
 				};
-				PageResult { commits, outgoing }
+				PageResult {
+					commits,
+					outgoing,
+					git_ms,
+				}
 			})
 			.map_err(|e| e.to_string());
 		let _ = tx.send(Msg::History(HistoryMsg::Page {

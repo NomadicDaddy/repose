@@ -32,6 +32,7 @@ fn failed_outgoing_read_keeps_prior_hashes_and_shows_error() {
 				..Commit::default()
 			}],
 			outgoing: Some(Err("outgoing read failed".into())),
+			git_ms: 0.0,
 		}),
 	});
 	let Some(history) = state.history.get(&repo) else {

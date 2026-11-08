@@ -5,6 +5,8 @@
 //! the hunk count and the milliseconds since start, once the
 //! open diff has loaded with at least one hunk, and keeps running, so the idle memory sample is
 //! taken with a diff on screen.
+//! `--measure-lanes <file>` turns lanes on, scrolls History through 100 rows and writes the
+//! frame times (measure_lanes.rs), then exits.
 //! `--select <repository path>` opens on that repository and
 //! `--view changes|history|files|branches` on that pane, so a shortcut or a script can land where
 //! the user wants; `--file <path>` opens that file's working-tree diff there, `--inline` in
@@ -23,6 +25,7 @@ mod diff_rows;
 mod file_tree;
 mod highlight;
 mod lanes;
+mod measure_lanes;
 mod platform;
 mod screens;
 mod state;
@@ -45,6 +48,8 @@ struct App {
 	platform: Box<dyn platform::Platform>,
 	/// Whether Windows' animation setting has been asked for yet; see `ui`.
 	motion_asked: bool,
+	/// `--measure-lanes`: the frame-time probe, while it runs.
+	lanes_probe: Option<measure_lanes::LanesProbe>,
 }
 
 impl App {
@@ -64,14 +69,24 @@ impl App {
 			state,
 			platform: platform::current(),
 			motion_asked: false,
+			lanes_probe: None,
 		}
 	}
 }
 
 impl eframe::App for App {
+	fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+		if let Some(probe) = &self.lanes_probe {
+			probe.inject(raw);
+		}
+	}
+
 	fn ui(&mut self, root: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		let ctx = root.ctx().clone();
 		theme::begin_frame(&ctx);
+		if let Some(probe) = &mut self.lanes_probe {
+			probe.begin();
+		}
 		self.state.pump(&ctx);
 		self.state.tick(&ctx);
 		// The bottom row goes first so it spans the window under both panes.
@@ -114,6 +129,13 @@ impl eframe::App for App {
 		}
 		if self.state.scanning {
 			ctx.request_repaint_after(std::time::Duration::from_millis(100));
+		}
+		if let Some(probe) = &mut self.lanes_probe
+			&& let Some(report) = probe.end(&self.state, &ctx)
+		{
+			let _ = std::fs::write(probe.out(), &report);
+			print!("{report}");
+			std::process::exit(i32::from(report.starts_with("error")));
 		}
 	}
 }
@@ -203,6 +225,10 @@ fn main() -> eframe::Result {
 			}
 			let mut app = App::new(cc, started, args.measure_startup, cfg);
 			app.diff_loaded = args.measure_diff;
+			if let Some(out) = args.measure_lanes {
+				app.state.lanes = true;
+				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out));
+			}
 			app.state.view = args.view;
 			app.state.requested_selection = args.select.or_else(repo_at_cwd);
 			app.state.requested_diff = args.file.map(|f| (f, args.inline));

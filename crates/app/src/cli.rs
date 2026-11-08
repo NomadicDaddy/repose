@@ -55,6 +55,11 @@ pub const FLAGS: &[Flag] = &[
 		"<file>",
 		"Write a line once the open diff has loaded, and keep running.",
 	),
+	flag(
+		"--measure-lanes",
+		"<file>",
+		"With --view history: turn lanes on, scroll 100 rows, write frame times, then exit.",
+	),
 	Flag {
 		name: "--help",
 		alias: "-h",
@@ -127,6 +132,7 @@ pub struct Args {
 	pub scale: Option<f32>,
 	pub measure_startup: Option<PathBuf>,
 	pub measure_diff: Option<PathBuf>,
+	pub measure_lanes: Option<PathBuf>,
 }
 
 pub fn parse(args: &[String]) -> Parsed {
@@ -208,6 +214,7 @@ fn parse_with(look: &Lookup<'_>) -> Parsed {
 			.value("--measure-startup")
 			.map(|v| PathBuf::from(v.map_or("repose-startup-ms.txt", String::as_str))),
 		measure_diff: path("--measure-diff"),
+		measure_lanes: path("--measure-lanes"),
 	})
 }
 
