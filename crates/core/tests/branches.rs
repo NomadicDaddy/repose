@@ -50,6 +50,36 @@ fn current_first_then_by_name_with_saved_counts() {
 	assert_eq!((alpha.ahead, alpha.behind), (None, None));
 }
 
+/// S23's branch "tracking a remote branch that is ahead": a remote-tracking ref one commit past
+/// the local branch, written as a saved ref (no fetch), reads as one behind.
+#[test]
+fn a_branch_whose_remote_branch_is_ahead_reads_behind() {
+	let repo = TempRepo::new("branches-behind");
+	repo.write("base.txt", "base\n");
+	repo.commit_all("base");
+	repo.git(&["branch", "feature"]);
+	repo.write("more.txt", "more\n");
+	repo.commit_all("more");
+	// origin points nowhere reachable; only its saved ref matters, and nothing fetches it.
+	repo.git(&[
+		"remote",
+		"add",
+		"origin",
+		"https://example.invalid/team/thing.git",
+	]);
+	repo.git(&["update-ref", "refs/remotes/origin/feature", "HEAD"]);
+	repo.git(&["branch", "-u", "origin/feature", "feature"]);
+	let branches = read_branches(&repo.path).expect("branches");
+	let feature = branches
+		.list
+		.iter()
+		.find(|b| b.name == "feature")
+		.expect("feature");
+	assert!(!feature.current);
+	assert_eq!(feature.upstream.as_deref(), Some("origin/feature"));
+	assert_eq!((feature.ahead, feature.behind), (Some(0), Some(1)));
+}
+
 #[test]
 fn detached_and_unborn_heads_are_named() {
 	let repo = TempRepo::new("branches-detached");

@@ -74,6 +74,8 @@ All notable changes to repose are recorded here. The format follows
 - The UI tests draw every frame through one function in `state/ui_frame.rs`, instead of five
   test files each building their own, and share one row-rectangle finder and one
   three-changes fixture.
+- A core test reads a branch whose remote-tracking branch is one commit ahead as 0 ahead and 1
+  behind, from saved refs.
 
 ## [1.1.2] - 2026-11-07
 
