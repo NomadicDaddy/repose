@@ -22,7 +22,10 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   and the Windows SDK, from the "Desktop development with C++" workload of Visual Studio or its
   Build Tools), which Rust's Windows target links with. No runtime is bundled or downloaded.
 - For the gate scripts only: PowerShell 7 (`pwsh`), and cargo-audit installed per user with
-  `cargo install cargo-audit --locked`. Running repose needs neither.
+  `cargo install cargo-audit --locked`. Running repose needs neither. The same two apply to the
+  GitHub Actions gate, `.github/workflows/qc.yml`, which runs `scripts/qc.ps1 -SkipMeasure` on
+  windows-latest for every push and pull request to main: the runner image has `pwsh` and
+  rustup, and the workflow installs cargo-audit.
 
 ## Build, run and install
 

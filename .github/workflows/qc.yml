@@ -1,0 +1,65 @@
+name: qc
+
+# The repose gate on GitHub's runners (Phillip, Yes #39954 on #39953): the same
+# `scripts/qc.ps1` a developer runs, on every push to main and every pull request to main.
+# Measurements are skipped (-SkipMeasure), since a shared runner's startup and memory figures say
+# nothing about the target machine. The per-user install refresh at the end of qc.ps1 acts only
+# when %LOCALAPPDATA%\Programs\repose\repose.exe exists, which it never does on a fresh runner, so
+# the gate installs nothing. Tags are not built: a tag points at a commit main already built.
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+permissions:
+    contents: read
+
+concurrency:
+    cancel-in-progress: true
+    group: qc-${{ github.ref }}
+
+jobs:
+    gate:
+        name: Gate
+        runs-on: windows-latest
+        # A cold local gate with measurements took about 6 minutes; a cold runner also installs
+        # the toolchain and cargo-audit. 45 minutes is headroom, not a measured bound.
+        timeout-minutes: 45
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            # rustup is on the runner image. With no argument, `rustup toolchain install` installs
+            # what rust-toolchain.toml names (stable, with rustfmt and clippy), so a failure is
+            # named here rather than inside the gate, and the versions the gate uses are printed.
+            - name: Toolchain
+              shell: pwsh
+              run: |
+                  rustup toolchain install
+                  rustup show active-toolchain
+                  rustc -vV
+                  cargo -V
+
+            # The advisory check needs cargo-audit, installed per user as README.md's
+            # prerequisites say.
+            - name: Install cargo-audit
+              shell: pwsh
+              run: cargo install cargo-audit --locked
+
+            # The gate's own output is the log. QC_EXIT=<code> is its last line, and the step fails
+            # with that code.
+            - name: Gate
+              shell: pwsh
+              run: |
+                  pwsh -NoProfile -File scripts/qc.ps1 -SkipMeasure *>&1 | Tee-Object -FilePath qc.log
+                  exit $LASTEXITCODE
+
+            - name: Upload gate log
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: qc-log
+                  path: qc.log
+                  if-no-files-found: warn

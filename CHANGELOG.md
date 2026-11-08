@@ -67,6 +67,10 @@ All notable changes to repose are recorded here. The format follows
   calls. On a warm build the test step now takes about 54 seconds, down from about 105.
 - A test checks that a screen reader can read every path in the discard confirmation, and that
   none of them is a Tab stop. The app already did this, so nothing changes in how it behaves.
+- A GitHub Actions workflow, `.github/workflows/qc.yml`, runs the gate (`scripts/qc.ps1
+  -SkipMeasure`) on windows-latest for every push to main and every pull request to main. It
+  installs the toolchain `rust-toolchain.toml` names and cargo-audit, and keeps the gate's
+  output as the `qc-log` artifact. It installs nothing on the runner beyond those.
 
 ## [1.1.2] - 2026-11-07
 
