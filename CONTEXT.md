@@ -40,15 +40,17 @@ conflicts, and an error badge when `git status` failed. A row with no badges is 
 with its upstream as far as saved refs show.
 
 **Changes**
-: The selected repository's working tree, in two groups like VS Code: Staged Changes (the index
-differs from HEAD) and Changes (the working tree differs from the index, plus untracked files).
-Each file carries a letter badge: M modified, A added, D deleted, R renamed, U untracked, C
-conflicted.
+: The selected repository's working tree, in groups like VS Code: Merge Changes (conflicted files,
+shown above the others only while there are any), Staged Changes (the index differs from HEAD) and
+Changes (the working tree differs from the index, plus untracked files). Each file carries a letter
+badge: M modified, A added, D deleted, R renamed, T type changed, U untracked, C conflicted. A file
+staged with `git add -N` (intent to add) shows A.
 
 **History**
 : The linear log of the current branch, newest first, with an Outgoing changes group at the top for
-commits not yet on the upstream. Each commit expands to the files it changed. There are no drawn
-branch lanes in the first release.
+commits not yet on the upstream. Each commit expands to the files it changed. With **Lanes** on,
+History instead lists every branch and tag in topological order and draws each line of history as
+a lane, with connectors where branches fork and merge.
 
 **Diff**
 : A read-only comparison rendered from `git diff` output: working tree against index, index
