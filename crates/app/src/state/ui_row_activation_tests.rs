@@ -71,6 +71,7 @@ fn commit(n: usize) -> Commit {
 		date: "1970-01-01T00:00:00Z".into(),
 		subject: format!("commit {n}"),
 		body: String::new(),
+		..Commit::default()
 	}
 }
 

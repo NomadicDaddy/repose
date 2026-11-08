@@ -29,6 +29,7 @@ fn failed_outgoing_read_keeps_prior_hashes_and_shows_error() {
 				date: "1970-01-01T00:00:00Z".into(),
 				subject: "new page".into(),
 				body: String::new(),
+				..Commit::default()
 			}],
 			outgoing: Some(Err("outgoing read failed".into())),
 		}),

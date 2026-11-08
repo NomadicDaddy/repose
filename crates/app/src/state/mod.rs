@@ -52,6 +52,8 @@ mod ui_history_row_tests;
 #[cfg(test)]
 mod ui_labels_tests;
 #[cfg(test)]
+mod ui_lanes_tests;
+#[cfg(test)]
 mod ui_origin_link_tests;
 #[cfg(test)]
 mod ui_repo_list_tests;
@@ -137,6 +139,9 @@ pub struct AppState {
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
 	pub history: HashMap<PathBuf, HistoryState>,
+	/// History draws branch lanes over every ref (branch-graph-lanes); off at start, kept for the
+	/// session.
+	pub lanes: bool,
 	/// The Branches tab per repository, read when the tab first shows it.
 	pub branches: HashMap<PathBuf, BranchesState>,
 	/// The diff open in the right pane, if any.
@@ -201,6 +206,7 @@ impl AppState {
 			pending_discard: None,
 			view: View::Changes,
 			history: HashMap::new(),
+			lanes: false,
 			branches: HashMap::new(),
 			diff: None,
 			diff_serial: 0,

@@ -6,12 +6,15 @@ use repose_core::model::{BranchState, Commit, RepoSummary, relative};
 
 use super::row::{fit, frame};
 use super::{a11y, fetch, menu};
+use crate::lanes::GraphRow;
 use crate::platform::Platform;
 use crate::state::AppState;
 use crate::theme::*;
 
 #[path = "history_block.rs"]
 mod block;
+#[path = "history_lanes.rs"]
+mod lanes;
 use block::expanded_block;
 
 pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
@@ -23,6 +26,14 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		fetch::button(ui, state, &repo.path);
 		let note = fetch::refs_note(state, &repo.path);
 		ui.label(RichText::new(note).size(TEXT_SMALL).color(MUTED));
+		// Off by default; on draws every ref's lanes and keeps that for the session (clause 2).
+		let mut on = state.lanes;
+		let toggle = ui
+			.toggle_value(&mut on, "Lanes")
+			.on_hover_text("Draw the lanes of every branch, with their merges and forks");
+		if toggle.changed() {
+			state.set_lanes(on, ui.ctx());
+		}
 	});
 	if repo.branch == BranchState::Unborn {
 		ui.label(RichText::new("No commits yet").color(MUTED));
@@ -47,46 +58,46 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		.duration_since(std::time::UNIX_EPOCH)
 		.map(|d| d.as_secs() as i64)
 		.unwrap_or(0);
-	// Membership, not position: after a merge the unpushed commits are interleaved with the
-	// upstream's in date order, so the set from <upstream>..HEAD decides.
-	let (outgoing, rest): (Vec<&Commit>, Vec<&Commit>) =
-		commits.iter().partition(|c| outgoing_set.contains(&c.hash));
-	if !outgoing.is_empty() {
-		let branch = match &repo.branch {
-			BranchState::Branch(b) => b.clone(),
-			_ => String::new(),
-		};
-		section(ui, &format!("Outgoing changes · {branch}"), outgoing.len());
-		for c in outgoing {
-			commit_row(
-				ui,
-				state,
-				&repo,
-				c,
-				&Rows {
-					expanded: expanded.as_deref(),
-					files: &files,
-					now,
-					platform,
-				},
-			);
+	// The graph applies only while its rows match the commits on screen: after the toggle the
+	// old scope's rows stand, without a graph, until the new first page lands.
+	let graph = if state.lanes && h.graph.len() == commits.len() {
+		h.graph.clone()
+	} else {
+		Vec::new()
+	};
+	let rows = Rows {
+		expanded: expanded.as_deref(),
+		files: &files,
+		now,
+		platform,
+		graph_width: lanes::graph_width(&graph),
+	};
+	if !graph.is_empty() {
+		// Every ref in topological order, one list: splitting out the outgoing commits would
+		// break the lanes.
+		for (c, lane) in commits.iter().zip(&graph) {
+			commit_row(ui, state, &repo, c, &rows, Some(lane));
 		}
-		ui.add_space(8.0);
-		section(ui, "Earlier", rest.len());
-	}
-	for c in rest {
-		commit_row(
-			ui,
-			state,
-			&repo,
-			c,
-			&Rows {
-				expanded: expanded.as_deref(),
-				files: &files,
-				now,
-				platform,
-			},
-		);
+	} else {
+		// Membership, not position: after a merge the unpushed commits are interleaved with the
+		// upstream's in date order, so the set from <upstream>..HEAD decides.
+		let (outgoing, rest): (Vec<&Commit>, Vec<&Commit>) =
+			commits.iter().partition(|c| outgoing_set.contains(&c.hash));
+		if !outgoing.is_empty() {
+			let branch = match &repo.branch {
+				BranchState::Branch(b) => b.clone(),
+				_ => String::new(),
+			};
+			section(ui, &format!("Outgoing changes · {branch}"), outgoing.len());
+			for c in outgoing {
+				commit_row(ui, state, &repo, c, &rows, None);
+			}
+			ui.add_space(8.0);
+			section(ui, "Earlier", rest.len());
+		}
+		for c in rest {
+			commit_row(ui, state, &repo, c, &rows, None);
+		}
 	}
 	if commits.is_empty() && loading {
 		ui.label(RichText::new("Reading history…").color(MUTED));
@@ -124,9 +135,18 @@ struct Rows<'a> {
 		&'a std::collections::HashMap<String, Result<Vec<repose_core::model::CommitFile>, String>>,
 	now: i64,
 	platform: &'a dyn Platform,
+	/// The room the lanes take at the left of every row; zero in the linear view.
+	graph_width: f32,
 }
 
-fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit, rows: &Rows<'_>) {
+fn commit_row(
+	ui: &mut Ui,
+	state: &mut AppState,
+	repo: &RepoSummary,
+	c: &Commit,
+	rows: &Rows<'_>,
+	lane: Option<&GraphRow>,
+) {
 	let (expanded, files, now) = (rows.expanded, rows.files, rows.now);
 	let open = expanded == Some(c.hash.as_str());
 	let (rect, response) = ui.allocate_exact_size(
@@ -143,7 +163,11 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 	};
 	let line = open.then_some(ACCENT_LINE);
 	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
-	let x = rect.left() + 8.0;
+	if let Some(l) = lane {
+		let gap = ui.spacing().item_spacing.y;
+		lanes::draw(ui.painter(), rect, gap, l, c.parents.len() > 1);
+	}
+	let x = rect.left() + 8.0 + rows.graph_width;
 	painter.text(
 		pos2(x, rect.center().y),
 		Align2::LEFT_CENTER,
@@ -167,7 +191,11 @@ fn commit_row(ui: &mut Ui, state: &mut AppState, repo: &RepoSummary, c: &Commit,
 		MUTED.get(),
 	);
 	let subject_left = x + 70.0;
-	let subject_width = (rect.right() - 20.0 - meta_w - subject_left).max(40.0);
+	let mut subject_right = rect.right() - 20.0 - meta_w;
+	if lane.is_some() {
+		subject_right = lanes::refs(&painter, c, subject_right, rect.center().y);
+	}
+	let subject_width = (subject_right - subject_left).max(40.0);
 	// One line, cut with an ellipsis when it is wider than the room beside the hash and the meta:
 	// laid out with wrapping and clipped, a long subject showed the top of its second line inside
 	// the row (F4 sweep on 6445c56). A cut subject is shown whole in the tooltip.

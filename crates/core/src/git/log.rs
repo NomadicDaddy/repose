@@ -1,4 +1,5 @@
-//! The linear log: `git log -z` with NUL-separated fields, 100 at a time, and a commit's files
+//! The log: `git log -z` with NUL-separated fields, 100 at a time, either the current branch
+//! (the linear view) or every ref in topological order (the lanes view), and a commit's files
 //! from `--name-status` with first-parent merges.
 
 use std::collections::HashSet;
@@ -8,17 +9,31 @@ use super::commands::{GitError, Verb, run};
 use crate::model::{ChangeKind, Commit, CommitFile, parse_iso};
 
 pub const PAGE: usize = 100;
-const FORMAT: &str = "--format=%H%x00%h%x00%an%x00%aI%x00%s%x00%b";
+const FORMAT: &str = "--format=%H%x00%h%x00%an%x00%aI%x00%P%x00%D%x00%s%x00%b";
 
-/// One page of the current branch's history, newest first.
-pub fn read_log(repo: &Path, skip: usize) -> Result<Vec<Commit>, GitError> {
+/// Which commits a page holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogScope {
+	/// The current branch, newest first: the linear view.
+	Head,
+	/// Every ref with parents, children before parents (`--all --parents --topo-order`), so the
+	/// lanes view can draw each line of history and where it forks and merges.
+	All,
+}
+
+/// One page of history, newest first.
+pub fn read_log(repo: &Path, skip: usize, scope: LogScope) -> Result<Vec<Commit>, GitError> {
 	let max = format!("--max-count={PAGE}");
 	let skip_arg = format!("--skip={skip}");
-	let bytes = run(repo, Verb::Log, &["-z", FORMAT, &max, &skip_arg])?;
+	let mut args = vec!["-z", FORMAT, &max, &skip_arg];
+	if scope == LogScope::All {
+		args.extend(["--all", "--parents", "--topo-order"]);
+	}
+	let bytes = run(repo, Verb::Log, &args)?;
 	Ok(parse_log(&bytes))
 }
 
-/// Six NUL-separated fields per record; the record's own terminator follows the body.
+/// Eight NUL-separated fields per record; the record's own terminator follows the body.
 pub fn parse_log(bytes: &[u8]) -> Vec<Commit> {
 	let text = String::from_utf8_lossy(bytes);
 	let mut fields = text.split('\0');
@@ -27,13 +42,8 @@ pub fn parse_log(bytes: &[u8]) -> Vec<Commit> {
 		if hash.is_empty() {
 			break;
 		}
-		let (Some(short), Some(author), Some(date), Some(subject), Some(body)) = (
-			fields.next(),
-			fields.next(),
-			fields.next(),
-			fields.next(),
-			fields.next(),
-		) else {
+		let next: Vec<&str> = fields.by_ref().take(7).collect();
+		let [short, author, date, parents, refs, subject, body] = next[..] else {
 			break;
 		};
 		out.push(Commit {
@@ -44,9 +54,21 @@ pub fn parse_log(bytes: &[u8]) -> Vec<Commit> {
 			date: date.to_string(),
 			subject: subject.to_string(),
 			body: body.trim_end().to_string(),
+			parents: parents.split_whitespace().map(str::to_string).collect(),
+			refs: parse_refs(refs),
 		});
 	}
 	out
+}
+
+/// `HEAD -> main, origin/main, tag: v1.0` to `main`, `origin/main`, `tag: v1.0`. A detached
+/// `HEAD` names no branch and is dropped, as is `origin/HEAD`, which only aliases another ref.
+fn parse_refs(text: &str) -> Vec<String> {
+	text.split(", ")
+		.map(|r| r.strip_prefix("HEAD -> ").unwrap_or(r).trim())
+		.filter(|r| !r.is_empty() && *r != "HEAD" && !r.ends_with("/HEAD"))
+		.map(str::to_string)
+		.collect()
 }
 
 /// The hashes on HEAD that are not on the upstream: `git log <upstream>..HEAD`. The status call

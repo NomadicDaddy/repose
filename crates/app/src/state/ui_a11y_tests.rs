@@ -154,6 +154,7 @@ fn commit_rows_and_file_lines_are_named() {
 		date: "1970-01-01T00:00:00Z".into(),
 		subject: "Name the rows".into(),
 		body: String::new(),
+		..Commit::default()
 	};
 	let mut history = HistoryState {
 		commits: vec![commit],

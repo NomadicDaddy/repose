@@ -7,10 +7,11 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 
 use eframe::egui;
-use repose_core::git::log::{PAGE, read_commit_files, read_log, read_outgoing};
+use repose_core::git::log::{LogScope, PAGE, read_commit_files, read_log, read_outgoing};
 use repose_core::model::{Commit, CommitFile};
 
 use super::{AppState, Msg, find};
+use crate::lanes::{GraphRow, layout};
 
 #[derive(Default)]
 pub struct HistoryState {
@@ -29,6 +30,9 @@ pub struct HistoryState {
 	/// One commit's own file read, kept beside it: a failure shows in that commit's block and
 	/// never in `error`, so a late file read can neither clear nor replace a page error.
 	pub files: HashMap<String, Result<Vec<CommitFile>, String>>,
+	/// One lane row per commit while the lanes view is on and its pages have landed; empty
+	/// otherwise, and then the rows draw without a graph.
+	pub graph: Vec<GraphRow>,
 }
 
 pub struct PageResult {
@@ -83,6 +87,22 @@ impl AppState {
 		self.load_history_page(repo, 0, ctx);
 	}
 
+	/// Turns the lanes view on or off for the session. Each loaded history re-reads its first
+	/// page in the other scope, keeping the open commit; the rows on screen stand until it lands.
+	pub fn set_lanes(&mut self, on: bool, ctx: &egui::Context) {
+		if self.lanes == on {
+			return;
+		}
+		self.lanes = on;
+		let loaded: Vec<PathBuf> = self.history.keys().cloned().collect();
+		for repo in loaded {
+			if let Some(h) = self.history.get_mut(&repo) {
+				h.graph.clear();
+			}
+			self.refresh_history(&repo, ctx);
+		}
+	}
+
 	/// The upstream to diff against, only when status could count against it: an upstream whose
 	/// ref is gone has a name but no ahead/behind, and `<upstream>..HEAD` would fail the page.
 	fn upstream_of(&self, repo: &Path) -> Option<String> {
@@ -112,6 +132,11 @@ impl AppState {
 				generation,
 				skip,
 				upstream,
+				scope: if self.lanes {
+					LogScope::All
+				} else {
+					LogScope::Head
+				},
 			},
 			self.tx.clone(),
 			ctx.clone(),
@@ -150,6 +175,7 @@ impl AppState {
 				skip,
 				result,
 			} => {
+				let lanes = self.lanes;
 				let Some(h) = self.history.get_mut(&repo) else {
 					return;
 				};
@@ -182,6 +208,13 @@ impl AppState {
 						} else {
 							h.commits.extend(page.commits);
 						}
+						// The whole list is laid out again: a lane that a later page continues must
+						// keep its column, and the layout is one pass over the commits.
+						h.graph = if lanes {
+							layout(&h.commits)
+						} else {
+							Vec::new()
+						};
 					}
 					Err(e) => h.error = Some(e),
 				}
@@ -202,6 +235,7 @@ struct PageRequest {
 	generation: u64,
 	skip: usize,
 	upstream: Option<String>,
+	scope: LogScope,
 }
 
 fn spawn_page(req: PageRequest, tx: Sender<Msg>, ctx: egui::Context) {
@@ -211,8 +245,9 @@ fn spawn_page(req: PageRequest, tx: Sender<Msg>, ctx: egui::Context) {
 			generation,
 			skip,
 			upstream,
+			scope,
 		} = req;
-		let result = read_log(&repo, skip)
+		let result = read_log(&repo, skip, scope)
 			.map(|commits| {
 				// The outgoing set is extra; a failure to read it leaves the page standing.
 				let outgoing = match (skip, &upstream) {

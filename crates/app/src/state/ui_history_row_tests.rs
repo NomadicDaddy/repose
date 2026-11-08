@@ -21,6 +21,7 @@ fn commit(n: u8, subject: &str) -> Commit {
 		date: "1970-01-01T00:00:00Z".into(),
 		subject: subject.into(),
 		body: String::new(),
+		..Commit::default()
 	}
 }
 

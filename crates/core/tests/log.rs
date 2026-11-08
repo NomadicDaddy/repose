@@ -6,7 +6,7 @@ mod support;
 
 use std::collections::HashSet;
 
-use repose_core::git::log::{PAGE, read_commit_files, read_log, read_outgoing};
+use repose_core::git::log::{LogScope, PAGE, read_commit_files, read_log, read_outgoing};
 use repose_core::model::ChangeKind;
 use support::TempRepo;
 
@@ -26,7 +26,7 @@ fn outgoing_is_the_set_not_the_top_of_the_log() {
 	repo.git(&["checkout", "-q", "main"]);
 	repo.git(&["merge", "-q", "--no-ff", "-m", "MERGE local merge", "up"]);
 	repo.git(&["branch", "-u", "up"]);
-	let log = read_log(&repo.path, 0).expect("log");
+	let log = read_log(&repo.path, 0, LogScope::Head).expect("log");
 	let subject = |needle: &str| {
 		log.iter()
 			.find(|c| c.subject.starts_with(needle))
@@ -58,7 +58,7 @@ fn pages_bodies_quotes_and_order() {
 	repo.write("b.txt", "b\n");
 	repo.git(&["add", "b.txt"]);
 	repo.git(&["commit", "-q", "-m", "second \"quoted\" subject"]);
-	let log = read_log(&repo.path, 0).expect("log");
+	let log = read_log(&repo.path, 0, LogScope::Head).expect("log");
 	assert_eq!(log.len(), 2);
 	assert_eq!(log[0].subject, "second \"quoted\" subject");
 	assert_eq!(log[0].body, "");
@@ -67,7 +67,11 @@ fn pages_bodies_quotes_and_order() {
 	assert_eq!(log[0].author, "Test");
 	assert_eq!(log[0].short.len(), 7);
 	assert!(log[0].time > 1_700_000_000, "time parsed: {}", log[0].time);
-	assert!(read_log(&repo.path, 2).expect("past the end").is_empty());
+	assert!(
+		read_log(&repo.path, 2, LogScope::Head)
+			.expect("past the end")
+			.is_empty()
+	);
 }
 
 /// History's Load more asks for the next page by skipping the commits it already holds. With one
@@ -94,16 +98,16 @@ fn a_second_page_holds_what_the_first_page_left() {
 		stream += "\n";
 	}
 	repo.git_with_input(&["fast-import", "--quiet"], &stream);
-	let first = read_log(&repo.path, 0).expect("first page");
+	let first = read_log(&repo.path, 0, LogScope::Head).expect("first page");
 	let subjects: Vec<&str> = first.iter().map(|c| c.subject.as_str()).collect();
 	let newest: Vec<String> = (2..=PAGE + 1).rev().map(|n| format!("c{n}")).collect();
 	assert_eq!(subjects, newest, "the newest PAGE commits, newest first");
-	let second = read_log(&repo.path, PAGE).expect("second page");
+	let second = read_log(&repo.path, PAGE, LogScope::Head).expect("second page");
 	let rest: Vec<&str> = second.iter().map(|c| c.subject.as_str()).collect();
 	assert_eq!(rest, ["c1"], "only the oldest commit is left");
 	assert!(second.len() < PAGE, "a short page ends the list");
 	assert!(
-		read_log(&repo.path, 2 * PAGE)
+		read_log(&repo.path, 2 * PAGE, LogScope::Head)
 			.expect("past the end")
 			.is_empty()
 	);
@@ -151,4 +155,53 @@ fn commit_files_with_rename_and_merge() {
 		!merged.iter().any(|f| f.path == "main.txt"),
 		"main.txt was already on main"
 	);
+}
+
+/// branch-graph-lanes clause 1: the lanes read takes every ref in topological order with parents
+/// and ref names. The fixture has main and a side branch that forked, both moved on, and then
+/// merged; a second, unmerged branch only the All scope reaches.
+#[test]
+fn the_all_scope_reads_every_ref_with_parents_and_ref_names() {
+	let repo = TempRepo::new("lanes");
+	repo.write("base.txt", "base\n");
+	repo.commit_all("base");
+	repo.git(&["checkout", "-q", "-b", "side"]);
+	repo.write("side.txt", "s\n");
+	repo.commit_all("side work");
+	repo.git(&["checkout", "-q", "main"]);
+	repo.write("main.txt", "m\n");
+	repo.commit_all("main work");
+	repo.git(&["merge", "-q", "--no-ff", "-m", "merge side", "side"]);
+	repo.git(&["tag", "v1"]);
+	repo.git(&["checkout", "-q", "-b", "later"]);
+	repo.write("later.txt", "l\n");
+	repo.commit_all("later work");
+	repo.git(&["checkout", "-q", "main"]);
+
+	let head = read_log(&repo.path, 0, LogScope::Head).expect("head log");
+	let subjects: Vec<&str> = head.iter().map(|c| c.subject.as_str()).collect();
+	assert!(
+		!subjects.contains(&"later work"),
+		"Head stays on main: {subjects:?}"
+	);
+	let all = read_log(&repo.path, 0, LogScope::All).expect("all log");
+	let by = |s: &str| all.iter().find(|c| c.subject == s).expect(s);
+	assert_eq!(all.len(), 5, "every commit on every branch once");
+	let merge = by("merge side");
+	assert_eq!(
+		merge.parents,
+		vec![by("main work").hash.clone(), by("side work").hash.clone()],
+		"first parent first"
+	);
+	assert_eq!(by("base").parents, Vec::<String>::new(), "a root has none");
+	assert_eq!(merge.refs, vec!["main".to_string(), "tag: v1".to_string()]);
+	assert_eq!(by("later work").refs, vec!["later".to_string()]);
+	assert_eq!(by("side work").refs, vec!["side".to_string()]);
+	// Topological: every commit comes before each of its parents.
+	let at = |h: &str| all.iter().position(|c| c.hash == h).expect("listed");
+	for c in &all {
+		for p in &c.parents {
+			assert!(at(&c.hash) < at(p), "{} before its parent", c.subject);
+		}
+	}
 }

@@ -30,6 +30,7 @@ fn expanded(files: Option<Result<Vec<CommitFile>, String>>) -> AppState {
 			date: "1970-01-01T00:00:00Z".into(),
 			subject: "Move the module".into(),
 			body: String::new(),
+			..Commit::default()
 		}],
 		exhausted: true,
 		..HistoryState::default()

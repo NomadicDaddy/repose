@@ -3,7 +3,8 @@
 A fast, lightweight desktop viewer for many Git repositories at once, written in Rust. It brings
 the parts of VS Code's Source Control view that matter when you keep sixty or more repositories
 on one machine: a list of every repository with its branch and state, the changes in the selected
-one, a linear commit history with the files each commit touched, read-only diffs with syntax
+one, a commit history with the files each commit touched (linear, or with every branch's lanes
+when you turn Lanes on), read-only diffs with syntax
 highlighting, and staging and committing from the same window. It is not an editor and it is not
 Electron.
 

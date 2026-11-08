@@ -22,6 +22,7 @@ mod cli;
 mod diff_rows;
 mod file_tree;
 mod highlight;
+mod lanes;
 mod platform;
 mod screens;
 mod state;

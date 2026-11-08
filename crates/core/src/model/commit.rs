@@ -2,7 +2,7 @@
 
 use super::ChangeKind;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Commit {
 	pub hash: String,
 	pub short: String,
@@ -13,6 +13,11 @@ pub struct Commit {
 	pub date: String,
 	pub subject: String,
 	pub body: String,
+	/// Parent hashes, first parent first (`%P`); empty for a root commit.
+	pub parents: Vec<String>,
+	/// The ref names that point at this commit (`%D`), such as `main`, `origin/main` or
+	/// `tag: v1.0`; a `HEAD -> main` decoration is kept as `main`, and a bare `HEAD` is dropped.
+	pub refs: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
