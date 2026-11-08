@@ -190,6 +190,8 @@ fn the_all_scope_reads_branches_and_tags_with_parents_and_ref_names() {
 	]);
 	repo.git(&["update-ref", "refs/stash", wip.trim()]);
 	repo.git(&["notes", "add", "-m", "a note", "HEAD"]);
+	// An untracked file named HEAD must not make the revision ambiguous (Morticia nit on 5cca1df).
+	repo.write("HEAD", "not a revision\n");
 
 	let head = read_log(&repo.path, 0, LogScope::Head).expect("head log");
 	let subjects: Vec<&str> = head.iter().map(|c| c.subject.as_str()).collect();

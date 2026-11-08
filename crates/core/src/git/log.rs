@@ -17,7 +17,7 @@ pub enum LogScope {
 	/// The current branch, newest first: the linear view.
 	Head,
 	/// Every branch, tag, remote-tracking branch and HEAD with parents, children before parents
-	/// (`--branches --tags --remotes --parents --topo-order HEAD`), so the lanes view can draw each
+	/// (`--branches --tags --remotes --parents --topo-order HEAD --`), so the lanes view can draw each
 	/// line of history and where it forks and merges. Not `--all`, which also takes refs/stash,
 	/// refs/notes and other bookkeeping refs and would draw them as branches (Morticia 5Q-1 on
 	/// 88118fb).
@@ -37,6 +37,8 @@ pub fn read_log(repo: &Path, skip: usize, scope: LogScope) -> Result<Vec<Commit>
 			"--parents",
 			"--topo-order",
 			"HEAD",
+			// Ends the revisions, so a work-tree file named HEAD is not ambiguous.
+			"--",
 		]);
 	}
 	let bytes = run(repo, Verb::Log, &args)?;
