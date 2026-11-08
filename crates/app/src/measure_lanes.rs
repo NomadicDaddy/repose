@@ -18,9 +18,10 @@
 //! report: a key, text, a button, a wheel turn, or the pointer moving from where it rested
 //! (#39830, #39831). The probe's own events are added after this check.
 //!
-//! The pass rule, fixed before any run (Morticia #39826): at least 70 counted frames, the p95
-//! `ui()` time under the refresh interval, and the p95 frame interval within 10% of it.
-//! Frames over 1.5 intervals are counted as missed and reported either way.
+//! The pass rule, fixed before any run (Morticia #39826): at least 70 counted frames, each with
+//! both a `ui()` time and an aligned interval (Roger #39841); the p95 `ui()` time under the
+//! refresh interval; and the p95 frame interval within 10% of it. Frames over 1.5 intervals are
+//! counted as missed and reported either way.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -268,12 +269,14 @@ fn report(
 	};
 	let missed = present.iter().filter(|&&p| p > refresh * 1.5).count();
 	let pass = cpu.len() >= MIN_MOVING
+		&& present.len() >= MIN_MOVING
 		&& percentile(cpu, 0.95) < refresh
 		&& percentile(present, 0.95) <= refresh * 1.1;
 	let mut out: String = page.iter().map(|(k, v)| format!("{k}\t{v}\n")).collect();
 	out.push_str(&format!("refresh_ms\t{}\n", fmt(refresh)));
 	out.push_str(&format!("wheel_frames\t{frames}\n"));
 	out.push_str(&format!("moving_frames\t{}\n", cpu.len()));
+	out.push_str(&format!("aligned_intervals\t{}\n", present.len()));
 	out.push_str(&format!(
 		"frame_interval_ms_p50_p95_max\t{}\n",
 		stats(present)

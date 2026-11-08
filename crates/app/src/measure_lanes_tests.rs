@@ -44,6 +44,16 @@ fn the_report_applies_the_pass_rule_it_states() {
 		few.contains("moving_frames\t69\n") && few.ends_with("pass\tno\n"),
 		"{few}"
 	);
+	// Roger #39841: 70 ui() times with only 69 aligned intervals is still under the floor, and
+	// 70 of each meets it.
+	let short = report(&page, &idle, 100, &vec![16.7; 69], &vec![3.0; 70]);
+	assert!(
+		short.contains("moving_frames\t70\naligned_intervals\t69\n")
+			&& short.ends_with("pass\tno\n"),
+		"{short}"
+	);
+	let both = report(&page, &idle, 100, &vec![16.7; 70], &vec![3.0; 70]);
+	assert!(both.ends_with("pass\tyes\n"), "{both}");
 }
 
 /// #39830, #39831: real input on the desk ends the run with a failed report. The pointer
