@@ -16,10 +16,9 @@ All notable changes to repose are recorded here. The format follows
 
 ### Changed
 
-- Syntax colours are now lifted to 4.6:1 against every background they sit on, up from 4.5:1.
-  egui paints a fill up to one step off its colour, and in light-theme captures a colour lifted
-  to exactly 4.5:1 measured 4.46:1. A dark-theme syntax colour that sat between 4.5:1 and 4.6:1
-  is now slightly lighter.
+- Syntax colours are now lifted to 4.6:1 against every background they sit on, up from 4.5:1,
+  as a margin, so no colour sits exactly at the AA line. A dark-theme syntax colour that sat
+  between 4.5:1 and 4.6:1 is now slightly lighter.
 
 ### Fixed
 

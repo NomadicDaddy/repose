@@ -14,9 +14,9 @@ use super::tokens::{
 /// The AA ratio for normal-size text.
 pub const AA: f64 = 4.5;
 
-/// The ratio the syntax guard lifts to: AA with a margin, because egui paints a fill up to one
-/// step off its token. In the 3bf3fff light captures REMOVED_MARK #f6d2d7 was painted #f5d1d6,
-/// and a span lifted to exactly 4.5:1 on the token measured 4.46:1 on screen.
+/// The ratio the syntax guard lifts to: AA plus a 0.1 margin, so a lifted colour never sits
+/// exactly at the AA line. The 92a14a6 light captures, taken with this margin, measured the
+/// tightest span at 4.66:1 on REMOVED_MARK.
 pub const LIFT: f64 = AA + 0.1;
 
 /// Every fill a syntax-coloured span can sit on: the panes, the current file line, added and

@@ -133,7 +133,7 @@ fn switching_theme_with_a_diff_open_keeps_the_scroll_and_the_selection() {
 	assert_eq!(
 		first_span(&state),
 		Some(span),
-		"the colours were not worked out again"
+		"the span colours are unchanged (generation 1, below, shows the diff was not re-read)"
 	);
 
 	assert_eq!(state.selected, Some(chosen), "the selected repository");
