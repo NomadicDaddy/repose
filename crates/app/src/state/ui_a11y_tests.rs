@@ -5,19 +5,19 @@
 
 use std::time::SystemTime;
 
-use eframe::egui::{self, Pos2, Rect, Role};
+use eframe::egui::{self, Role};
 use repose_core::config::Config;
 use repose_core::git::parse::parse_unified;
-use repose_core::model::{ChangeKind, Commit, DiffSource, FileChange};
+use repose_core::model::{Commit, DiffSource};
 
 use super::diff::hash_bytes;
-use super::ui_harness::{Headless, SCREEN, frame, real_repo, repo, repo_at};
+use super::ui_frame::{run, screen_input};
+use super::ui_harness::{frame, real_repo, repo, repo_at, with_three_changes};
 use super::{
 	AppState, DiffContent, DiffState, FileContent, FileRev, FileViewState, HistoryState, OpenDiff,
 	OpenFile, View,
 };
 use crate::diff_rows::build_rows;
-use crate::screens::{detail, repo_list};
 
 /// One node of the AccessKit tree a frame produced: its role, its name (label, or value for a
 /// label node), whether it is selected, and whether keyboard focus can reach it.
@@ -35,17 +35,7 @@ pub(super) struct A11yNode {
 pub(super) fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
 	use egui::accesskit::{Action, Toggled};
 	ctx.enable_accesskit();
-	let input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
-		..Default::default()
-	};
-	let mut out = ctx.run_ui(input, |root| {
-		// As main.rs does: the tokens follow the theme this frame draws.
-		crate::theme::begin_frame(root.ctx());
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
-	});
-	out.textures_delta.clear();
+	let out = run(ctx, state, screen_input(Vec::new()));
 	let Some(update) = out.platform_output.accesskit_update else {
 		panic!("AccessKit was enabled but the frame produced no tree update");
 	};
@@ -74,26 +64,6 @@ pub(super) fn find<'a>(nodes: &'a [A11yNode], role: Role, starts: &str) -> &'a A
 			let named: Vec<_> = nodes.iter().map(|n| (n.role, n.name.as_str())).collect();
 			panic!("no {role:?} node starting {starts:?} in {named:?}")
 		})
-}
-
-fn with_three_changes(state: &mut AppState) -> std::path::PathBuf {
-	let mut row = repo("named", SystemTime::now());
-	if let Some(changes) = row.changes.as_mut() {
-		changes.unstaged = ["a.txt", "b.txt", "c.txt"]
-			.into_iter()
-			.map(|p| FileChange {
-				path: p.into(),
-				kind: ChangeKind::Modified,
-				from: None,
-			})
-			.collect();
-	}
-	if let Some(status) = row.status.as_mut() {
-		status.unstaged = 3;
-	}
-	let path = row.path.clone();
-	state.merge_discovered(vec![row]);
-	path
 }
 
 #[test]
@@ -127,7 +97,7 @@ fn repository_rows_and_the_chevron_are_named_buttons() {
 fn change_rows_name_path_and_kind_and_the_count_is_text() {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
-	with_three_changes(&mut state);
+	with_three_changes(&mut state, "named");
 	state.view = View::Changes;
 	state.selected_file = Some("a.txt".into());
 	frame(&ctx, &mut state, Vec::new());
@@ -144,7 +114,7 @@ fn change_rows_name_path_and_kind_and_the_count_is_text() {
 fn commit_rows_and_file_lines_are_named() {
 	let ctx = egui::Context::default();
 	let mut state = AppState::new(Config::default());
-	let path = with_three_changes(&mut state);
+	let path = with_three_changes(&mut state, "named");
 	state.view = View::History;
 	let commit = Commit {
 		hash: "a".repeat(40),

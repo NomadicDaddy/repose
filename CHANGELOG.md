@@ -71,6 +71,9 @@ All notable changes to repose are recorded here. The format follows
   -SkipMeasure`) on windows-latest for every push to main and every pull request to main. It
   installs the toolchain `rust-toolchain.toml` names and cargo-audit, and keeps the gate's
   output as the `qc-log` artifact. It installs nothing on the runner beyond those.
+- The UI tests draw every frame through one function in `state/ui_frame.rs`, instead of five
+  test files each building their own, and share one row-rectangle finder and one
+  three-changes fixture.
 
 ## [1.1.2] - 2026-11-07
 

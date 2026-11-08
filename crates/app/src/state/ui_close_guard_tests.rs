@@ -5,14 +5,12 @@
 use std::time::SystemTime;
 
 use eframe::egui::epaint::ClippedShape;
-use eframe::egui::{
-	self, Event, Key, Pos2, Rect, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo,
-};
+use eframe::egui::{self, Event, Key, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
 use repose_core::config::Config;
 
 use super::AppState;
-use super::ui_harness::{Headless, SCREEN, click, key, repo, text_at, texts};
-use crate::screens::{detail, repo_list};
+use super::ui_frame::{self, screen_input};
+use super::ui_harness::{click, key, repo, text_at, texts};
 
 const TITLE: &str = "Close without committing?";
 
@@ -24,11 +22,7 @@ fn run(
 	close: bool,
 	events: Vec<Event>,
 ) -> (Vec<ClippedShape>, Vec<ViewportCommand>) {
-	let mut input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
-		events,
-		..Default::default()
-	};
+	let mut input = screen_input(events);
 	if close {
 		input.viewports.insert(
 			ViewportId::ROOT,
@@ -38,11 +32,7 @@ fn run(
 			},
 		);
 	}
-	let mut out = ctx.run_ui(input, |root| {
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
-	});
-	out.textures_delta.clear();
+	let out = ui_frame::run(ctx, state, input);
 	let commands = out
 		.viewport_output
 		.get(&ViewportId::ROOT)

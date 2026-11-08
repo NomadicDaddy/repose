@@ -4,13 +4,12 @@
 //! draw differently from the other two.
 
 use std::path::PathBuf;
-use std::time::SystemTime;
 
 use eframe::egui::{self, Color32, Event, Rect, Stroke};
 use repose_core::config::Config;
-use repose_core::model::{ChangeKind, Commit, FileChange};
+use repose_core::model::Commit;
 
-use super::ui_harness::{frame, pane_rects, repo, tab};
+use super::ui_harness::{frame, pane_rects, rect_with as with, tab, with_three_changes};
 use super::{AppState, FileContent, FileRev, FileViewState, HistoryState, OpenFile, View};
 use crate::theme::{ACCENT, ACCENT_BG, ACCENT_LINE, BG_HOVER};
 
@@ -19,16 +18,6 @@ const COMMIT_ROW: f32 = 32.0;
 const FILE_LINE: f32 = 20.0;
 
 type Drawn = Vec<(Rect, Color32, Stroke)>;
-
-fn with(rects: &Drawn, fill: impl Into<Color32>, line: impl Into<Color32>) -> Option<Rect> {
-	let (fill, line) = (fill.into(), line.into());
-	rects
-		.iter()
-		.find(|(_, f, s)| {
-			*f == fill && s.color == line && (s.width == 1.0 || line == Color32::TRANSPARENT)
-		})
-		.map(|(r, _, _)| *r)
-}
 
 /// Tabs until the selected row holds focus (its fill under the bright outline), then on until
 /// another row of the same height takes the outline alone; an open commit's own controls may
@@ -62,24 +51,7 @@ fn hover(ctx: &egui::Context, state: &mut AppState, at: egui::Pos2, height: f32)
 }
 
 fn selected_repo(state: &mut AppState) -> PathBuf {
-	let row = repo("focus", SystemTime::now());
-	let path = row.path.clone();
-	let mut row = row;
-	if let Some(changes) = row.changes.as_mut() {
-		changes.unstaged = ["a.txt", "b.txt", "c.txt"]
-			.into_iter()
-			.map(|p| FileChange {
-				path: p.into(),
-				kind: ChangeKind::Modified,
-				from: None,
-			})
-			.collect();
-	}
-	if let Some(status) = row.status.as_mut() {
-		status.unstaged = 3;
-	}
-	state.merge_discovered(vec![row]);
-	path
+	with_three_changes(state, "focus")
 }
 
 #[test]

@@ -4,13 +4,13 @@
 
 use std::time::SystemTime;
 
-use eframe::egui::{self, Event, Key, OutputCommand, Pos2, Rect};
+use eframe::egui::{self, Event, Key, OutputCommand};
 use repose_core::config::Config;
 use repose_core::model::{Branch, Branches, HeadState};
 
-use super::ui_harness::{Headless, SCREEN, click, frame, key, repo, tab, text_at, texts};
+use super::ui_frame::{run, screen_input};
+use super::ui_harness::{click, frame, key, repo, tab, text_at, texts};
 use super::{AppState, BranchesState, View};
-use crate::screens::{detail, repo_list};
 
 const LABEL: &str = "Copy branch name";
 
@@ -27,17 +27,9 @@ fn branch(name: &str, current: bool) -> Branch {
 
 /// One frame that returns the commands it asked the platform for (the clipboard among them).
 fn commands(ctx: &egui::Context, state: &mut AppState, events: Vec<Event>) -> Vec<OutputCommand> {
-	let input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
-		events,
-		..Default::default()
-	};
-	let mut out = ctx.run_ui(input, |root| {
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
-	});
-	out.textures_delta.clear();
-	out.platform_output.commands
+	run(ctx, state, screen_input(events))
+		.platform_output
+		.commands
 }
 
 #[test]

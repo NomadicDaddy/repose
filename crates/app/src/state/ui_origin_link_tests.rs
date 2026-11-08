@@ -5,13 +5,13 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use eframe::egui::{self, CursorIcon, Event, Key, OutputCommand, Pos2, Rect};
+use eframe::egui::{self, CursorIcon, Event, Key, OutputCommand, Pos2};
 use repose_core::config::Config;
 use repose_core::git::remote::RemoteEntry;
 
 use super::AppState;
-use super::ui_harness::{Headless, SCREEN, click, key, repo, tab, text_at, texts};
-use crate::screens::{detail, repo_list};
+use super::ui_frame::{self, screen_input};
+use super::ui_harness::{click, key, repo, tab, text_at, texts};
 
 const PAGE: &str = "https://example.invalid/team/thing";
 const ORIGIN: &str = "origin · https://example.invalid/team/thing.git";
@@ -49,16 +49,10 @@ fn run(
 	time: f64,
 ) -> (Vec<egui::epaint::ClippedShape>, egui::PlatformOutput) {
 	let input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
 		time: Some(time),
-		events,
-		..Default::default()
+		..screen_input(events)
 	};
-	let mut out = ctx.run_ui(input, |root| {
-		repo_list::show(root, state, &Headless);
-		detail::show(root, state, &Headless);
-	});
-	out.textures_delta.clear();
+	let out = ui_frame::run(ctx, state, input);
 	(out.shapes, out.platform_output)
 }
 

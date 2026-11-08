@@ -4,26 +4,12 @@
 
 use std::time::SystemTime;
 
-use eframe::egui::{self, Color32, Event, Rect, Stroke};
+use eframe::egui::{self, Color32, Event};
 use repose_core::config::Config;
 
 use super::AppState;
-use super::ui_harness::{accent_outlines, frame, repo, row_rects, tab};
+use super::ui_harness::{accent_outlines, frame, rect_with as with, repo, row_rects, tab};
 use crate::theme::{ACCENT, ACCENT_BG, ACCENT_LINE, BG_HOVER, ROW_HEIGHT};
-
-fn with(
-	rects: &[(Rect, Color32, Stroke)],
-	fill: impl Into<Color32>,
-	line: impl Into<Color32>,
-) -> Option<Rect> {
-	let (fill, line) = (fill.into(), line.into());
-	rects
-		.iter()
-		.find(|(_, f, s)| {
-			*f == fill && s.color == line && (s.width == 1.0 || line == Color32::TRANSPARENT)
-		})
-		.map(|(r, _, _)| *r)
-}
 
 #[test]
 fn a_focused_row_draws_an_accent_outline_distinct_from_selection_and_hover() {

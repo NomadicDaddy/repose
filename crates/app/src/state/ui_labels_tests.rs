@@ -2,12 +2,12 @@
 
 use std::time::SystemTime;
 
-use eframe::egui::{self, Pos2, Rect};
+use eframe::egui;
 use repose_core::config::Config;
 
 use super::AppState;
-use super::ui_harness::{Headless, SCREEN, repo};
-use crate::screens::{detail, repo_list};
+use super::ui_frame::{run, screen_input};
+use super::ui_harness::repo;
 
 #[test]
 fn find_and_commit_fields_have_names_with_nonempty_buffers() {
@@ -21,15 +21,7 @@ fn find_and_commit_fields_have_names_with_nonempty_buffers() {
 		.commit_messages
 		.insert(selected.path.clone(), "draft".into());
 	state.repos.push(selected);
-	let input = egui::RawInput {
-		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)),
-		..Default::default()
-	};
-	let mut output = ctx.run_ui(input, |root| {
-		repo_list::show(root, &mut state, &Headless);
-		detail::show(root, &mut state, &Headless);
-	});
-	output.textures_delta.clear();
+	let output = run(&ctx, &mut state, screen_input(Vec::new()));
 	let Some(update) = output.platform_output.accesskit_update else {
 		panic!("accessibility tree was not emitted");
 	};
