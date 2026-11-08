@@ -47,6 +47,11 @@ fn visuals(light: bool) -> egui::Visuals {
 	v.extreme_bg_color = pick(BG_APP);
 	v.faint_bg_color = pick(BG_RAISED);
 	v.override_text_color = Some(pick(TEXT));
+	if light {
+		// Placeholder text. egui's default, TEXT at 0.6 alpha, measured 4.00:1 on the light text
+		// box fill in the 3bf3fff captures. Dark keeps egui's default, as it shipped.
+		v.weak_text_color = Some(pick(MUTED));
+	}
 	v.selection.bg_fill = pick(ACCENT_BG);
 	v.selection.stroke = stroke(ACCENT_LINE);
 	v.hyperlink_color = pick(ACCENT);
@@ -98,7 +103,33 @@ pub fn set_motion(style: &mut egui::Style, animations: bool) {
 mod tests {
 	use eframe::egui::{self, style::ScrollAnimation};
 
-	use super::set_motion;
+	use super::contrast::{AA, contrast};
+	use super::{BG_APP, MUTED, set_motion, visuals};
+
+	/// Light placeholder text reads at AA on the text box fill (BG_APP, egui's extreme_bg_color);
+	/// egui's own weak text, TEXT at 0.6 alpha, does not (the control). Dark is left as shipped.
+	#[test]
+	fn light_placeholder_text_reads_at_aa_and_dark_keeps_egui_s_default() {
+		let light = visuals(true);
+		assert_eq!(light.weak_text_color(), MUTED.light);
+		let ratio = contrast(light.weak_text_color(), light.extreme_bg_color);
+		assert!(ratio >= AA, "light placeholder is {ratio:.2}:1");
+		let mut default = visuals(true);
+		default.weak_text_color = None;
+		// egui's default is premultiplied with alpha 0.6; blend it over the fill as it paints.
+		let weak = default.weak_text_color();
+		let bg = BG_APP.light;
+		let keep = 1.0 - f32::from(weak.a()) / 255.0;
+		let over = |c: u8, b: u8| (f32::from(c) + f32::from(b) * keep).round() as u8;
+		let painted = egui::Color32::from_rgb(
+			over(weak.r(), bg.r()),
+			over(weak.g(), bg.g()),
+			over(weak.b(), bg.b()),
+		);
+		let control = contrast(painted, bg);
+		assert!(control < AA, "control: egui's default reads {control:.2}:1");
+		assert_eq!(visuals(false).weak_text_color, None);
+	}
 
 	#[test]
 	fn animation_effects_off_stops_fades_and_smooth_scrolling_and_on_leaves_the_defaults() {

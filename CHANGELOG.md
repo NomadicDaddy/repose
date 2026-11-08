@@ -10,9 +10,16 @@ All notable changes to repose are recorded here. The format follows
 
 - A light theme. The window follows the Windows app mode and switches when you change it; an
   open diff keeps its scroll and selection. `theme = "dark"` or `theme = "light"` in config.toml
-  keeps one theme, and the default is `system`. Every text colour reads at 4.5:1 or more on every
-  light background, and the selection and focus outlines at 3:1. Diffs and the file view use a
-  light syntax theme in light mode.
+  keeps one theme, and the default is `system`. Every text colour, placeholder text included,
+  reads at 4.5:1 or more on every light background, and the selection and focus outlines at 3:1.
+  Diffs and the file view use a light syntax theme in light mode.
+
+### Changed
+
+- Syntax colours are now lifted to 4.6:1 against every background they sit on, up from 4.5:1.
+  egui paints a fill up to one step off its colour, and in light-theme captures a colour lifted
+  to exactly 4.5:1 measured 4.46:1. A dark-theme syntax colour that sat between 4.5:1 and 4.6:1
+  is now slightly lighter.
 
 ### Fixed
 
