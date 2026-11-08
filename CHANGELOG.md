@@ -14,9 +14,6 @@ All notable changes to repose are recorded here. The format follows
   repository list now say when Windows couldn't open the folder. The reason shows under the
   repository header, as it already did from the right-click menu. Before, a failed click did
   nothing visible.
-- A screen reader now reads every path in the discard confirmation, as "restore x.txt" or
-  "remove x.txt". The paths stay read-only text, so Tab still moves only between Cancel and
-  Discard.
 
 ### Development
 
@@ -26,6 +23,8 @@ All notable changes to repose are recorded here. The format follows
   configuration, which the tests run Git with. A change to either now reruns the tests.
 - The log tests build their 101 commits with one `git fast-import` instead of 101 `git commit`
   calls. On a warm build the test step now takes about 54 seconds, down from about 105.
+- A test checks that a screen reader can read every path in the discard confirmation, and that
+  none of them is a Tab stop. The app already did this, so nothing changes in how it behaves.
 
 ## [1.1.2] - 2026-11-07
 

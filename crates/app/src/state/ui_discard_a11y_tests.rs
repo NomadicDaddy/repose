@@ -1,6 +1,8 @@
-//! audit-frontend-1793999566: the discard confirmation's path list is in the AccessKit tree. Each
-//! tracked path reads "restore <path>" and each untracked one "remove <path>", as read-only text
-//! that is never a Tab stop, so the dialog's only Tab stops stay Cancel and Discard.
+//! audit-frontend-1793999566: the discard confirmation's path list is in the AccessKit tree. The
+//! paths are plain egui labels, and each one's Label node is named with its row's text: the verb
+//! padded to nine columns, then the path, so "restore  a.txt" or "remove   new.txt". None is a
+//! Tab stop, so Tab still moves only between Cancel and Discard. Measured on de1ee6e's
+//! confirm.rs before this test existed: the labels already gave these nodes (Morticia #39647).
 
 use std::time::SystemTime;
 
@@ -28,15 +30,9 @@ fn every_path_in_the_discard_dialog_is_read_and_none_is_a_tab_stop() {
 	});
 	frame(&ctx, &mut state, Vec::new());
 	let nodes = a11y_frame(&ctx, &mut state);
-	for name in ["restore a.txt", "restore src/b.rs", "remove new.txt"] {
+	for name in ["restore  a.txt", "restore  src/b.rs", "remove   new.txt"] {
 		let n = find(&nodes, Role::Label, name);
-		assert_eq!(n.name, name, "the node reads the path once, with its verb");
+		assert_eq!(n.name, name, "the node reads the row's whole text");
 		assert!(!n.focusable, "a path is read, not tabbed to: {n:?}");
 	}
-	let padded = nodes.iter().filter(|n| n.name.contains("restore  "));
-	assert_eq!(
-		padded.count(),
-		0,
-		"no second node carries the padded painted text"
-	);
 }
