@@ -117,6 +117,7 @@ fn no_flags_gives_the_defaults() {
 			view: View::Changes,
 			file: None,
 			inline: false,
+			lanes: false,
 			open: None,
 			scale: None,
 			measure_startup: None,
@@ -138,6 +139,7 @@ fn every_flag_carries_its_value() {
 		"--file",
 		"a.txt",
 		"--inline",
+		"--lanes",
 		"--open",
 		"b.txt",
 		"--scale",
@@ -154,6 +156,7 @@ fn every_flag_carries_its_value() {
 	assert_eq!(a.view, View::Files);
 	assert_eq!(a.file.as_deref(), Some("a.txt"));
 	assert!(a.inline);
+	assert!(a.lanes);
 	assert_eq!(a.open.as_deref(), Some("b.txt"));
 	assert_eq!(a.scale, Some(1.25));
 	assert_eq!(a.measure_startup, Some(PathBuf::from("m.txt")));

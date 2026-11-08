@@ -18,12 +18,12 @@ All notable changes to repose are recorded here. The format follows
   history as a lane, with accent connectors where a merge brings a branch in and where a branch
   forked. A stash or notes ref is left out. Each commit shows its branch and tag names, which a
   screen reader hears too. An opened commit's details sit between rows, and the lanes break
-  around them. The setting lasts until repose closes. With Lanes off, History is the
-  linear view of the current branch, as before.
+  around them. The setting lasts until repose closes, and `--lanes` starts a session with it
+  on. With Lanes off, History is the linear view of the current branch, as before.
 - `--measure-lanes <file>` measures History with lanes on. It records the first page's time,
   split into `git log` and layout, then scrolls 100 rows with the mouse wheel and writes each
-  frame's present interval and CPU time with a pass verdict. The branch-lanes record is
-  measured with it.
+  frame's interval (from one frame's start to the next) and its CPU time, with a pass verdict.
+  Any real input ends the run as failed. The branch-lanes record is measured with it.
 
 ### Fixed
 

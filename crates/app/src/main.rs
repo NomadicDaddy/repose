@@ -229,6 +229,8 @@ fn main() -> eframe::Result {
 			}
 			let mut app = App::new(cc, started, args.measure_startup, cfg);
 			app.diff_loaded = args.measure_diff;
+			// `--lanes` starts the session with lanes on, as the History toggle would.
+			app.state.lanes = args.lanes;
 			if let Some(out) = args.measure_lanes {
 				app.state.lanes = true;
 				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out, args.select.clone()));

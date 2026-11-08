@@ -226,3 +226,39 @@ fn a_select_that_landed_under_another_spelling_is_measured() {
 		"not refused; it waits for the page"
 	);
 }
+
+/// `--lanes` (Steward #39885): a session that starts with lanes on, as main.rs sets it from the
+/// flag, reads a real repository's first page in the lanes scope and draws its graph with no
+/// toggle clicked.
+#[test]
+fn a_session_started_with_lanes_on_draws_them_without_a_click() {
+	use std::time::{Duration, Instant};
+
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	state.lanes = true;
+	let path = super::ui_harness::real_repo("lanes-at-start");
+	state.selected = Some(path.clone());
+	state.merge_discovered(vec![super::ui_harness::repo_at(
+		path.clone(),
+		SystemTime::now(),
+	)]);
+	state.view = View::History;
+	let deadline = Instant::now() + Duration::from_secs(10);
+	loop {
+		state.pump(&ctx);
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		if !dots(&shapes).is_empty() {
+			break;
+		}
+		assert!(Instant::now() < deadline, "no lanes drawn within 10 s");
+		std::thread::sleep(Duration::from_millis(20));
+	}
+	assert!(
+		state
+			.history
+			.get(&path)
+			.is_some_and(|h| !h.graph.is_empty()),
+		"the page was read in the lanes scope"
+	);
+}

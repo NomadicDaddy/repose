@@ -79,6 +79,7 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `--view changes|history|files|branches`: open on this tab. Any other value, or none, is
   refused with a message naming the four, and repose exits with code 2.
 - `--file <path>`: open this file's working-tree diff; `--inline` shows it inline.
+- `--lanes`: start with branch lanes on in History, as the Lanes toggle would, for the session.
 - `--open <path>`: open this file read-only as HEAD holds it.
 - `--scale <factor>`: zoom on top of the desktop's scaling, from 0.5 to 4. Any other value is
   refused and repose exits with code 2.

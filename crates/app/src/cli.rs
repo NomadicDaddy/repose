@@ -36,6 +36,11 @@ pub const FLAGS: &[Flag] = &[
 		"Show that diff inline rather than side by side.",
 	),
 	flag(
+		"--lanes",
+		"",
+		"Open with lanes on in History, for the session.",
+	),
+	flag(
 		"--open",
 		"<path>",
 		"Open this file read-only, as HEAD holds it.",
@@ -128,6 +133,7 @@ pub struct Args {
 	pub view: View,
 	pub file: Option<String>,
 	pub inline: bool,
+	pub lanes: bool,
 	pub open: Option<String>,
 	pub scale: Option<f32>,
 	pub measure_startup: Option<PathBuf>,
@@ -208,6 +214,7 @@ fn parse_with(look: &Lookup<'_>) -> Parsed {
 		view,
 		file: text("--file"),
 		inline: look.present("--inline"),
+		lanes: look.present("--lanes"),
 		open: text("--open"),
 		scale,
 		measure_startup: look
