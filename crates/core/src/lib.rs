@@ -5,6 +5,7 @@ pub mod config;
 pub mod discovery;
 pub mod git;
 pub mod model;
+pub mod pins;
 pub mod watch;
 
 pub use config::Config;

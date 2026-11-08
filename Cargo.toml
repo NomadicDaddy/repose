@@ -12,6 +12,8 @@ publish = false
 repose-core = { path = "crates/core" }
 serde = { version = "1", features = ["derive"] }
 toml = "1"
+# Rewrites one key of config.toml in place, keeping every other key and comment (pin saves).
+toml_edit = "0.25"
 eframe = "0.37"
 similar = "2"
 # Syntax colouring: fancy-regex engines only, so no C dependency (resolved:

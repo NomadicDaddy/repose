@@ -14,6 +14,9 @@ pub struct Config {
 	/// `system` follows the Windows app theme, and `dark` or `light` overrides it.
 	pub theme: Theme,
 	pub commands: Commands,
+	/// Repositories drawn first in the list, kept across launches (repository-pinning). Saved by
+	/// `pins::save`, which rewrites only this key.
+	pub pinned_repositories: Vec<PathBuf>,
 }
 
 /// The colour theme the window draws (light-theme clause 2). Any other value is a parse error
@@ -64,6 +67,7 @@ impl Default for Config {
 			depth: 3,
 			theme: Theme::System,
 			commands: Commands::default(),
+			pinned_repositories: Vec::new(),
 		}
 	}
 }
@@ -72,6 +76,8 @@ impl Default for Config {
 pub enum ConfigError {
 	Io(PathBuf, std::io::Error),
 	Parse(PathBuf, toml::de::Error),
+	/// The file could not be parsed for an in-place edit (a pin save).
+	Edit(PathBuf, String),
 	BadCommand(String),
 }
 
@@ -80,6 +86,7 @@ impl std::fmt::Display for ConfigError {
 		match self {
 			Self::Io(p, e) => write!(f, "could not read {}: {e}", p.display()),
 			Self::Parse(p, e) => write!(f, "could not parse {}: {e}", p.display()),
+			Self::Edit(p, e) => write!(f, "could not update {}: {e}", p.display()),
 			Self::BadCommand(c) => {
 				write!(f, "command must be a program name or an absolute path: {c}")
 			}
