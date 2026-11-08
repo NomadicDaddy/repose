@@ -16,8 +16,11 @@ const FORMAT: &str = "--format=%H%x00%h%x00%an%x00%aI%x00%P%x00%D%x00%s%x00%b";
 pub enum LogScope {
 	/// The current branch, newest first: the linear view.
 	Head,
-	/// Every ref with parents, children before parents (`--all --parents --topo-order`), so the
-	/// lanes view can draw each line of history and where it forks and merges.
+	/// Every branch, tag, remote-tracking branch and HEAD with parents, children before parents
+	/// (`--branches --tags --remotes --parents --topo-order HEAD`), so the lanes view can draw each
+	/// line of history and where it forks and merges. Not `--all`, which also takes refs/stash,
+	/// refs/notes and other bookkeeping refs and would draw them as branches (Morticia 5Q-1 on
+	/// 88118fb).
 	All,
 }
 
@@ -27,7 +30,14 @@ pub fn read_log(repo: &Path, skip: usize, scope: LogScope) -> Result<Vec<Commit>
 	let skip_arg = format!("--skip={skip}");
 	let mut args = vec!["-z", FORMAT, &max, &skip_arg];
 	if scope == LogScope::All {
-		args.extend(["--all", "--parents", "--topo-order"]);
+		args.extend([
+			"--branches",
+			"--tags",
+			"--remotes",
+			"--parents",
+			"--topo-order",
+			"HEAD",
+		]);
 	}
 	let bytes = run(repo, Verb::Log, &args)?;
 	Ok(parse_log(&bytes))

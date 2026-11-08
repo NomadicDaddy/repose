@@ -157,11 +157,13 @@ fn commit_files_with_rename_and_merge() {
 	);
 }
 
-/// branch-graph-lanes clause 1: the lanes read takes every ref in topological order with parents
-/// and ref names. The fixture has main and a side branch that forked, both moved on, and then
-/// merged; a second, unmerged branch only the All scope reaches.
+/// branch-graph-lanes clause 1: the lanes read takes every branch and tag in topological order
+/// with parents and ref names. The fixture has main and a side branch that forked, both moved on,
+/// and then merged; a second, unmerged branch only the All scope reaches. A stash ref and a note
+/// are bookkeeping, not history, and stay out (Morticia 5Q-1 on 88118fb); the stash ref is set
+/// with update-ref to a commit of its own, so the test never runs `git stash`.
 #[test]
-fn the_all_scope_reads_every_ref_with_parents_and_ref_names() {
+fn the_all_scope_reads_branches_and_tags_with_parents_and_ref_names() {
 	let repo = TempRepo::new("lanes");
 	repo.write("base.txt", "base\n");
 	repo.commit_all("base");
@@ -177,6 +179,17 @@ fn the_all_scope_reads_every_ref_with_parents_and_ref_names() {
 	repo.write("later.txt", "l\n");
 	repo.commit_all("later work");
 	repo.git(&["checkout", "-q", "main"]);
+	let tree = repo.git(&["rev-parse", "HEAD^{tree}"]);
+	let wip = repo.git(&[
+		"commit-tree",
+		tree.trim(),
+		"-p",
+		"HEAD",
+		"-m",
+		"WIP on main",
+	]);
+	repo.git(&["update-ref", "refs/stash", wip.trim()]);
+	repo.git(&["notes", "add", "-m", "a note", "HEAD"]);
 
 	let head = read_log(&repo.path, 0, LogScope::Head).expect("head log");
 	let subjects: Vec<&str> = head.iter().map(|c| c.subject.as_str()).collect();
@@ -187,6 +200,15 @@ fn the_all_scope_reads_every_ref_with_parents_and_ref_names() {
 	let all = read_log(&repo.path, 0, LogScope::All).expect("all log");
 	let by = |s: &str| all.iter().find(|c| c.subject == s).expect(s);
 	assert_eq!(all.len(), 5, "every commit on every branch once");
+	assert!(
+		!all.iter().any(|c| c.subject == "WIP on main"),
+		"no stash commit"
+	);
+	let every_ref = repo.git(&["log", "--all", "--format=%H"]);
+	assert!(
+		every_ref.lines().count() > 5,
+		"control: --all does reach the stash and notes commits"
+	);
 	let merge = by("merge side");
 	assert_eq!(
 		merge.parents,

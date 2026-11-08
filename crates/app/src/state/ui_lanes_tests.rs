@@ -142,3 +142,28 @@ fn the_lanes_toggle_turns_lanes_on_and_rereads_the_history() {
 		"the loaded history re-reads in the new scope"
 	);
 }
+
+/// Morticia L-1 on 88118fb: in the lanes view a screen reader hears a commit's branch and tag
+/// names with the rest of its row; the linear view's names are as before.
+#[test]
+fn a_commit_row_names_its_refs_only_in_the_lanes_view() {
+	use eframe::egui::accesskit::Role;
+
+	use super::ui_a11y_tests::{a11y_frame, find};
+
+	let ctx = egui::Context::default();
+	let mut lanes = merged(true);
+	frame(&ctx, &mut lanes, Vec::new());
+	let nodes = a11y_frame(&ctx, &mut lanes);
+	let m = find(&nodes, Role::Button, "mmmmmmm commit m");
+	assert!(m.name.ends_with(", main"), "{}", m.name);
+	let b = find(&nodes, Role::Button, "bbbbbbb commit b");
+	assert!(b.name.ends_with(", tag: v1"), "{}", b.name);
+
+	let ctx = egui::Context::default();
+	let mut linear = merged(false);
+	frame(&ctx, &mut linear, Vec::new());
+	let nodes = a11y_frame(&ctx, &mut linear);
+	let m = find(&nodes, Role::Button, "mmmmmmm commit m");
+	assert!(!m.name.contains("main"), "{}", m.name);
+}

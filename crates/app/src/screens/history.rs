@@ -210,7 +210,12 @@ fn commit_row(
 		iso_tooltip(c)
 	};
 	let response = response.on_hover_text(tooltip);
-	let name = a11y::commit_name(c, &relative(c.time, now, &c.date));
+	let mut name = a11y::commit_name(c, &relative(c.time, now, &c.date));
+	// In the lanes view the pills are the only place a branch or tag name shows, so a screen
+	// reader hears them too (Morticia L-1 on 88118fb).
+	if lane.is_some() && !c.refs.is_empty() {
+		name.push_str(&format!(", {}", c.refs.join(", ")));
+	}
 	a11y::control(&response, egui::Role::Button, Some(open), &name);
 	let ctx = ui.ctx().clone();
 	if response.clicked() {

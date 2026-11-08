@@ -13,10 +13,12 @@ All notable changes to repose are recorded here. The format follows
   keeps one theme, and the default is `system`. Every text colour, placeholder text included,
   reads at 4.5:1 or more on every light background, and the selection and focus outlines at 3:1.
   Diffs and the file view use a light syntax theme in light mode.
-- Branch lanes in History. A Lanes toggle in the History header, off by default, lists every
-  branch's commits in topological order and draws each line of history as a lane, with accent
-  connectors where a merge brings a branch in and where a branch forked. Each commit shows its
-  branch and tag names. The setting lasts until repose closes. With Lanes off, History is the
+- Branch lanes in History. A Lanes toggle in the History header, off by default, lists the
+  commits of every local and remote branch and tag in topological order. It draws each line of
+  history as a lane, with accent connectors where a merge brings a branch in and where a branch
+  forked. A stash or notes ref is left out. Each commit shows its branch and tag names, which a
+  screen reader hears too. An opened commit's details sit between rows, and the lanes break
+  around them. The setting lasts until repose closes. With Lanes off, History is the
   linear view of the current branch, as before.
 
 ### Fixed
