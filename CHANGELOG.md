@@ -27,6 +27,8 @@ All notable changes to repose are recorded here. The format follows
 
 ### Fixed
 
+- File sizes of a gibibyte or more read in GB, so a 4 GiB file shows "4.0 GB", not "4096.0 MB".
+  The Files pane and the "File too large" notices share the same tiers.
 - A long file name in Changes, and a long branch name in Branches, is now cut with an ellipsis
   before the row's letter or pills. Before, it ran under them and was clipped at the row's edge.
   The full path or name shows on hover.
@@ -44,6 +46,8 @@ All notable changes to repose are recorded here. The format follows
 
 ### Development
 
+- The Branches header's count uses the shared singular and plural rule, and a test pins its
+  wording. The Cargo.toml comment on syntax colouring now cites that decision as resolved.
 - The technical spec now describes what ships:
   - the Outgoing group comes from one extra `git log <upstream>..HEAD` read, not the ahead count;
   - git runs through two pools of eight, one for reads and one for writes;
