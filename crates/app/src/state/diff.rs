@@ -65,7 +65,7 @@ pub struct DiffMsg {
 /// plus removed lines and the new side context plus added, so a removed line that opens a block
 /// comment cannot colour the added lines after it (Morticia L-1 on e8e10ad). Context lines take
 /// the new side's colours.
-fn colour_file(file: &FileDiff) -> FileColours {
+pub(super) fn colour_file(file: &FileDiff) -> FileColours {
 	let path = file.path().to_string();
 	file.hunks
 		.iter()
