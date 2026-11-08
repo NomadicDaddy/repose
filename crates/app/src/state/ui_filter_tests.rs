@@ -79,3 +79,18 @@ fn escape_in_the_focused_find_box_clears_the_filter() {
 		state.filter
 	);
 }
+
+/// The empty Find box's hint uses the ellipsis character, as repository-list clause 12 says,
+/// not three ASCII periods (audit-web-design-guidelines, filter placeholder).
+#[test]
+fn the_find_box_hint_uses_an_ellipsis() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	state.merge_discovered(vec![repo("summon", SystemTime::now())]);
+	let shown = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(
+		shown.iter().any(|t| t == "name or path\u{2026}"),
+		"{shown:?}"
+	);
+	assert!(!shown.iter().any(|t| t.contains("...")), "{shown:?}");
+}

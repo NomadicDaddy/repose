@@ -59,7 +59,7 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 	});
 	let label = ui.label("Find a repository");
 	let edit = egui::TextEdit::singleline(&mut state.filter)
-		.hint_text("name or path...")
+		.hint_text("name or path…")
 		.desired_width(f32::INFINITY);
 	let response = ui
 		.add(edit)
