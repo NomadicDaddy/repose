@@ -22,13 +22,19 @@ mod selection_tests;
 #[cfg(test)]
 mod ui_a11y_tests;
 #[cfg(test)]
+mod ui_action_failure_tests;
+#[cfg(test)]
 mod ui_branch_menu_tests;
 #[cfg(test)]
 mod ui_close_guard_tests;
 #[cfg(test)]
 mod ui_commit_outcome_tests;
 #[cfg(test)]
+mod ui_discard_a11y_tests;
+#[cfg(test)]
 mod ui_discard_tests;
+#[cfg(test)]
+mod ui_escape_tests;
 #[cfg(test)]
 mod ui_fetch_tests;
 #[cfg(test)]
@@ -210,6 +216,13 @@ impl AppState {
 			tx,
 			rx,
 		}
+	}
+
+	/// Whether the discard confirmation or the close question stands. A Modal blocks pointer
+	/// input and focus behind it, not raw key reads, so a key the dialog answers (Escape) must
+	/// not also act on the pane behind it.
+	pub fn modal_open(&self) -> bool {
+		self.pending_discard.is_some() || self.close_prompt.is_some()
 	}
 
 	/// Walks the roots on a thread, then reads every status through a pool of eight workers.

@@ -35,19 +35,10 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			.max_height(260.0)
 			.show(ui, |ui| {
 				for p in &pending.tracked {
-					ui.label(
-						RichText::new(format!("restore  {p}"))
-							.family(egui::FontFamily::Monospace)
-							.size(TEXT_SMALL),
-					);
+					path_row(ui, "restore", p, None);
 				}
 				for p in &pending.untracked {
-					ui.label(
-						RichText::new(format!("remove   {p}"))
-							.family(egui::FontFamily::Monospace)
-							.size(TEXT_SMALL)
-							.color(DANGER),
-					);
+					path_row(ui, "remove", p, Some(DANGER));
 				}
 			});
 		ui.add_space(10.0);
@@ -94,4 +85,33 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 		Some(false) => state.pending_discard = None,
 		None => {}
 	}
+}
+
+/// One affected path, its verb padded so the paths line up, painted as the diff lines are: its
+/// one node in the accessibility tree reads "restore x.txt" or "remove x.txt" as read-only text
+/// that adds no Tab stop, so a screen reader reaches every path the user is asked to confirm
+/// (audit-frontend-1793999566). A label widget would add a second node with the padded text.
+fn path_row(ui: &mut egui::Ui, verb: &str, path: &str, colour: Option<egui::Color32>) {
+	let colour = colour.unwrap_or_else(|| ui.visuals().text_color());
+	let galley = egui::WidgetText::from(
+		RichText::new(format!("{verb:<9}{path}"))
+			.family(egui::FontFamily::Monospace)
+			.size(TEXT_SMALL)
+			.color(colour),
+	)
+	.into_galley(
+		ui,
+		Some(egui::TextWrapMode::Wrap),
+		ui.available_width(),
+		egui::TextStyle::Body,
+	);
+	let (rect, row) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
+	super::a11y::text(
+		ui,
+		row.id,
+		rect,
+		egui::Role::Label,
+		&format!("{verb} {path}"),
+	);
+	ui.painter().galley(rect.min, galley, colour);
 }

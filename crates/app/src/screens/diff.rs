@@ -13,7 +13,9 @@ use crate::state::{AppState, DiffContent, DiffState};
 use crate::theme::*;
 
 pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
-	if ui.input(|i| i.key_pressed(Key::Escape)) {
+	// Escape closes the diff only when no dialog or menu above it is the one answering it.
+	let escape_is_ours = !state.modal_open() && !egui::Popup::is_any_open(ui.ctx());
+	if escape_is_ours && ui.input(|i| i.key_pressed(Key::Escape)) {
 		state.close_diff();
 		return;
 	}
@@ -58,11 +60,14 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 				))
 				.color(WARN),
 			);
+			// A failed Explorer spawn is named under the repository header, as from the row menu.
 			if ui.button("Reveal in Explorer").clicked() {
-				let _ = platform.reveal_file(&crate::platform::git_worktree_path(
-					&open.repo,
-					&open.display,
-				));
+				state.notice = platform
+					.reveal_file(&crate::platform::git_worktree_path(
+						&open.repo,
+						&open.display,
+					))
+					.err();
 			}
 		}
 		DiffContent::Error(e) => {

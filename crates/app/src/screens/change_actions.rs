@@ -65,6 +65,7 @@ pub(super) fn hover_actions(
 	}
 	if child.add(egui::Button::new("Open").small()).clicked() {
 		let full: &Path = &crate::platform::git_worktree_path(&g.repo.path, &file.path);
-		let _ = g.platform.reveal_file(full);
+		// A failure is named under the repository header, as from the row menu.
+		state.notice = g.platform.reveal_file(full).err();
 	}
 }

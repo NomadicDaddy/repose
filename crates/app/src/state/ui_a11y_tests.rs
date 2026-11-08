@@ -22,17 +22,17 @@ use crate::screens::{detail, repo_list};
 /// One node of the AccessKit tree a frame produced: its role, its name (label, or value for a
 /// label node), whether it is selected, and whether keyboard focus can reach it.
 #[derive(Debug)]
-struct A11yNode {
-	role: Role,
-	name: String,
+pub(super) struct A11yNode {
+	pub(super) role: Role,
+	pub(super) name: String,
 	selected: Option<bool>,
-	focusable: bool,
+	pub(super) focusable: bool,
 	/// The node announces changes politely (a status line).
 	polite: bool,
 }
 
 /// One frame with AccessKit on, returning every node in the tree update it produced.
-fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
+pub(super) fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
 	use egui::accesskit::{Action, Toggled};
 	ctx.enable_accesskit();
 	let input = egui::RawInput {
@@ -64,7 +64,7 @@ fn a11y_frame(ctx: &egui::Context, state: &mut AppState) -> Vec<A11yNode> {
 		.collect()
 }
 
-fn find<'a>(nodes: &'a [A11yNode], role: Role, starts: &str) -> &'a A11yNode {
+pub(super) fn find<'a>(nodes: &'a [A11yNode], role: Role, starts: &str) -> &'a A11yNode {
 	nodes
 		.iter()
 		.find(|n| n.role == role && n.name.starts_with(starts))

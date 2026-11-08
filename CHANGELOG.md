@@ -6,6 +6,18 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Escape on the discard confirmation or the unsaved-message question now closes only that
+  dialog. Before, the same key press also closed the diff or file open behind it.
+- Reveal in Explorer on a file too large to diff, a changed file's Open, and Enter on the
+  repository list now say when Windows couldn't open the folder. The reason shows under the
+  repository header, as it already did from the right-click menu. Before, a failed click did
+  nothing visible.
+- A screen reader now reads every path in the discard confirmation, as "restore x.txt" or
+  "remove x.txt". The paths stay read-only text, so Tab still moves only between Cancel and
+  Discard.
+
 ### Development
 
 - The gate now fails a step whose command can't start, such as cargo missing from `PATH`. Before,

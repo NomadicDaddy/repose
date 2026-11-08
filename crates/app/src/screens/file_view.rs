@@ -15,7 +15,9 @@ use crate::theme::*;
 const MAX_ROW_WIDTH: f32 = 200_000.0;
 
 pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
-	if ui.input(|i| i.key_pressed(Key::Escape)) {
+	// Escape closes the file only when no dialog or menu above it is the one answering it.
+	let escape_is_ours = !state.modal_open() && !egui::Popup::is_any_open(ui.ctx());
+	if escape_is_ours && ui.input(|i| i.key_pressed(Key::Escape)) {
 		state.close_file();
 		return;
 	}

@@ -275,8 +275,9 @@ fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) 
 	}
 	if enter
 		&& !typing
-		&& let Some(repo) = state.selected_repo()
+		&& let Some(path) = state.selected_repo().map(|repo| repo.path.clone())
 	{
-		let _ = platform.open_folder(&repo.path);
+		// A failure is named under the repository header, as from the row menu.
+		state.notice = platform.open_folder(&path).err();
 	}
 }
