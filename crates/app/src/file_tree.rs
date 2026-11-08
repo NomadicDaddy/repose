@@ -63,14 +63,17 @@ fn insert(folder: &mut Folder, parts: &[&str], entry: &TreeEntry) {
 	}
 }
 
-/// `512 B`, `1.2 KB`, `3.4 MB`.
+/// `512 B`, `1.2 KB`, `3.4 MB`, `4.0 GB`: each tier up to 1024 of the one below.
 pub fn size_label(bytes: u64) -> String {
+	const KB: f64 = 1024.0;
 	if bytes < 1024 {
 		format!("{bytes} B")
 	} else if bytes < 1024 * 1024 {
-		format!("{:.1} KB", bytes as f64 / 1024.0)
+		format!("{:.1} KB", bytes as f64 / KB)
+	} else if bytes < 1024 * 1024 * 1024 {
+		format!("{:.1} MB", bytes as f64 / (KB * KB))
 	} else {
-		format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+		format!("{:.1} GB", bytes as f64 / (KB * KB * KB))
 	}
 }
 
@@ -110,5 +113,9 @@ mod tests {
 		assert_eq!(size_label(512), "512 B");
 		assert_eq!(size_label(1536), "1.5 KB");
 		assert_eq!(size_label(2 * 1_048_576), "2.0 MB");
+		// A gigabyte tier, so 4 GiB is not "4096.0 MB" (audit-web-design-guidelines-1794001253).
+		assert_eq!(size_label(1024 * 1024 * 1024 - 1), "1024.0 MB");
+		assert_eq!(size_label(1024 * 1024 * 1024), "1.0 GB");
+		assert_eq!(size_label(4 * 1024 * 1024 * 1024), "4.0 GB");
 	}
 }

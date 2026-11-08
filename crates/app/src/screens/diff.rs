@@ -55,8 +55,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		DiffContent::TooLarge(size) => {
 			ui.label(
 				RichText::new(format!(
-					"File too large to diff ({:.1} MB)",
-					*size as f64 / 1_048_576.0
+					"File too large to diff ({})",
+					crate::file_tree::size_label(*size)
 				))
 				.color(WARN),
 			);

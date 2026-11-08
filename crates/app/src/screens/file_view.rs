@@ -87,8 +87,8 @@ fn body(ui: &mut Ui, v: &mut FileViewState, platform: &dyn Platform) {
 		FileContent::TooLarge(size) => {
 			ui.label(
 				RichText::new(format!(
-					"File too large to show ({:.1} MB)",
-					*size as f64 / 1_048_576.0
+					"File too large to show ({})",
+					crate::file_tree::size_label(*size)
 				))
 				.color(WARN),
 			);
