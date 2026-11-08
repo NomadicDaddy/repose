@@ -27,6 +27,8 @@ All notable changes to repose are recorded here. The format follows
 
 ### Fixed
 
+- A remote URL too long for the header wraps only after a "/" or "\", as the path above it does,
+  never inside a folder or host name. The origin link stays one link across its lines.
 - File sizes of a gibibyte or more read in GB, so a 4 GiB file shows "4.0 GB", not "4096.0 MB".
   The Files pane and the "File too large" notices share the same tiers.
 - A long file name in Changes, and a long branch name in Branches, is now cut with an ellipsis

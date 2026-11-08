@@ -164,3 +164,51 @@ fn tab_reaches_the_origin_link_and_enter_opens_it() {
 		"Enter on the focused link opens origin's page"
 	);
 }
+
+/// header-remote-url-wraps-at-separator: an origin URL far wider than the header wraps only after
+/// a "/", never inside a name, and stays one link: a click on its second line opens its page.
+#[test]
+fn a_long_origin_wraps_at_separators_and_stays_one_link() {
+	use eframe::egui::epaint::Shape;
+
+	let segments = "a-rather-long-folder-name/".repeat(12);
+	let url = format!("https://example.invalid/{segments}thing.git");
+	let page = format!("https://example.invalid/{segments}thing");
+	let (mut state, _) = with_remotes(&url);
+	let ctx = egui::Context::default();
+	let (shapes, _) = run(&ctx, &mut state, Vec::new(), 0.0);
+	fn origin(shape: &Shape) -> Option<(Pos2, std::sync::Arc<egui::Galley>)> {
+		match shape {
+			Shape::Vec(inner) => inner.iter().find_map(origin),
+			Shape::Text(t) if t.galley.text().starts_with("origin · https://") => {
+				Some((t.pos, t.galley.clone()))
+			}
+			_ => None,
+		}
+	}
+	let Some((pos, galley)) = shapes.iter().find_map(|c| origin(&c.shape)) else {
+		panic!("no origin line in {:?}", texts(&shapes));
+	};
+	let lines: Vec<&str> = galley.text().split('\n').collect();
+	assert!(lines.len() > 1, "a URL this long wraps: {lines:?}");
+	for line in &lines[..lines.len() - 1] {
+		assert!(
+			line.ends_with('/'),
+			"a line breaks only after a separator: {line:?}"
+		);
+	}
+	assert_eq!(
+		galley.text().replace('\n', ""),
+		format!("origin · {url}"),
+		"nothing is lost or added"
+	);
+	assert_eq!(
+		galley.rows.len(),
+		lines.len(),
+		"egui adds no wrap of its own"
+	);
+	let second = &galley.rows[1];
+	let at = pos + second.pos.to_vec2() + egui::vec2(8.0, second.row.size.y / 2.0);
+	let (_, out) = run(&ctx, &mut state, click(at), 0.5);
+	assert_eq!(opened(&out), [page], "the second line is the same link");
+}

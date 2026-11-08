@@ -28,7 +28,12 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 				if let Some(push) = &entry.push_url {
 					line.push_str(&format!(" (push {})", display_url(push)));
 				}
-				let text = RichText::new(line)
+				// Broken only at separators, so a long URL never wraps inside a folder or host
+				// name; still one widget, so a link keeps one click target and tooltip
+				// (header-remote-url-wraps-at-separator).
+				let font = egui::FontId::new(TEXT_SMALL, FontFamily::Monospace);
+				let shown = wrap_at_separators(ui, &line, &font);
+				let text = RichText::new(shown)
 					.size(TEXT_SMALL)
 					.family(FontFamily::Monospace);
 				let page = (entry.name == "origin")
@@ -37,12 +42,18 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 				match page {
 					Some(page) => {
 						let tip = format!("Open {page}");
-						if ui.link(text.color(ACCENT)).on_hover_text(tip).clicked() {
+						let link = ui.add(egui::Link::new(text.color(ACCENT)));
+						// A screen reader hears the line whole, not broken where it wraps.
+						a11y::control(&link, egui::Role::Link, None, &line);
+						if link.on_hover_text(tip).clicked() {
 							ui.ctx().open_url(egui::OpenUrl::new_tab(page));
 						}
 					}
 					None => {
-						ui.label(text.color(MUTED));
+						ui.add(
+							egui::Label::new(text.color(MUTED))
+								.wrap_mode(egui::TextWrapMode::Extend),
+						);
 					}
 				}
 			}
@@ -55,6 +66,41 @@ fn remotes(ui: &mut Ui, remote: Option<&Remote>) {
 			);
 		}
 	}
+}
+
+/// `line` with a line break before each separator-ended piece that would not fit the row's width,
+/// so it wraps only after a "/" or "\": never inside a folder or host name. A single piece wider
+/// than the pane stays whole on its own line.
+fn wrap_at_separators(ui: &Ui, line: &str, font: &egui::FontId) -> String {
+	let room = ui.available_width();
+	let width = |piece: &str| {
+		ui.painter()
+			.layout_no_wrap(piece.to_string(), font.clone(), egui::Color32::WHITE)
+			.size()
+			.x
+	};
+	let mut out = String::new();
+	let mut used = 0.0;
+	let mut piece = String::new();
+	let mut place = |piece: &str, out: &mut String| {
+		let w = width(piece);
+		if used > 0.0 && used + w > room {
+			out.push('\n');
+			used = 0.0;
+		}
+		out.push_str(piece);
+		used += w;
+	};
+	for c in line.chars() {
+		piece.push(c);
+		if c == '/' || c == '\\' {
+			place(&std::mem::take(&mut piece), &mut out);
+		}
+	}
+	if !piece.is_empty() {
+		place(&piece, &mut out);
+	}
+	out
 }
 
 /// The header's path, wrapping only at a separator: one unwrapped piece per folder, each ending in
