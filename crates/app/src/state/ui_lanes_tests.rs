@@ -167,3 +167,30 @@ fn a_commit_row_names_its_refs_only_in_the_lanes_view() {
 	let m = find(&nodes, Role::Button, "mmmmmmm commit m");
 	assert!(!m.name.contains("main"), "{}", m.name);
 }
+
+/// EXIT #39863: a `--select` that did not land left another repository selected, and the probe
+/// measured that one. It now waits while discovery runs and then refuses with the two paths,
+/// whatever the selected repository's history holds.
+#[test]
+fn a_select_that_did_not_land_is_refused_not_measured() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let other = repo("first-listed", std::time::SystemTime::now());
+	state.selected = Some(other.path.clone());
+	state.merge_discovered(vec![other]);
+	let mut probe =
+		crate::measure_lanes::LanesProbe::new("unused.txt".into(), Some("D:/wanted/repo".into()));
+	state.scanning = true;
+	probe.begin();
+	assert_eq!(probe.end(&state, &ctx), None, "discovery may still land it");
+	state.scanning = false;
+	probe.begin();
+	let refused = probe.end(&state, &ctx);
+	assert!(
+		refused
+			.as_deref()
+			.is_some_and(|r| r.starts_with("error\t--select did not land: ")
+				&& r.ends_with("is selected, not D:/wanted/repo\n")),
+		"{refused:?}"
+	);
+}

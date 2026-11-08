@@ -31,6 +31,10 @@ use eframe::egui::{self, Event, MouseWheelUnit, RawInput, pos2, vec2};
 use crate::state::AppState;
 use crate::theme::{COMMIT_ROW_HEIGHT, SIDEBAR_WIDTH};
 
+#[path = "measure_lanes_report.rs"]
+mod report;
+use report::{fmt, report};
+
 /// Frames with no input, to read the refresh interval from.
 const IDLE_FRAMES: usize = 60;
 /// Frames of wheel input: one row each, half down and half back up, within a first page of 100.
@@ -48,6 +52,8 @@ enum Phase {
 
 pub struct LanesProbe {
 	out: PathBuf,
+	/// The repository `--select` asked for; the probe measures only that one.
+	want: Option<PathBuf>,
 	phase: Phase,
 	started: Instant,
 	first_history: Option<Instant>,
@@ -70,9 +76,10 @@ pub struct LanesProbe {
 }
 
 impl LanesProbe {
-	pub fn new(out: PathBuf) -> Self {
+	pub fn new(out: PathBuf, want: Option<PathBuf>) -> Self {
 		Self {
 			out,
+			want,
 			phase: Phase::Waiting,
 			started: Instant::now(),
 			first_history: None,
@@ -201,6 +208,19 @@ impl LanesProbe {
 			return Some(format!("error\tno lanes page within {WAIT_LIMIT_S} s\n"));
 		}
 		let repo = state.selected_repo()?.path.clone();
+		// A `--select` that did not land leaves another repository selected once discovery ends;
+		// measuring that one would report the wrong repository (EXIT #39863).
+		if let Some(want) = &self.want
+			&& !same_path(&repo, want)
+		{
+			if state.scanning {
+				return None;
+			}
+			let (got, want) = (repo.display(), want.display());
+			return Some(format!(
+				"error\t--select did not land: {got} is selected, not {want}\n"
+			));
+		}
 		let first = *self.first_history.get_or_insert_with(Instant::now);
 		let h = state.history_of(&repo)?;
 		if let Some(e) = &h.error {
@@ -235,56 +255,18 @@ impl LanesProbe {
 	}
 }
 
+/// Windows paths compare without regard to ASCII case or a trailing separator.
+fn same_path(a: &Path, b: &Path) -> bool {
+	let norm = |p: &Path| {
+		p.to_string_lossy()
+			.trim_end_matches(['\\', '/'])
+			.to_ascii_lowercase()
+	};
+	norm(a) == norm(b)
+}
+
 fn ms(d: std::time::Duration) -> f64 {
 	d.as_secs_f64() * 1000.0
-}
-
-fn fmt(v: f64) -> String {
-	format!("{v:.2}")
-}
-
-/// The value at `p` (0 to 1) of `values` sorted, nearest rank.
-fn percentile(values: &[f64], p: f64) -> f64 {
-	let mut v = values.to_vec();
-	v.sort_by(f64::total_cmp);
-	let rank = ((p * v.len() as f64).ceil() as usize).clamp(1, v.len().max(1));
-	v.get(rank - 1).copied().unwrap_or(0.0)
-}
-
-/// The tab-separated report: the page lines, the refresh interval, the wheel frames and how
-/// many of them moved, both counted series as p50, p95 and max, the missed frames, and the
-/// verdict under the module's pass rule.
-fn report(
-	page: &[(&str, String)],
-	idle: &[f64],
-	frames: usize,
-	present: &[f64],
-	cpu: &[f64],
-) -> String {
-	let refresh = percentile(idle, 0.5);
-	let stats = |v: &[f64]| {
-		let max = v.iter().copied().fold(0.0, f64::max);
-		let p = |q| fmt(percentile(v, q));
-		format!("{}\t{}\t{}", p(0.5), p(0.95), fmt(max))
-	};
-	let missed = present.iter().filter(|&&p| p > refresh * 1.5).count();
-	let pass = cpu.len() >= MIN_MOVING
-		&& present.len() >= MIN_MOVING
-		&& percentile(cpu, 0.95) < refresh
-		&& percentile(present, 0.95) <= refresh * 1.1;
-	let mut out: String = page.iter().map(|(k, v)| format!("{k}\t{v}\n")).collect();
-	out.push_str(&format!("refresh_ms\t{}\n", fmt(refresh)));
-	out.push_str(&format!("wheel_frames\t{frames}\n"));
-	out.push_str(&format!("moving_frames\t{}\n", cpu.len()));
-	out.push_str(&format!("aligned_intervals\t{}\n", present.len()));
-	out.push_str(&format!(
-		"frame_interval_ms_p50_p95_max\t{}\n",
-		stats(present)
-	));
-	out.push_str(&format!("ui_cpu_ms_p50_p95_max\t{}\n", stats(cpu)));
-	out.push_str(&format!("missed\t{missed}\n"));
-	out.push_str(&format!("pass\t{}\n", if pass { "yes" } else { "no" }));
-	out
 }
 
 #[cfg(test)]

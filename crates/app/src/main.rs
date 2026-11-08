@@ -231,7 +231,7 @@ fn main() -> eframe::Result {
 			app.diff_loaded = args.measure_diff;
 			if let Some(out) = args.measure_lanes {
 				app.state.lanes = true;
-				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out));
+				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out, args.select.clone()));
 			}
 			app.state.view = args.view;
 			app.state.requested_selection = args.select.or_else(repo_at_cwd);

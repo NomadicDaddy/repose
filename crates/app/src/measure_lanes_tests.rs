@@ -3,7 +3,8 @@
 use eframe::egui::{self, Event, RawInput, pos2};
 use repose_core::config::Config;
 
-use super::{LanesProbe, Phase, SCROLL_FRAMES, percentile, report};
+use super::report::{percentile, report};
+use super::{LanesProbe, Phase, SCROLL_FRAMES};
 use crate::state::AppState;
 
 #[test]
@@ -71,7 +72,7 @@ fn real_input_during_the_run_ends_it_with_a_failed_report() {
 		probe.begin();
 		probe.end(&state, &ctx)
 	};
-	let mut probe = LanesProbe::new("unused.txt".into());
+	let mut probe = LanesProbe::new("unused.txt".into(), None);
 	let resting = vec![Event::PointerMoved(pos2(10.0, 10.0))];
 	assert_eq!(
 		frame(&mut probe, resting.clone()),
@@ -84,7 +85,7 @@ fn real_input_during_the_run_ends_it_with_a_failed_report() {
 		moved.as_deref(),
 		Some("error\treal input during the run: the pointer moving\n")
 	);
-	let mut probe = LanesProbe::new("unused.txt".into());
+	let mut probe = LanesProbe::new("unused.txt".into(), None);
 	let key = Event::Text("a".into());
 	let typed = frame(&mut probe, vec![key]);
 	assert_eq!(
@@ -100,7 +101,7 @@ fn real_input_during_the_run_ends_it_with_a_failed_report() {
 fn every_moving_frame_has_one_interval_and_one_ui_time() {
 	let ctx = egui::Context::default();
 	let state = AppState::new(Config::default());
-	let mut probe = LanesProbe::new("unused.txt".into());
+	let mut probe = LanesProbe::new("unused.txt".into(), None);
 	probe.phase = Phase::Scrolling;
 	probe.idle = vec![16.0; 60];
 	let mut report = None;
