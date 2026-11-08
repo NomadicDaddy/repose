@@ -26,6 +26,10 @@ guard=scripts/smokestack/hooks/leak-guard.sh
 mkdir -p "$repo/$(dirname "$guard")"
 git -C "$repo" init -q
 git -C "$repo" config core.autocrlf false
+# A hooksPath set globally would run its hooks on the scratch commit; only the copied guard, run
+# by hand below, may run here (Roger Low on 44c64a0).
+mkdir "$tmp/no-hooks"
+git -C "$repo" config core.hooksPath "$tmp/no-hooks"
 git -C "$repo" -c user.email=t@test.invalid -c user.name=t commit -q --allow-empty -m init
 # The guard sources its decoder from its own folder when a binary file is staged.
 cp "$hooks/leak-guard.sh" "$hooks/leak-guard-decode.sh" "$repo/$(dirname "$guard")/"
