@@ -9,6 +9,10 @@ use repose_core::model::{DiscardPlan, FileChange};
 use super::{Group, GroupCtx};
 use crate::state::{AppState, PendingDiscard, WriteKind};
 
+/// How far from the row's right edge the actions area starts; the row's text stops short of it
+/// whenever the actions show.
+pub(crate) const ACTIONS_LEFT: f32 = 260.0;
+
 pub(super) fn hover_actions(
 	ui: &mut Ui,
 	state: &mut AppState,
@@ -17,7 +21,7 @@ pub(super) fn hover_actions(
 	rect: egui::Rect,
 ) {
 	let area = egui::Rect::from_min_max(
-		pos2(rect.right() - 260.0, rect.top()),
+		pos2(rect.right() - ACTIONS_LEFT, rect.top()),
 		pos2(rect.right() - 28.0, rect.bottom()),
 	);
 	let mut child = ui.new_child(

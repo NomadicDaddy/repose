@@ -12,6 +12,7 @@ use crate::theme::*;
 
 #[path = "change_actions.rs"]
 mod actions;
+pub(crate) use actions::ACTIONS_LEFT;
 use actions::hover_actions;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -163,6 +164,8 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		None
 	};
 	let line = selected.then_some(ACCENT_LINE);
+	// The row's actions show while the pointer is in it or it is selected.
+	let actions_shown = pointer_in || selected;
 	frame(&painter, rect, RADIUS, fill, line, response.has_focus());
 	let x = rect.left() + 8.0;
 	let name_font = FontId::new(TEXT_BASE, FontFamily::Proportional);
@@ -171,10 +174,15 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 	} else {
 		TEXT
 	};
-	// The name and the folder stop short of the kind letter's slot and are cut with an ellipsis,
-	// as repository rows and commit subjects are; the tooltip carries the full path
-	// (audit-web-design-guidelines-1794001253, row clipping).
-	let text_right = rect.right() - 30.0;
+	// The name and the folder stop short of the kind letter's slot, or of the actions area while
+	// the actions show (the pointer is in the row or it is selected), and are cut with an
+	// ellipsis, as repository rows and commit subjects are; the tooltip carries the full path
+	// (audit-web-design-guidelines-1794001253, row clipping; Roger on 78779f5).
+	let text_right = if actions_shown {
+		rect.right() - ACTIONS_LEFT - 6.0
+	} else {
+		rect.right() - 30.0
+	};
 	let name = fit(
 		&painter,
 		file.file_name(),
@@ -261,7 +269,7 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		let ctx = ui.ctx().clone();
 		menu::perform(a, state, g.platform, &ctx);
 	}
-	if pointer_in || selected {
+	if actions_shown {
 		hover_actions(ui, state, g, file, rect);
 	}
 }

@@ -160,12 +160,14 @@ fn branch_row(ui: &mut Ui, branch: &Branch) -> egui::Id {
 			(None, None) => format!("{up} · upstream gone"),
 			_ => up.clone(),
 		};
-		let width = (right - x).max(0.0);
-		let galley = painter.layout(
-			text,
+		// Cut on one line like the name and hash: wrapped into the little room a long name
+		// leaves, it grew taller than the row (Morticia Low 2 on 78779f5).
+		let galley = fit(
+			&painter,
+			&text,
 			FontId::new(TEXT_SMALL, FontFamily::Proportional),
-			MUTED.get(),
-			width,
+			MUTED,
+			(right - x).max(0.0),
 		);
 		painter.galley(
 			pos2(x, rect.center().y - galley.size().y / 2.0),

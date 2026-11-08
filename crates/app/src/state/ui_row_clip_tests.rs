@@ -101,3 +101,78 @@ fn a_long_branch_name_is_cut_with_an_ellipsis_before_its_pills() {
 		);
 	}
 }
+
+/// Roger and Morticia on 78779f5: a selected change row shows its actions all the time, so its
+/// name and folder stop at the actions' left edge, not under the buttons.
+#[test]
+fn a_selected_change_row_keeps_its_text_clear_of_the_actions() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let mut row = repo("clip-selected", SystemTime::now());
+	let long = format!("src/{LONG}{LONG}");
+	if let Some(c) = row.changes.as_mut() {
+		c.unstaged[0].path = long.clone();
+	}
+	state.selected = Some(row.path.clone());
+	state.merge_discovered(vec![row]);
+	state.view = View::Changes;
+	state.selected_file = Some(long);
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let Some((text, _, right)) = painted(&shapes, "a_file_name_long") else {
+		panic!("the change row's name was not painted");
+	};
+	assert!(text.ends_with('…'), "{text:?}");
+	let actions_left = SCREEN.x - crate::screens::changes::ACTIONS_LEFT;
+	assert!(
+		right <= actions_left,
+		"the name ends at {right}, under the actions at {actions_left}"
+	);
+}
+
+/// Morticia Low 2 on 78779f5: a branch's upstream is cut on one line too, so a long name never
+/// leaves it wrapping into a column taller than the row.
+#[test]
+fn a_branch_upstream_never_wraps_taller_than_its_row() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let row = repo("clip-upstream", SystemTime::now());
+	let path = row.path.clone();
+	state.selected = Some(path.clone());
+	state.merge_discovered(vec![row]);
+	state.view = View::Branches;
+	// Short enough that the upstream has some room, far too little for its full text.
+	let name = "feature/short".to_string();
+	state.branches.insert(
+		path,
+		BranchesState {
+			branches: Some(Branches {
+				head: HeadState::OnBranch(name.clone()),
+				list: vec![Branch {
+					name,
+					short_hash: "0123abc".into(),
+					upstream: Some(format!("origin/{LONG}")),
+					ahead: Some(1),
+					behind: Some(2),
+					current: true,
+				}],
+			}),
+			..BranchesState::default()
+		},
+	);
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	// A wrapped galley keeps its text and grows rows, so the rows are what to count.
+	fn rows_of(shape: &Shape) -> Option<(String, usize)> {
+		match shape {
+			Shape::Vec(inner) => inner.iter().find_map(rows_of),
+			Shape::Text(t) if t.galley.text().starts_with("origin/") => {
+				Some((t.galley.text().to_string(), t.galley.rows.len()))
+			}
+			_ => None,
+		}
+	}
+	let Some((text, rows)) = shapes.iter().find_map(|c| rows_of(&c.shape)) else {
+		panic!("the upstream was not painted");
+	};
+	assert_eq!(rows, 1, "one line, not wrapped: {text:?}");
+	assert!(text.ends_with('…'), "cut with an ellipsis: {text:?}");
+}
