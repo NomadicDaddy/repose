@@ -93,7 +93,9 @@ fn group(
 	let fold_id = ui.make_persistent_id(("changes-group", title, g.repo.path.as_os_str()));
 	let mut open = ui.data(|d| d.get_temp::<bool>(fold_id)).unwrap_or(true);
 	ui.horizontal(|ui| {
-		let (tri, tri_response) = ui.allocate_exact_size(vec2(12.0, 16.0), Sense::click());
+		// Clickable but not a Tab stop: the header button beside it is the keyboard path, and an
+		// unnamed stop before it would only confuse (Morticia Low on c505d7a).
+		let (tri, tri_response) = ui.allocate_exact_size(vec2(12.0, 16.0), Sense::CLICK);
 		disclosure(ui.painter(), tri.center(), open);
 		let header = ui.add(
 			egui::Button::new(

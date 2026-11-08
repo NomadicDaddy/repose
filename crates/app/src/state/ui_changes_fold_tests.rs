@@ -57,3 +57,30 @@ fn a_changes_group_folds_to_its_header_and_back() {
 	let open = texts(&frame(&ctx, &mut state, Vec::new()));
 	assert!(open.iter().any(|t| t == "staged.txt"), "unfolded: {open:?}");
 }
+
+/// Morticia Low on c505d7a: the painted fold triangle is click-only, so Tab never stops on an
+/// unnamed node before a group's header; every focusable node on the Changes view has a name.
+#[test]
+fn the_fold_triangle_is_not_an_unnamed_tab_stop() {
+	use super::ui_a11y_tests::a11y_frame;
+
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	let row = repo("fold-a11y", SystemTime::now());
+	state.selected = Some(row.path.clone());
+	state.merge_discovered(vec![row]);
+	state.view = View::Changes;
+	frame(&ctx, &mut state, Vec::new());
+	let nodes = a11y_frame(&ctx, &mut state);
+	let unnamed: Vec<_> = nodes
+		.iter()
+		.filter(|n| n.focusable && n.name.is_empty())
+		.map(|n| n.role)
+		.collect();
+	assert!(unnamed.is_empty(), "unnamed Tab stops: {unnamed:?}");
+	let header = nodes
+		.iter()
+		.find(|n| n.name == "Changes, expanded")
+		.unwrap_or_else(|| panic!("no named header for the Changes group"));
+	assert!(header.focusable, "the header button is the keyboard path");
+}
