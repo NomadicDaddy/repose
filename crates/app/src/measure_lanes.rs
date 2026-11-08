@@ -6,12 +6,18 @@
 //! scroll offset moved are counted, so frames redrawing an unchanged view cannot pad the
 //! figures (Morticia L-1 on c70d37d).
 //!
-//! Two series per counted frame: the present-to-present interval, which covers everything the
-//! frame cost including tessellation and the GPU submit after `ui()`, and the CPU time inside
-//! `ui()` alone.
+//! Two series per counted frame. The frame interval runs from one `ui()` start to the next.
+//! With vsync each start follows a present, so it covers everything the frame before cost,
+//! including tessellation and the GPU submit after `ui()`. The last frame's own present comes
+//! after the report and is not in it. The other series is the CPU time inside `ui()` alone
+//! (Roger and Morticia on c70d37d).
+//!
+//! The window is on Phillip's desk, so any real input during the run ends it with a failed
+//! report: a key, text, a button, a wheel turn, or the pointer moving from where it rested
+//! (#39830, #39831). The probe's own events are added after this check.
 //!
 //! The pass rule, fixed before any run (Morticia #39826): at least 70 counted frames, the p95
-//! `ui()` time under the refresh interval, and the p95 present interval within 10% of it.
+//! `ui()` time under the refresh interval, and the p95 frame interval within 10% of it.
 //! Frames over 1.5 intervals are counted as missed and reported either way.
 
 use std::path::{Path, PathBuf};
@@ -51,8 +57,12 @@ pub struct LanesProbe {
 	/// Wheel frames so far, counted or not.
 	scrolled: usize,
 	last_offset: Option<f32>,
-	/// This frame's present interval, kept until the frame shows whether it moved.
+	/// This frame's interval, kept until the frame shows whether it moved.
 	pending: Option<f64>,
+	/// Where the real pointer rested when first seen; moving from it is real input.
+	rested_at: Option<egui::Pos2>,
+	/// The real input that ended the run, if any.
+	interrupted: Option<String>,
 }
 
 impl LanesProbe {
@@ -71,6 +81,8 @@ impl LanesProbe {
 			scrolled: 0,
 			last_offset: None,
 			pending: None,
+			rested_at: None,
+			interrupted: None,
 		}
 	}
 
@@ -78,9 +90,11 @@ impl LanesProbe {
 		&self.out
 	}
 
-	/// While scrolling: the pointer over the History pane and one row's turn of the wheel.
-	pub fn inject(&self, raw: &mut RawInput) {
-		if !matches!(self.phase, Phase::Scrolling) {
+	/// Every frame: any real input ends the run. While scrolling, the pointer then goes over the
+	/// History pane with one row's turn of the wheel.
+	pub fn inject(&mut self, raw: &mut RawInput) {
+		self.check_real_input(&raw.events);
+		if !matches!(self.phase, Phase::Scrolling) || self.interrupted.is_some() {
 			return;
 		}
 		let screen = raw.screen_rect.unwrap_or(egui::Rect::ZERO);
@@ -105,6 +119,26 @@ impl LanesProbe {
 		});
 	}
 
+	fn check_real_input(&mut self, events: &[Event]) {
+		for event in events {
+			let what = match event {
+				Event::Key { .. } | Event::Text(_) | Event::Paste(_) => "a key",
+				Event::PointerButton { .. } => "a pointer button",
+				Event::MouseWheel { .. } => "the wheel",
+				Event::PointerMoved(at) => match self.rested_at {
+					None => {
+						self.rested_at = Some(*at);
+						continue;
+					}
+					Some(rest) if rest == *at => continue,
+					Some(_) => "the pointer moving",
+				},
+				_ => continue,
+			};
+			self.interrupted.get_or_insert_with(|| what.to_string());
+		}
+	}
+
 	/// At the start of `ui()`: the interval since the last frame began.
 	pub fn begin(&mut self) {
 		let now = Instant::now();
@@ -122,6 +156,9 @@ impl LanesProbe {
 
 	/// At the end of `ui()`: the frame's CPU time, the next phase, and the report once done.
 	pub fn end(&mut self, state: &AppState, ctx: &egui::Context) -> Option<String> {
+		if let Some(what) = &self.interrupted {
+			return Some(format!("error\treal input during the run: {what}\n"));
+		}
 		ctx.request_repaint();
 		let cpu = ms(self.frame_start.elapsed());
 		match self.phase {
@@ -227,7 +264,10 @@ fn report(
 	out.push_str(&format!("refresh_ms\t{}\n", fmt(refresh)));
 	out.push_str(&format!("wheel_frames\t{frames}\n"));
 	out.push_str(&format!("moving_frames\t{}\n", present.len()));
-	out.push_str(&format!("present_ms_p50_p95_max\t{}\n", stats(present)));
+	out.push_str(&format!(
+		"frame_interval_ms_p50_p95_max\t{}\n",
+		stats(present)
+	));
 	out.push_str(&format!("ui_cpu_ms_p50_p95_max\t{}\n", stats(cpu)));
 	out.push_str(&format!("missed\t{missed}\n"));
 	out.push_str(&format!("pass\t{}\n", if pass { "yes" } else { "no" }));
@@ -235,46 +275,5 @@ fn report(
 }
 
 #[cfg(test)]
-mod tests {
-	use super::{percentile, report};
-
-	#[test]
-	fn percentiles_take_the_nearest_rank() {
-		let v: Vec<f64> = (1..=100).map(f64::from).collect();
-		assert_eq!(percentile(&v, 0.5), 50.0);
-		assert_eq!(percentile(&v, 0.95), 95.0);
-		assert_eq!(percentile(&[], 0.5), 0.0);
-	}
-
-	/// The report's shape, and the pass rule each way it can fail: a run at the refresh rate
-	/// passes; one whose p95 frame takes two intervals fails with its misses counted; and one
-	/// with too few moving frames fails however fast they were.
-	#[test]
-	fn the_report_applies_the_pass_rule_it_states() {
-		let page = [("commits", "100".to_string())];
-		let idle = vec![16.67; 60];
-		let good = report(&page, &idle, 100, &vec![16.7; 100], &vec![3.0; 100]);
-		assert!(
-			good.starts_with(
-				"commits\t100\nrefresh_ms\t16.67\nwheel_frames\t100\nmoving_frames\t100\n"
-			),
-			"{good}"
-		);
-		assert!(
-			good.contains("missed\t0\n") && good.ends_with("pass\tyes\n"),
-			"{good}"
-		);
-		let mut slow = vec![16.7; 90];
-		slow.extend(vec![33.4; 10]);
-		let bad = report(&page, &idle, 100, &slow, &vec![3.0; 100]);
-		assert!(
-			bad.contains("missed\t10\n") && bad.ends_with("pass\tno\n"),
-			"{bad}"
-		);
-		let few = report(&page, &idle, 100, &vec![16.7; 69], &vec![3.0; 69]);
-		assert!(
-			few.contains("moving_frames\t69\n") && few.ends_with("pass\tno\n"),
-			"{few}"
-		);
-	}
-}
+#[path = "measure_lanes_tests.rs"]
+mod tests;

@@ -94,11 +94,13 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   - the first-page time, split into `git log` and layout;
   - the widest lane count;
   - how many wheel frames moved;
-  - the present intervals and the CPU time inside `ui()` (p50, p95, max);
+  - the frame intervals (from one `ui()` start to the next) and the CPU time inside `ui()`
+    (p50, p95, max);
   - the missed frames, and whether the run passed.
 
-  repose then exits, non-zero when the run failed or the file could not be written. The pass
-  rule is in `crates/app/src/measure_lanes.rs`.
+  Any real key, button, wheel turn or pointer movement during the run ends it with a failed
+  report. repose then exits, non-zero when the run failed or the file could not be written.
+  The pass rule is in `crates/app/src/measure_lanes.rs`.
 
 - `--help` or `-h`: print these flags and exit with code 0.
 

@@ -76,7 +76,7 @@ impl App {
 
 impl eframe::App for App {
 	fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
-		if let Some(probe) = &self.lanes_probe {
+		if let Some(probe) = &mut self.lanes_probe {
 			probe.inject(raw);
 		}
 	}
