@@ -99,6 +99,19 @@ All notable changes to repose are recorded here. The format follows
   frame takes 11.5 to 20.9 ms (median), and up to 30 ms in Files. Drawing only the visible rows
   is planned for v2.0.
 
+### Accepted at this release
+
+The release-readiness table for 1.2.0 had these lines Red or not checked, and Phillip accepted
+each one:
+
+- **C3, audits current** (#40476): of the 28 audits aidd counts as applicable, 24 are fresh.
+  ASSERTIONS, AUDIT_METHODOLOGY, FEASIBILITY and SEVERITY_CLASSIFICATION have no report in the
+  current audit-report folder, the same four as at 1.1.2.
+- **C5, roadmap and priorities** (#40478): the records and roadmap entries reconcile, but `.aidd`
+  is untracked, so no history shows whether a priority changed since 1.1.2.
+- **F5, installer and first run** (#40479): `scripts/install-user.ps1`, unchanged since 1.1.2, has
+  still been run only on the development machine; there is no clean-machine install record.
+
 ## [1.1.2] - 2026-11-07
 
 ### Development
