@@ -4,7 +4,7 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-11-08
 
 ### Added
 
@@ -92,6 +92,12 @@ All notable changes to repose are recorded here. The format follows
   file are refused without being printed; and a configured pattern file that is missing refuses
   even clean content. It runs under Git's own bash, found beside git. The scratch repository
   has its own empty hooks folder, so hooks set in the global Git configuration don't run there.
+
+### Known limitations
+
+- Changes, History and Files lay out every row, not only the rows on screen. At 5,000 rows a
+  frame takes 11.5 to 20.9 ms (median), and up to 30 ms in Files. Drawing only the visible rows
+  is planned for v2.0.
 
 ## [1.1.2] - 2026-11-07
 
