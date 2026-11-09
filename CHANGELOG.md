@@ -54,6 +54,8 @@ All notable changes to repose are recorded here. The format follows
   repository list now say when Windows couldn't open the folder. The reason shows under the
   repository header, as it already did from the right-click menu. Before, a failed click did
   nothing visible.
+- When repose can't create its config file on first run, the error now says "could not write"
+  and names the file. Before, it said "could not read". A failed pin save says the same.
 
 ### Development
 
@@ -81,11 +83,15 @@ All notable changes to repose are recorded here. The format follows
   three-changes fixture.
 - A core test reads a branch whose remote-tracking branch is one commit ahead as 0 ahead and 1
   behind, from saved refs.
+- An ignored test, `list_frame_times`, times a detail-pane frame for Changes, History and Files
+  at 30, 1,000 and 5,000 rows. At 5,000 rows the median frame is 11.5 to 20.9 ms. On those
+  numbers, row virtualisation moved to v2.0 instead of this release.
 - The gate now tests the leak guard on every run, whether or not the hooks are installed.
   `scripts/check-leak-guard.sh` runs the delivered guard in a scratch repository: a clean
   staging passes; a token shape, a PEM key block and a private literal from a fixture pattern
   file are refused without being printed; and a configured pattern file that is missing refuses
-  even clean content. It runs under Git's own bash, found beside git.
+  even clean content. It runs under Git's own bash, found beside git. The scratch repository
+  has its own empty hooks folder, so hooks set in the global Git configuration don't run there.
 
 ## [1.1.2] - 2026-11-07
 
