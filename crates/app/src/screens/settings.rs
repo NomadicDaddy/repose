@@ -1,15 +1,17 @@
 //! The settings screen (settings-screen): a modal over the window, opened by Settings in the
 //! repository list header, for the roots, the folder names to skip, the scan depth, the theme
-//! and the editor and terminal commands, pre-filled from config.toml. A root that does not exist,
-//! a folder name with a slash or a command that is not a program name or absolute path is marked
-//! under its box, and Save stays disabled until each is fixed. Save writes config.toml and applies
-//! the settings at once; Cancel and Escape drop the edits. A click outside does nothing, so a
-//! stray click never throws away a half-made change.
+//! and the editor and terminal commands, pre-filled from the config in use. A new root that does
+//! not exist, a folder name with a slash or a command that is not a program name or absolute path
+//! is marked under its box and keeps Save disabled until fixed; a saved root that is missing now
+//! is only noted, since the load tolerates an unplugged drive. Text typed in a New box but never
+//! added also holds Save. Save writes config.toml and applies the settings at once; Cancel and
+//! Escape drop the edits. A click outside does nothing, so a stray click never throws away a
+//! half-made change.
 
 use eframe::egui::{self, Key, RichText, Ui};
 use repose_core::config::Theme;
 
-use crate::state::{AppState, MAX_DEPTH, SettingsDraft};
+use crate::state::{AppState, MAX_DEPTH, Mark, SettingsDraft};
 use crate::theme::*;
 
 /// What the buttons asked for this frame.
@@ -71,10 +73,10 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 	let roots = Kind {
 		noun: "root",
 		hint: "D:\\path\\to\\folder",
-		check: SettingsDraft::root_problem,
 		focus_new: draft.fresh,
 	};
-	list(ui, &roots, &mut draft.roots, &mut draft.new_root);
+	let marks: Vec<_> = draft.roots.iter().map(|r| draft.root_mark(r)).collect();
+	list(ui, &roots, &marks, &mut draft.roots, &mut draft.new_root);
 	heading(
 		ui,
 		"Skip folders named",
@@ -83,10 +85,20 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 	let excluded = Kind {
 		noun: "excluded name",
 		hint: "node_modules",
-		check: SettingsDraft::exclude_problem,
 		focus_new: false,
 	};
-	list(ui, &excluded, &mut draft.exclude, &mut draft.new_exclude);
+	let marks: Vec<_> = draft
+		.exclude
+		.iter()
+		.map(|e| SettingsDraft::exclude_mark(e))
+		.collect();
+	list(
+		ui,
+		&excluded,
+		&marks,
+		&mut draft.exclude,
+		&mut draft.new_exclude,
+	);
 	heading(
 		ui,
 		"Scan depth",
@@ -94,8 +106,12 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 	);
 	ui.horizontal(|ui| {
 		let label = ui.label("Depth");
-		ui.add(egui::DragValue::new(&mut draft.depth).range(1..=MAX_DEPTH))
-			.labelled_by(label.id);
+		// A depth the file already held outside the range is shown and kept as it is; only a drag
+		// or a typed value is bounded (Morticia 5Q-1 on 25e8094).
+		let depth = egui::DragValue::new(&mut draft.depth)
+			.range(1..=MAX_DEPTH)
+			.clamp_existing_to_range(false);
+		ui.add(depth).labelled_by(label.id);
 	});
 	heading(
 		ui,
@@ -131,22 +147,35 @@ fn problem(ui: &mut Ui, text: Option<&str>) {
 	}
 }
 
-/// What an editable list holds: its noun, the new box's hint, the check that marks an entry, and
-/// whether the new box takes focus (the first list, on the frame the screen opens).
+/// A list entry's mark: danger when it keeps Save disabled, warning when it is only a note.
+fn mark(ui: &mut Ui, mark: Option<Mark>) {
+	if let Some(Mark { text, blocks }) = mark {
+		let colour = if blocks { DANGER } else { WARN };
+		ui.label(RichText::new(text).size(TEXT_SMALL).color(colour));
+	}
+}
+
+/// What an editable list holds: its noun, the new box's hint, and whether the new box takes
+/// focus (the first list, on the frame the screen opens).
 #[derive(Clone, Copy)]
 struct Kind {
 	noun: &'static str,
 	hint: &'static str,
-	check: fn(&str) -> Option<&'static str>,
 	focus_new: bool,
 }
 
-/// An editable list: each entry with Remove and its problem, then a box and Add for a new one.
-fn list(ui: &mut Ui, kind: &Kind, items: &mut Vec<String>, new_item: &mut String) {
+/// An editable list: each entry with Remove and its mark (`marks`, one per entry), then a box
+/// and Add for a new one.
+fn list(
+	ui: &mut Ui,
+	kind: &Kind,
+	marks: &[Option<Mark>],
+	items: &mut Vec<String>,
+	new_item: &mut String,
+) {
 	let Kind {
 		noun,
 		hint,
-		check,
 		focus_new,
 	} = *kind;
 	let mut remove = None;
@@ -166,7 +195,7 @@ fn list(ui: &mut Ui, kind: &Kind, items: &mut Vec<String>, new_item: &mut String
 					}
 				});
 			});
-			problem(ui, check(item));
+			mark(ui, marks.get(i).copied().flatten());
 		});
 	}
 	if let Some(i) = remove {
@@ -197,6 +226,11 @@ fn list(ui: &mut Ui, kind: &Kind, items: &mut Vec<String>, new_item: &mut String
 			new_item.clear();
 		}
 	});
+	// Save waits while text sits here unadded, so it is never dropped (Morticia 5Q-2).
+	if !new_item.trim().is_empty() {
+		let note = format!("Press Add to keep this {noun}, or clear the box, before saving.");
+		ui.label(RichText::new(note).size(TEXT_SMALL).color(MUTED));
+	}
 }
 
 /// A command's box with its label and problem line.

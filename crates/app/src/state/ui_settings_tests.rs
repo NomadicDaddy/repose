@@ -176,3 +176,82 @@ fn cancel_and_escape_drop_the_edits() {
 	assert_eq!(state.config.roots, [root], "and drops its edits");
 	assert_eq!(state.selected.as_ref(), Some(&alpha));
 }
+
+/// Morticia 5Q-3 on 25e8094: a root the config already held that is missing now (an unplugged
+/// drive) is noted, not blocking, so a theme change still saves and the root is kept.
+#[test]
+fn a_saved_root_that_is_missing_now_is_noted_and_save_still_works() {
+	let ctx = egui::Context::default();
+	let gone = PathBuf::from(r"Q:\unplugged\drive\root");
+	let mut state = AppState::new(Config {
+		roots: vec![gone.clone()],
+		..Config::default()
+	});
+	open(&ctx, &mut state);
+	if let Some(draft) = state.settings.as_mut() {
+		draft.theme = repose_core::config::Theme::Light;
+	}
+	let shown = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(
+		shown.iter().any(|t| t.starts_with("Not found now")),
+		"{shown:?}"
+	);
+	press(&ctx, &mut state, "Save");
+	assert!(state.settings.is_none(), "Save went through");
+	assert_eq!(state.config.roots, [gone]);
+	assert_eq!(state.config.theme, repose_core::config::Theme::Light);
+}
+
+/// Morticia 5Q-2: text typed in a New box but never added holds Save, with a note, rather than
+/// being dropped on Save.
+#[test]
+fn text_never_added_holds_save_until_it_is_added_or_cleared() {
+	let ctx = egui::Context::default();
+	let (mut state, _) = state_with_root("unadded");
+	open(&ctx, &mut state);
+	// The New root box: the 400 px test window shows the roots, the excludes scroll below.
+	if let Some(draft) = state.settings.as_mut() {
+		draft.new_root = "E:\\later".into();
+	}
+	let shown = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(
+		shown
+			.iter()
+			.any(|t| t.starts_with("Press Add to keep this")),
+		"{shown:?}"
+	);
+	press(&ctx, &mut state, "Save");
+	assert!(state.settings.is_some(), "Save waited");
+	if let Some(draft) = state.settings.as_mut() {
+		draft.new_root.clear();
+	}
+	press(&ctx, &mut state, "Save");
+	assert!(state.settings.is_none());
+	assert_eq!(
+		state.config.roots.len(),
+		1,
+		"the unadded root was not saved"
+	);
+}
+
+/// Morticia 5Q-1: a depth outside the control's range that the file already held is kept by a
+/// save that did not touch it, and nothing is rescanned.
+#[test]
+fn a_save_that_did_not_touch_depth_keeps_it_as_it_was() {
+	let ctx = egui::Context::default();
+	let root = real_root("depth");
+	let mut state = AppState::new(Config {
+		roots: vec![root],
+		depth: 12,
+		..Config::default()
+	});
+	open(&ctx, &mut state);
+	if let Some(draft) = state.settings.as_mut() {
+		draft.editor = "notepad".into();
+	}
+	frame(&ctx, &mut state, Vec::new());
+	press(&ctx, &mut state, "Save");
+	assert!(state.settings.is_none());
+	assert_eq!(state.config.depth, 12);
+	assert!(!state.scanning, "nothing that a scan reads changed");
+}

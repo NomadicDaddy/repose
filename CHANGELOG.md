@@ -10,11 +10,14 @@ All notable changes to repose are recorded here. The format follows
 
 - Settings, beside Refresh in the repository list, edits the roots, the folder names to skip,
   the scan depth, the theme and the editor and terminal commands without opening config.toml.
-  A root that does not exist, a name with a slash, or a command that is not a program name or
-  absolute path is marked under its box, and Save waits until each is fixed. Save rewrites only
-  the settings that changed, keeping comments, pins and any key repose does not know, then
-  applies them at once: the theme switches and new roots are scanned without a restart. Cancel
-  or Escape drops the edits; a click outside the screen does nothing.
+  A newly added root that does not exist, a name with a slash, or a command that is not a
+  program name or absolute path is marked under its box, and Save waits until each is fixed. A
+  root already in the config that is missing now (an unplugged drive) is only noted and kept.
+  Save also waits while a New box holds text that was never added. Save rewrites only the
+  settings that changed, keeping the other lines and their comments, pins and any key repose
+  does not know, then applies them at once: the theme switches and new roots are scanned
+  without a restart. A depth outside 1 to 8 that the file already held is kept unless changed.
+  Cancel or Escape drops the edits; a click outside the screen does nothing.
 
 ### Fixed
 

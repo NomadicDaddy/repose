@@ -99,7 +99,7 @@ pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
 pub use msg::{Msg, PendingDiscard, View};
 pub use remote::Remote;
-pub use settings::{MAX_DEPTH, SettingsDraft};
+pub use settings::{MAX_DEPTH, Mark, SettingsDraft};
 pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
 /// How often every status is re-read even when the watcher reported nothing.
