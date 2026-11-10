@@ -67,7 +67,9 @@ foreach ($scope in @('global', 'system')) {
     $config = [System.Text.Encoding]::UTF8.GetBytes((@(git config "--$scope" --includes --list 2>$null) -join "`n"))
     $gitFacts += "git $scope config $([System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($config)))"
 }
-CachedStep 'cargo test' $rustInputs ($rustFacts + $gitFacts) { cargo test --workspace }
+# --no-fail-fast: every test binary runs even after one fails, so a failing gate names every
+# failure at once, not only the first binary's (Morticia 5Q-1 on 5f7927c). The step still fails.
+CachedStep 'cargo test' $rustInputs ($rustFacts + $gitFacts) { cargo test --workspace --no-fail-fast }
 # Advisories (quality-gate clause 8, Phillip Yes #31026): cargo-audit is installed per user with
 # `cargo install cargo-audit`. scripts/audit.ps1 runs plain cargo audit (fetch and scan), falls
 # back to the database on disk only when the fetch itself failed, says how old that database is,

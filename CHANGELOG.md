@@ -12,6 +12,10 @@ All notable changes to repose are recorded here. The format follows
   it. On the CI runner, where none of the default roots exist, every case carried "6 roots not
   found" and wrapped, so the first push gate on 1.2.0 failed (run 42903300911) while the gate on
   the development machine passed. The app itself is unchanged.
+- The gate runs every test binary even after one fails (`cargo test --workspace
+  --no-fail-fast`), so a red gate names every failing test at once; the step still fails. The
+  cancel test now says why when a commit ends before its hook's child appears, instead of
+  waiting out its 20 seconds, after the second CI run (42907194932) failed there with no reason.
 
 ## [1.2.0] - 2026-11-08
 

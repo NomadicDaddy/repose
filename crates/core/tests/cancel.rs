@@ -54,9 +54,15 @@ fn cancelled_commit(repo_dir: &Path, marker: &str) -> (Result<Committed, GitErro
 	};
 	let started = Instant::now();
 	while processes_with(marker).is_empty() {
+		// A commit that ended before its hook's child showed (git refused it, or the hook never
+		// ran) says why, instead of waiting out the clock (CI run 42907194932 gave no reason).
+		if worker.is_finished() {
+			let result = worker.join().expect("worker thread");
+			panic!("the commit ended before the hook's child appeared: {result:?}");
+		}
 		assert!(
 			started.elapsed() < Duration::from_secs(20),
-			"the hook's child never appeared"
+			"the hook's child never appeared within 20 s and the commit is still running"
 		);
 		std::thread::sleep(Duration::from_millis(250));
 	}
