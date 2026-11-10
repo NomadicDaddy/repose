@@ -1,13 +1,13 @@
 //! The settings screen's save (settings-screen clause 3): the roots, excludes, depth, theme and
 //! commands written back into config.toml in place. Only a key whose value changed is rewritten,
-//! so every other key, every comment and the layout of the keys left alone stay as they were;
-//! `pinned_repositories` and any key repose does not know are never touched. Nothing here runs
-//! git.
+//! and it keeps the spacing and the comment on its own line; every other key, comment and line
+//! stays as it was. `pinned_repositories` and any key repose does not know are never touched.
+//! Nothing here runs git.
 
 use std::fs;
 use std::path::Path;
 
-use toml_edit::{DocumentMut, Item, Table, value};
+use toml_edit::{DocumentMut, Item, Table, Value};
 
 use crate::config::{self, Config, ConfigError, Theme};
 use crate::pins::path_array;
@@ -23,28 +23,39 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 		.parse()
 		.map_err(|e: toml_edit::TomlError| ConfigError::Edit(path.to_path_buf(), e.to_string()))?;
 	if next.roots != before.roots {
-		doc["roots"] = value(path_array(&next.roots));
+		set(&mut doc, "roots", path_array(&next.roots).into());
 	}
 	if next.exclude != before.exclude {
 		let names: toml_edit::Array = next.exclude.iter().map(String::as_str).collect();
-		doc["exclude"] = value(names);
+		set(&mut doc, "exclude", names.into());
 	}
 	if next.depth != before.depth {
-		doc["depth"] = value(i64::from(next.depth));
+		set(&mut doc, "depth", i64::from(next.depth).into());
 	}
 	if next.theme != before.theme {
-		doc["theme"] = value(theme_name(next.theme));
+		set(&mut doc, "theme", theme_name(next.theme).into());
 	}
 	if next.commands != before.commands {
 		let commands = commands_table(&mut doc, path)?;
 		if next.commands.editor != before.commands.editor {
-			commands["editor"] = value(next.commands.editor.as_str());
+			set(commands, "editor", next.commands.editor.as_str().into());
 		}
 		if next.commands.terminal != before.commands.terminal {
-			commands["terminal"] = value(next.commands.terminal.as_str());
+			set(commands, "terminal", next.commands.terminal.as_str().into());
 		}
 	}
 	config::replace(path, &doc.to_string())
+}
+
+/// Sets `key` in `table` to `new`. When the key already holds a value, that value's decoration
+/// (the spacing around it and a comment after it on the same line) is kept, so a changed line
+/// keeps its comment (Roger S1, Morticia 5Q-4 on 25e8094).
+fn set(table: &mut Table, key: &str, mut new: Value) {
+	if let Some(old) = table.get(key).and_then(Item::as_value) {
+		*new.decor_mut() = old.decor().clone();
+	}
+	// Through the index, not `insert`: the existing key, with the comment lines above it, stays.
+	table[key] = Item::Value(new);
 }
 
 /// The value config.toml spells a theme with, as serde reads it back.

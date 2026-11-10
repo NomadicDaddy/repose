@@ -19,7 +19,7 @@ future_key = "kept"   # a key this version does not know
 [commands]
 # The editor I use.
 editor = "code"
-terminal = "wt"
+terminal = "wt"  # Windows Terminal
 "#;
 
 fn scratch(name: &str, text: &str) -> PathBuf {
@@ -67,6 +67,18 @@ fn a_save_rewrites_only_the_keys_that_changed() {
 		"the pins are untouched"
 	);
 	assert!(text.contains("future_key = \"kept\""), "{text}");
+	// A changed key keeps its own line's comment and spacing (Roger S1, Morticia 5Q-4).
+	let line = |key: &str| {
+		text.lines()
+			.find(|l| l.starts_with(key))
+			.unwrap_or_default()
+			.to_string()
+	};
+	assert_eq!(
+		line("roots"),
+		r"roots = ['D:\applications', 'E:\work', 'F:\more']   # two drives"
+	);
+	assert_eq!(line("terminal"), r#"terminal = "pwsh"  # Windows Terminal"#);
 }
 
 #[test]
