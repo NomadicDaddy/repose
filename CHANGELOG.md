@@ -4,6 +4,15 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Development
+
+- The status-line width test no longer depends on which folders exist on the machine running
+  it. On the CI runner, where none of the default roots exist, every case carried "6 roots not
+  found" and wrapped, so the first push gate on 1.2.0 failed (run 42903300911) while the gate on
+  the development machine passed. The app itself is unchanged.
+
 ## [1.2.0] - 2026-11-08
 
 ### Added

@@ -148,9 +148,13 @@ fn status_rows(total: usize, fetched: usize, matching: usize, missing: bool) -> 
 		state.filter = "match".to_string();
 		state.filter_changed();
 	}
-	if missing {
-		state.missing_roots = vec![PathBuf::from("D:/a/root/that/is/not/there/any/more")];
-	}
+	// Set either way: AppState::new reads the default roots from this machine's disk, and on a
+	// machine without them (the CI runner) every case would carry "6 roots not found" and wrap.
+	state.missing_roots = if missing {
+		vec![PathBuf::from("D:/a/root/that/is/not/there/any/more")]
+	} else {
+		Vec::new()
+	};
 	let shapes = frame(&ctx, &mut state, Vec::new());
 	shapes
 		.iter()
