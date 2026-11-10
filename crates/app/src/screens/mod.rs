@@ -18,6 +18,7 @@ pub mod history;
 mod menu;
 pub mod repo_list;
 mod row;
+mod settings;
 mod status_line;
 
 use repose_core::model::ChangeKind;

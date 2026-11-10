@@ -6,6 +6,16 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Settings, beside Refresh in the repository list, edits the roots, the folder names to skip,
+  the scan depth, the theme and the editor and terminal commands without opening config.toml.
+  A root that does not exist, a name with a slash, or a command that is not a program name or
+  absolute path is marked under its box, and Save waits until each is fixed. Save rewrites only
+  the settings that changed, keeping comments, pins and any key repose does not know, then
+  applies them at once: the theme switches and new roots are scanned without a restart. Cancel
+  or Escape drops the edits; a click outside the screen does nothing.
+
 ### Fixed
 
 - A worktree is listed under its repository when the root is written another way than git

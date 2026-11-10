@@ -7,7 +7,7 @@ use repose_core::git::remote::{display_url, https_page};
 
 use super::{
 	a11y, branches, changes, close_guard, commit_box, confirm, diff, fetch, file_view, files,
-	history,
+	history, settings,
 };
 use crate::platform::Platform;
 use crate::state::{AppState, Remote, View};
@@ -260,6 +260,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			ui.data_mut(|d| d.insert_temp(offset_key(), scrolled.state.clamped_offset().y));
 		});
 	confirm::show(&ctx, state);
+	settings::show(&ctx, state);
 	close_guard::show(&ctx, state);
 }
 

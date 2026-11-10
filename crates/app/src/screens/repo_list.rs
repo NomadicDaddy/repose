@@ -50,6 +50,9 @@ fn header(ui: &mut Ui, state: &mut AppState) {
 				.strong(),
 		);
 		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+			if ui.button("Settings").clicked() {
+				state.open_settings();
+			}
 			let refresh = ui.add_enabled(!state.scanning, egui::Button::new("Refresh"));
 			if refresh.clicked() {
 				let ctx = ui.ctx().clone();
@@ -218,9 +221,10 @@ fn row_events(
 }
 
 fn keyboard(ctx: &egui::Context, state: &mut AppState, platform: &dyn Platform) {
-	// The discard modal blocks pointer input and focus, not raw key reads, so while it stands no
-	// key may move the selection, open Explorer or a row menu behind it (Morticia Low on a2e978f).
-	if state.pending_discard.is_some() {
+	// A modal (discard, settings) blocks pointer input and focus, not raw key reads, so while one
+	// stands no key may move the selection, open Explorer or a row menu behind it (Morticia Low
+	// on a2e978f).
+	if state.pending_discard.is_some() || state.settings.is_some() {
 		return;
 	}
 	let typing = ctx.memory(|m| m.focused().is_some());

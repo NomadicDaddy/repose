@@ -34,25 +34,23 @@ pub fn unpinned(pins: &[PathBuf], path: &Path) -> Vec<PathBuf> {
 }
 
 /// Writes `pins` as `pinned_repositories` in the config file at `path`, changing nothing else in
-/// it. The new text goes to a sibling file first and then replaces the config in one rename, so a
-/// failed write leaves the old file whole; the error names the file.
+/// it. The file is replaced in one rename (`config::replace`), so a failed write leaves the old
+/// file whole; the error names the file.
 pub fn save(path: &Path, pins: &[PathBuf]) -> Result<(), ConfigError> {
 	let text = fs::read_to_string(path).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
-	let write = |e| ConfigError::Write(path.to_path_buf(), e);
 	let mut doc: toml_edit::DocumentMut = text
 		.parse()
 		.map_err(|e: toml_edit::TomlError| ConfigError::Edit(path.to_path_buf(), e.to_string()))?;
-	let mut list = toml_edit::Array::new();
-	for pin in pins {
-		list.push(pin.to_string_lossy().as_ref());
-	}
-	doc["pinned_repositories"] = toml_edit::value(list);
-	let staged = path.with_extension("toml.saving");
-	fs::write(&staged, doc.to_string()).map_err(write)?;
-	fs::rename(&staged, path).map_err(|e| {
-		let _ = fs::remove_file(&staged);
-		write(e)
-	})
+	doc["pinned_repositories"] = toml_edit::value(path_array(pins));
+	crate::config::replace(path, &doc.to_string())
+}
+
+/// `paths` as a TOML array of strings, as config.toml writes paths.
+pub(crate) fn path_array(paths: &[PathBuf]) -> toml_edit::Array {
+	paths
+		.iter()
+		.map(|p| p.to_string_lossy().into_owned())
+		.collect()
 }
 
 #[cfg(test)]

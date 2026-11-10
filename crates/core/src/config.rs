@@ -132,13 +132,32 @@ pub fn load_or_create(path: &Path) -> Result<Config, ConfigError> {
 /// one unplugged drive should not keep the other roots from showing.
 pub fn validate(config: &Config) -> Result<(), ConfigError> {
 	for command in [&config.commands.editor, &config.commands.terminal] {
-		let plain = !command.contains([' ', '"', '\'', '|', '&', ';']);
-		let shape = Path::new(command).is_absolute() || !command.contains(['/', '\\']);
-		if command.is_empty() || !plain || !shape {
+		if !command_ok(command) {
 			return Err(ConfigError::BadCommand(command.clone()));
 		}
 	}
 	Ok(())
+}
+
+/// Whether `command` is a program name or an absolute path, with nothing a shell would read:
+/// the rule the load enforces and the settings screen marks inline (settings-screen clause 2).
+pub fn command_ok(command: &str) -> bool {
+	let plain = !command.contains([' ', '"', '\'', '|', '&', ';']);
+	let shape = Path::new(command).is_absolute() || !command.contains(['/', '\\']);
+	!command.is_empty() && plain && shape
+}
+
+/// Replaces the config file at `path` with `text`: the text goes to a sibling file first and then
+/// over the config in one rename, so a failed write leaves the old file whole. The error names the
+/// file. Pin saves and settings saves both write this way.
+pub(crate) fn replace(path: &Path, text: &str) -> Result<(), ConfigError> {
+	let write = |e| ConfigError::Write(path.to_path_buf(), e);
+	let staged = path.with_extension("toml.saving");
+	fs::write(&staged, text).map_err(write)?;
+	fs::rename(&staged, path).map_err(|e| {
+		let _ = fs::remove_file(&staged);
+		write(e)
+	})
 }
 
 /// Whether a folder name is on the config's exclude list. Windows names folders without regard

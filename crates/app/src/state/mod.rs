@@ -20,6 +20,7 @@ mod scan;
 mod select;
 #[cfg(test)]
 mod selection_tests;
+mod settings;
 #[cfg(test)]
 mod ui_a11y_tests;
 #[cfg(test)]
@@ -75,6 +76,8 @@ mod ui_row_clip_tests;
 #[cfg(test)]
 mod ui_row_focus_tests;
 #[cfg(test)]
+mod ui_settings_tests;
+#[cfg(test)]
 mod ui_tests;
 #[cfg(test)]
 mod ui_theme_tests;
@@ -96,6 +99,7 @@ pub use history::{HistoryMsg, HistoryState};
 pub use merge::find;
 pub use msg::{Msg, PendingDiscard, View};
 pub use remote::Remote;
+pub use settings::{MAX_DEPTH, SettingsDraft};
 pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
 /// How often every status is re-read even when the watcher reported nothing.
@@ -108,21 +112,18 @@ pub struct AppState {
 	pub repos: Vec<RepoSummary>,
 	pub selected: Option<PathBuf>,
 	pub selected_file: Option<String>,
-	/// The selection just moved by something other than a click on its row (a keyboard move, a
-	/// start-up or command-line selection, a vanished repository), so the list scrolls the
-	/// selected row into view once and then clears this. Never every frame: that would fight
-	/// the wheel (Morticia L-2 on 4b39403).
+	/// The selection moved other than by a click on its row (a key, a start-up or command-line
+	/// selection, a vanished repository): the list scrolls it into view once and clears this,
+	/// never every frame, which would fight the wheel (Morticia L-2 on 4b39403).
 	pub reveal_selected: bool,
-	/// A repository the user opened (true) or closed (false) by its chevron. A repository with
-	/// no entry is left to the filter: open to the worktrees whose names match while a filter is
-	/// typed, closed otherwise. An entry overrides the filter either way, so a click always
-	/// changes the rows (Morticia L-6 on 4dc97d1).
+	/// A repository opened (true) or closed (false) by its chevron. With no entry the filter
+	/// decides: open to matching worktrees while one is typed, closed otherwise. An entry
+	/// overrides the filter, so a click always changes the rows (Morticia L-6 on 4dc97d1).
 	pub expanded: HashMap<PathBuf, bool>,
 	pub filter: String,
 	pub focus_filter: bool,
-	/// Letters typed with the list focused (Phillip #31623): the prefix so far and when its last
-	/// letter arrived. It selects the first visible row whose name starts with it and starts over
-	/// after a second's pause.
+	/// Letters typed with the list focused (Phillip #31623) and when the last arrived: selects the
+	/// first visible row whose name starts with them, starting over after a second's pause.
 	pub type_ahead: String,
 	pub type_ahead_at: Option<std::time::Instant>,
 	/// A text box (the Find box, a commit message) had focus on the last frame, so typed letters
@@ -150,6 +151,8 @@ pub struct AppState {
 	pub close_prompt: Option<Vec<String>>,
 	/// The user chose to close without committing; the next close request goes through.
 	pub close_confirmed: bool,
+	/// The settings screen's draft while it is open (settings-screen).
+	pub settings: Option<SettingsDraft>,
 	pub writes: WriteQueue,
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
@@ -218,6 +221,7 @@ impl AppState {
 			fetched: HashMap::new(),
 			close_prompt: None,
 			close_confirmed: false,
+			settings: None,
 			writes: WriteQueue::default(),
 			pending_discard: None,
 			view: View::Changes,
@@ -242,11 +246,10 @@ impl AppState {
 		}
 	}
 
-	/// Whether the discard confirmation or the close question stands. A Modal blocks pointer
-	/// input and focus behind it, not raw key reads, so a key the dialog answers (Escape) must
-	/// not also act on the pane behind it.
+	/// Whether the discard question, the close question or settings stands. A Modal blocks pointer
+	/// and focus behind it, not raw keys, so a key it answers (Escape) must not act behind it.
 	pub fn modal_open(&self) -> bool {
-		self.pending_discard.is_some() || self.close_prompt.is_some()
+		self.pending_discard.is_some() || self.close_prompt.is_some() || self.settings.is_some()
 	}
 
 	/// Walks the roots on a thread, then reads every status through a pool of eight workers.
