@@ -15,7 +15,9 @@ All notable changes to repose are recorded here. The format follows
   root already in the config that is missing now (an unplugged drive) is only noted and kept.
   Save also waits while a New box holds text that was never added. Save rewrites only the
   settings that changed, keeping the other lines and their comments, pins and any key repose
-  does not know, then applies them at once: the theme switches and new roots are scanned
+  does not know. A changed setting keeps the comment lines above it, but its value is written
+  fresh: a comment after the old value on the same line is dropped, and a changed list is
+  written on one line. The changes then apply at once: the theme switches and new roots are scanned
   without a restart. A depth outside 1 to 8 that the file already held is kept unless changed.
   Cancel or Escape drops the edits; a click outside the screen does nothing.
 

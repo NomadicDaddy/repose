@@ -67,7 +67,8 @@ fn a_save_rewrites_only_the_keys_that_changed() {
 		"the pins are untouched"
 	);
 	assert!(text.contains("future_key = \"kept\""), "{text}");
-	// A changed key keeps its own line's comment and spacing (Roger S1, Morticia 5Q-4).
+	// A changed key keeps the comment lines above it, which the line comparison above covers, but
+	// not the same-line comment written about its old value (Roger and Morticia on c77a5be).
 	let line = |key: &str| {
 		text.lines()
 			.find(|l| l.starts_with(key))
@@ -76,9 +77,30 @@ fn a_save_rewrites_only_the_keys_that_changed() {
 	};
 	assert_eq!(
 		line("roots"),
-		r"roots = ['D:\applications', 'E:\work', 'F:\more']   # two drives"
+		r"roots = ['D:\applications', 'E:\work', 'F:\more']"
 	);
-	assert_eq!(line("terminal"), r#"terminal = "pwsh"  # Windows Terminal"#);
+	assert_eq!(line("terminal"), r#"terminal = "pwsh""#);
+}
+
+/// The shape `load_or_create` writes, one root per line (Morticia 5Q-5 on c77a5be).
+const MULTI_LINE: &str = r#"# Roots.
+roots = [
+    'D:\applications',  # work
+    'E:\games',
+]
+depth = 2
+"#;
+
+#[test]
+fn a_changed_list_is_written_on_one_line() {
+	let path = scratch("multi-line", MULTI_LINE);
+	let before = config::load_or_create(&path).expect("load");
+	let mut next = before.clone();
+	next.roots.pop();
+	settings::save(&path, &before, &next).expect("save");
+	let text = fs::read_to_string(&path).expect("read back");
+	assert_eq!(text, "# Roots.\nroots = ['D:\\applications']\ndepth = 2\n");
+	assert_eq!(config::load_or_create(&path).expect("reload"), next);
 }
 
 #[test]

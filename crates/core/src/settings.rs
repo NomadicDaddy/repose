@@ -1,7 +1,8 @@
 //! The settings screen's save (settings-screen clause 3): the roots, excludes, depth, theme and
-//! commands written back into config.toml in place. Only a key whose value changed is rewritten,
-//! and it keeps the spacing and the comment on its own line; every other key, comment and line
-//! stays as it was. `pinned_repositories` and any key repose does not know are never touched.
+//! commands written back into config.toml in place. Only a key whose value changed is rewritten:
+//! it keeps the comment lines above it, but its value is written fresh, so a comment after the
+//! old value on the same line is dropped (it described that value) and a changed list is written
+//! on one line. Every other key, comment and line stays as it was. `pinned_repositories` and any key repose does not know are never touched.
 //! Nothing here runs git.
 
 use std::fs;
@@ -47,14 +48,10 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 	config::replace(path, &doc.to_string())
 }
 
-/// Sets `key` in `table` to `new`. When the key already holds a value, that value's decoration
-/// (the spacing around it and a comment after it on the same line) is kept, so a changed line
-/// keeps its comment (Roger S1, Morticia 5Q-4 on 25e8094).
-fn set(table: &mut Table, key: &str, mut new: Value) {
-	if let Some(old) = table.get(key).and_then(Item::as_value) {
-		*new.decor_mut() = old.decor().clone();
-	}
-	// Through the index, not `insert`: the existing key, with the comment lines above it, stays.
+/// Sets `key` in `table` to `new`, through the index rather than `insert`, so an existing key
+/// keeps the comment lines above it. The old value's same-line comment is not carried over: it
+/// was written about the old value, and the screen cannot edit it (Roger and Morticia on c77a5be).
+fn set(table: &mut Table, key: &str, new: Value) {
 	table[key] = Item::Value(new);
 }
 
