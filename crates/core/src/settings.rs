@@ -2,8 +2,8 @@
 //! commands written back into config.toml in place. Only a key whose value changed is rewritten:
 //! it keeps the comment lines above it, but its value is written fresh, so a comment after the
 //! old value on the same line is dropped (it described that value) and a changed list is written
-//! on one line. Every other key, comment and line stays as it was. `pinned_repositories` and any key repose does not know are never touched.
-//! Nothing here runs git.
+//! on one line. Every other key, comment and line stays as it was. `pinned_repositories` and any
+//! key repose does not know are never touched. Nothing here runs git.
 
 use std::fs;
 use std::path::Path;
