@@ -237,7 +237,15 @@ fn list(
 /// A command's box with its label and problem line.
 fn command(ui: &mut Ui, label: &str, text: &mut String) {
 	ui.horizontal(|ui| {
-		let name = ui.add_sized([70.0, 20.0], egui::Label::new(label));
+		// A fixed-width, left-aligned label column, so Editor and Terminal line up (add_sized
+		// centres a shorter label; Morticia on the 0798387 frames, #41100).
+		let column = egui::Layout::left_to_right(egui::Align::Center);
+		let name = ui
+			.allocate_ui_with_layout(egui::vec2(70.0, 20.0), column, |ui| {
+				ui.set_min_width(70.0);
+				ui.label(label)
+			})
+			.inner;
 		let edit = egui::TextEdit::singleline(text)
 			.desired_width(460.0)
 			.font(egui::TextStyle::Monospace);
