@@ -4,7 +4,7 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-11-11
 
 ### Added
 
@@ -55,6 +55,12 @@ All notable changes to repose are recorded here. The format follows
   its setup), and 0.7.3 makes the self-test check the refusal of an unreadable staged file on
   Linux git without depending on the machine's own git settings. repose's gate still runs its
   own `scripts/check-leak-guard.sh`; moving it to the delivered one is later work.
+
+### Known limitations
+
+- Changes, History and Files still lay out every row, not only the rows on screen. At 5,000
+  rows a frame takes 11.5 to 20.9 ms (median), and up to 30 ms in Files, as measured for 1.2.0.
+  Drawing only the visible rows is planned for v2.0.
 
 ## [1.2.0] - 2026-11-08
 
