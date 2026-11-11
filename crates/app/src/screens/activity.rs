@@ -130,10 +130,14 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 				.inner_margin(12.0);
 			let inner = frame.show(col, |ui| {
 				ui.set_min_width(ui.available_width());
-				let number = RichText::new(counts[i].to_string());
-				ui.label(number.size(28.0).color(*colour));
-				ui.label(RichText::new(*label).color(TEXT_BRIGHT).strong());
-				ui.label(RichText::new(*note).size(TEXT_SMALL).color(MUTED));
+				// Left-aligned and unjustified: `columns` hands each column a justified layout, and a
+				// wrapped label there spaces its letters out to the full width (seen at 1440x900).
+				ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+					let number = RichText::new(counts[i].to_string());
+					ui.label(number.size(28.0).color(*colour));
+					ui.label(RichText::new(*label).color(TEXT_BRIGHT).strong());
+					ui.label(RichText::new(*note).size(TEXT_SMALL).color(MUTED));
+				});
 			});
 			let id = col.scope_id().with(("activity-tile", i));
 			let response = col.interact(inner.response.rect, id, Sense::click());

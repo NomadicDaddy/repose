@@ -19,16 +19,24 @@ use crate::state::activity::{DAYS, day_label, step};
 use crate::state::{AppState, View};
 use crate::theme::*;
 
-const NAME_WIDTH: f32 = 230.0;
 const ROW_HEIGHT: f32 = 40.0;
 const HEADER_HEIGHT: f32 = 20.0;
 
 /// A place in the grid: the row, and the day, or None for the row's name.
 type Spot = (usize, Option<usize>);
 
+/// The name column's width for a grid `width` points wide: 30% of it, between 160 and 230 points.
+/// The days share the rest with no floor, so all 30 always fit and today is never cut off (clause
+/// 8; at 1440x900 and 150% scale the pane is about 612 points, which a fixed 230-point column and a
+/// 14-point cell floor overflowed).
+fn name_width(width: f32) -> f32 {
+	(width * 0.3).clamp(160.0, 230.0)
+}
+
 pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i64) {
 	let width = ui.available_width();
-	let cell = ((width - NAME_WIDTH) / DAYS as f32).max(14.0);
+	let name_w = name_width(width);
+	let cell = (width - name_w) / DAYS as f32;
 	let height = HEADER_HEIGHT + ROW_HEIGHT * rows.len().max(1) as f32;
 	let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
 	// One widget, so one Tab stop; its id is kept so focus can be given to it directly.
@@ -39,7 +47,7 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
 	for d in 0..DAYS {
 		let at = pos2(
-			rect.left() + NAME_WIDTH + cell * (d as f32 + 0.5),
+			rect.left() + name_w + cell * (d as f32 + 0.5),
 			rect.top() + 8.0,
 		);
 		let day = day_label(d, today).1.to_string();
@@ -99,10 +107,7 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 	};
 	// A long name or note stops at the name column instead of running under the cells; the row's
 	// tooltip and accessible name carry it whole.
-	let column = Rect::from_min_max(
-		rect.min,
-		pos2(rect.left() + NAME_WIDTH - 4.0, rect.bottom()),
-	);
+	let column = Rect::from_min_max(rect.min, pos2(rect.left() + name_w - 4.0, rect.bottom()));
 	let names = painter.with_clip_rect(column);
 	for (i, r) in rows.iter().enumerate() {
 		let top = rect.top() + HEADER_HEIGHT + ROW_HEIGHT * i as f32;
@@ -131,20 +136,15 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 			status,
 			&font,
 		);
-		badges(
-			&painter,
-			&r.repo,
-			rect.left() + NAME_WIDTH - 8.0,
-			top + 20.0,
-		);
+		badges(&painter, &r.repo, rect.left() + name_w - 8.0, top + 20.0);
 		let name_rect = Rect::from_min_size(
 			pos2(rect.left(), top + 2.0),
-			vec2(NAME_WIDTH - 4.0, ROW_HEIGHT - 4.0),
+			vec2(name_w - 4.0, ROW_HEIGHT - 4.0),
 		);
 		spot(ui, name_rect, (i, None), Role::RowHeader);
 		for d in 0..DAYS {
 			let cell_rect = Rect::from_min_size(
-				pos2(rect.left() + NAME_WIDTH + cell * d as f32 + 2.0, top + 6.0),
+				pos2(rect.left() + name_w + cell * d as f32 + 2.0, top + 6.0),
 				vec2(cell - 4.0, ROW_HEIGHT - 12.0),
 			);
 			let fill = r.counts.map_or(BG_PANEL.get(), |c| step_colour(step(c[d])));
