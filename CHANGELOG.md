@@ -26,6 +26,10 @@ All notable changes to repose are recorded here. The format follows
 - A worktree is listed under its repository when the root is written another way than git
   writes the folder, such as an 8.3 short name or a path through a junction. Before, it got a row
   of its own, and a change to its index refreshed the main repository's row instead of its own.
+- With Lanes on, the current branch's line runs straight down its own lane to the first commit.
+  Before, when a branch forked from an early commit that main later moved on from, main bent into
+  that branch's lane on the way down, so the early commits read as the branch's. Now the branch
+  keeps its own lane and joins main at the commit it forked from.
 
 ### Development
 

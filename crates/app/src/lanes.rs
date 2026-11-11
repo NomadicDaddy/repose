@@ -3,7 +3,9 @@
 //! column waiting for one commit: a commit takes the lane that waits for it (or a free one when
 //! it is a branch tip), and hands the lane on to its first parent; each further parent waits in
 //! a lane of its own, which is where a merge fans out and, further down, where the lanes join
-//! again at the fork. Columns never move, so a straight lane stays straight.
+//! again at the fork. A first parent that a lane further right already waits for still takes
+//! this lane, so the current branch's first-parent line runs straight to the root and the side
+//! lane joins it there. Columns never move, so a straight lane stays straight.
 
 use repose_core::model::Commit;
 
@@ -48,9 +50,12 @@ pub fn layout(commits: &[Commit]) -> Vec<GraphRow> {
 		let mut down = Vec::new();
 		let mut started = Vec::new();
 		for (n, parent) in c.parents.iter().enumerate() {
-			let target = match lanes.iter().position(|l| *l == Some(parent.as_str())) {
-				Some(i) => i,
-				None => {
+			// A first parent waited for only further right still takes this lane, so a
+			// first-parent line never bends into a side lane (lanes-first-parent-keeps-its-lane).
+			let waiting = lanes.iter().position(|l| *l == Some(parent.as_str()));
+			let target = match waiting {
+				Some(i) if n > 0 || i < node => i,
+				_ => {
 					let i = if n == 0 { node } else { free(&mut lanes) };
 					lanes[i] = Some(parent.as_str());
 					started.push(i);
@@ -171,5 +176,54 @@ mod tests {
 		assert_eq!(rows[1].down, vec![(1, 1), (0, 0)]);
 		assert_eq!(rows[2].node, 0);
 		assert_eq!(rows[3].node, 1, "y keeps its column after x's lane ends");
+	}
+
+	/// lanes-first-parent-keeps-its-lane: the root is tagged v0.1, topic forks from it with t1
+	/// and t2, main gains a, merges topic with --no-ff, then gains n, and an unmerged release
+	/// forks from the merge with r1. The rows are in the order `git log --topo-order` gives.
+	#[test]
+	fn main_runs_straight_to_the_root_and_side_lanes_join_it_once() {
+		let rows = layout(&[
+			commit("n", &["m"]),
+			commit("r1", &["m"]),
+			commit("m", &["a", "t2"]),
+			commit("t2", &["t1"]),
+			commit("t1", &["root"]),
+			commit("a", &["root"]),
+			commit("root", &[]),
+		]);
+		for i in [0, 2, 5, 6] {
+			assert_eq!(rows[i].node, 0, "main's row {i} stays in lane 0");
+		}
+		assert_eq!(
+			rows[6].node, rows[0].node,
+			"the root is in the newest main commit's lane"
+		);
+		assert_eq!(rows[1].node, 1, "release has its own lane");
+		assert_eq!(
+			rows[1].down,
+			vec![(1, 0), (0, 0)],
+			"release joins main once, from r1 down to the merge"
+		);
+		assert_eq!(
+			rows[2].up,
+			vec![(0, 0)],
+			"so only main's lane reaches the merge"
+		);
+		assert_eq!(
+			(rows[3].node, rows[4].node),
+			(1, 1),
+			"topic has its own lane"
+		);
+		assert_eq!(
+			rows[5].down,
+			vec![(0, 0), (1, 1)],
+			"a goes straight down beside topic"
+		);
+		assert_eq!(
+			rows[6].up,
+			vec![(0, 0), (1, 0)],
+			"topic joins main once, at the root"
+		);
 	}
 }
