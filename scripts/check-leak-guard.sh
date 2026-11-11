@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Self-test of the delivered leak guard (scripts/smokestack/hooks/leak-guard.sh), run by
 # scripts/qc.ps1 on every gate (audit-secret-handling-retention-1794018053). repose owns this
-# file: smokestack's own check-leak-guard.sh is delivered only to repositories with a
-# package.json, which repose has not (Alice #40228). Change the guard in smokestack, not here.
+# file. Since smokestack 0.7.2, smokestack's own self-test is delivered here too, as
+# scripts/smokestack/check-leak-guard.sh; moving qc.ps1 to it and retiring this copy is later
+# work (Roger #40985, Morticia #40988). Change the guard in smokestack, not here.
 #
 # The guard runs in a scratch git repository under the temp folder, against content staged there.
 # Every leaky fixture is assembled at run time, so this file never holds a string the guard would
