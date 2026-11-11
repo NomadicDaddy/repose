@@ -52,11 +52,12 @@ const TILES: [TileSpec; 4] = [
 ];
 
 /// One grid row: a repository and its commits per day, or None while its read is pending or
-/// failed.
+/// failed; `truncated` when the read stopped at its bound, so the counts may be low.
 pub(super) struct GridRow {
 	pub(super) repo: RepoSummary,
 	pub(super) counts: Option<[u32; DAYS]>,
 	pub(super) failed: bool,
+	pub(super) truncated: bool,
 }
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
@@ -162,12 +163,14 @@ fn rows(state: &AppState, now: i64, today: i64) -> (Vec<GridRow>, Vec<GridRow>) 
 				_ => (None, None),
 			};
 			let failed = matches!(read, Some(ActivityRead::Failed(_)));
+			let truncated = matches!(read, Some(ActivityRead::Read(a)) if a.truncated);
 			(
 				newest,
 				GridRow {
 					repo: r.clone(),
 					counts,
 					failed,
+					truncated,
 				},
 			)
 		})

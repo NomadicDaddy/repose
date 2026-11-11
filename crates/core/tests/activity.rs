@@ -5,7 +5,7 @@ mod support;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use repose_core::git::activity::read_activity;
+use repose_core::git::activity::{MAX_WALK, read_activity};
 use support::TempRepo;
 
 fn now() -> i64 {
@@ -21,6 +21,41 @@ fn a_repository_with_no_commit_reads_as_empty() {
 	let activity = read_activity(&repo.path, 0).unwrap_or_else(|e| panic!("{e}"));
 	assert!(activity.commits.is_empty());
 	assert_eq!(activity.newest, None);
+	assert!(!activity.truncated);
+}
+
+/// Roger 5Q-1 and Morticia on 4431bdb: a walk that reaches `MAX_WALK` says so, so the screen can
+/// show the count as cut rather than complete; one commit fewer reads as complete.
+#[test]
+fn a_walk_that_reaches_the_bound_says_it_was_truncated() {
+	let repo = TempRepo::new("activity-truncated");
+	let t = now();
+	let mut stream = String::new();
+	for i in 1..=MAX_WALK + 1 {
+		let parent = if i > 1 {
+			format!("from :{}\n", i - 1)
+		} else {
+			String::new()
+		};
+		let time = t - (MAX_WALK + 1 - i) as i64;
+		stream.push_str(&format!(
+			"commit refs/heads/main\nmark :{i}\ncommitter T <t@example.invalid> {time} +0000\ndata 0\n{parent}\n"
+		));
+	}
+	repo.git_with_input(&["fast-import", "--quiet"], &stream);
+	let activity = read_activity(&repo.path, 0).unwrap_or_else(|e| panic!("{e}"));
+	assert!(
+		activity.truncated,
+		"{} of {} commits",
+		activity.commits.len(),
+		MAX_WALK + 1
+	);
+	assert_eq!(activity.commits.len(), MAX_WALK);
+
+	repo.git(&["update-ref", "refs/heads/main", "refs/heads/main~2"]);
+	let activity = read_activity(&repo.path, 0).unwrap_or_else(|e| panic!("{e}"));
+	assert_eq!(activity.commits.len(), MAX_WALK - 1);
+	assert!(!activity.truncated, "below the bound the count is complete");
 }
 
 #[test]

@@ -8,6 +8,7 @@
 use eframe::egui::{
 	self, FontFamily, FontId, Key, Rect, RichText, Role, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
 };
+use repose_core::git::activity::MAX_WALK;
 use repose_core::model::RepoSummary;
 
 use super::activity::GridRow;
@@ -75,6 +76,10 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 	let fr = fr.min(rows.len() - 1);
 	let describe = |(i, d): Spot| match d {
 		Some(d) => describe_cell(&rows[i], &day_label(d, today).0, d),
+		None if rows[i].truncated => {
+			let name = a11y::repo_name(&rows[i].repo);
+			format!("{name}, {}, open History", truncated_note())
+		}
 		None => format!("{}, open History", a11y::repo_name(&rows[i].repo)),
 	};
 	let pointer = response.hover_pos();
@@ -103,6 +108,8 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 		);
 		let note = if r.failed {
 			"could not read".to_string()
+		} else if r.truncated {
+			truncated_note()
 		} else {
 			r.repo.branch_line()
 		};
@@ -148,12 +155,19 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 	}
 }
 
-/// A cell's tooltip and accessible name: "ledger-api, Tue 4 Nov, 6 commits".
+/// Why a row's counts may be low: its read stopped at the walk's bound (Roger 5Q-1 on 4431bdb).
+fn truncated_note() -> String {
+	format!("newest {MAX_WALK} commits only")
+}
+
+/// A cell's tooltip and accessible name: "ledger-api, Tue 4 Nov, 6 commits", or "at least 6
+/// commits" on a row whose read was cut short, since the true count can only be higher.
 fn describe_cell(r: &GridRow, when: &str, d: usize) -> String {
 	match r.counts {
 		Some(c) => {
 			let commits = count_label(c[d] as usize, "commit", "commits");
-			format!("{}, {when}, {commits}", r.repo.name)
+			let floor = if r.truncated { "at least " } else { "" };
+			format!("{}, {when}, {floor}{commits}", r.repo.name)
 		}
 		None if r.failed => format!("{}, could not read", r.repo.name),
 		None => format!("{}, reading", r.repo.name),

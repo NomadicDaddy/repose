@@ -6,7 +6,9 @@
 //! The cutoff is applied here, not with `git log --since`: git stops walking at the first commit
 //! older than `--since`, so a newer commit behind an older-dated one (a rebase that kept author
 //! dates, `git am`, a wrong clock) would be missed (Morticia L-1, Roger 5Q-1 on 87ae908). The walk
-//! is bounded by `MAX_WALK` commits instead, newest first.
+//! is bounded by `MAX_WALK` commits instead, newest first, and a read that reaches the bound says
+//! so (`truncated`), so the screen never shows a cut count as complete (Roger 5Q-1, Morticia on
+//! 4431bdb).
 //!
 //! Each commit's local date comes from git's `format-local`, which converts it with the zone rule
 //! in force at that instant, so a commit from before a daylight-saving change lands on its own
@@ -17,9 +19,8 @@ use std::path::Path;
 
 use super::commands::{GitError, Verb, run};
 
-/// The most commits one read walks. Far more than any repository makes in the grid's days, and it
-/// keeps a read of a very long history short.
-const MAX_WALK: usize = 20_000;
+/// The most commits one read walks, which keeps a read of a very long history short.
+pub const MAX_WALK: usize = 20_000;
 
 /// One commit: its committer time (seconds since the Unix epoch) and its local date, as days since
 /// 1970-01-01.
@@ -29,12 +30,14 @@ pub struct CommitDay {
 	pub local_day: i64,
 }
 
-/// A repository's commit activity: the commits at or after the cutoff, each once, and the newest
-/// commit time on any branch, which may be older.
+/// A repository's commit activity: the commits at or after the cutoff, each once, the newest
+/// commit time on any branch, which may be older, and whether the walk stopped at `MAX_WALK`, when
+/// older commits in the cutoff's days may be missing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Activity {
 	pub commits: Vec<CommitDay>,
 	pub newest: Option<i64>,
+	pub truncated: bool,
 }
 
 /// Reads `repo`'s activity since `since` (seconds since the Unix epoch).
@@ -50,6 +53,7 @@ pub fn read_activity(repo: &Path, since: i64) -> Result<Activity, GitError> {
 	];
 	let walked = parse_commits(&run(repo, Verb::Log, &args)?);
 	Ok(Activity {
+		truncated: walked.len() >= MAX_WALK,
 		newest: walked.iter().map(|c| c.time).max(),
 		commits: walked.into_iter().filter(|c| c.time >= since).collect(),
 	})

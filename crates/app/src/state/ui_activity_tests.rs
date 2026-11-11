@@ -45,7 +45,11 @@ pub(super) fn read_as(state: &mut AppState, name: &str, count: usize, days_ago: 
 	};
 	let commits = vec![commit; count];
 	let newest = commits.first().map(|c| c.time);
-	let read = ActivityRead::Read(Activity { commits, newest });
+	let read = ActivityRead::Read(Activity {
+		commits,
+		newest,
+		truncated: false,
+	});
 	state.activity.reads.insert(path_of(state, name), read);
 }
 

@@ -1,12 +1,14 @@
 //! The Activity grid (activity-screen clauses 4, 6, 7 and 9), driven through the real frame and
 //! read back from the AccessKit tree: rows newest first, every row name and cell a named node, the
 //! quiet repositories opened into the grid by the closing row or by the Quiet tile, Enter on a row
-//! name and a click on a cell opening History, and the five colour steps as painted.
+//! name and a click on a cell opening History, the five colour steps as painted, and a read cut
+//! at its bound shown as such.
 
 use eframe::egui::epaint::{ClippedShape, Shape};
 use eframe::egui::{self, Color32, Pos2, Role};
+use repose_core::git::activity::MAX_WALK;
 
-use super::activity::{DAYS, Tile, day_label, local_today, now_secs};
+use super::activity::{ActivityRead, DAYS, Tile, day_label, local_today, now_secs};
 use super::ui_a11y_tests::{A11yNode, a11y_frame, find};
 use super::ui_activity_tests::{fleet, path_of, read_as, with_reads};
 use super::ui_frame::{run, screen_input};
@@ -173,4 +175,28 @@ fn cells_are_painted_in_their_colour_steps() {
 	assert_eq!(fills(&shapes, step(0.5)), 2, "b's day and the legend");
 	assert_eq!(fills(&shapes, step(0.25)), 1, "the legend alone");
 	assert_eq!(fills(&shapes, step(0.75)), 1, "the legend alone");
+}
+
+/// Roger 5Q-1 and Morticia on 4431bdb: a read that stopped at the walk's bound says so on its row,
+/// in paint and in its row name, and its cells read as a floor, never as a complete count.
+#[test]
+fn a_truncated_read_is_shown_as_a_floor() {
+	let ctx = egui::Context::default();
+	let mut state = shown_fleet();
+	if let Some(ActivityRead::Read(a)) = state.activity.reads.get_mut(&path_of(&state, "a")) {
+		a.truncated = true;
+	}
+	let note = format!("newest {MAX_WALK} commits only");
+	let painted = texts(&frame(&ctx, &mut state, Vec::new()));
+	assert!(painted.contains(&note), "{painted:?}");
+	let nodes = a11y_frame(&ctx, &mut state);
+	let today = day_label(DAYS - 1, local_today(now_secs(), 0)).0;
+	find(
+		&nodes,
+		Role::Cell,
+		&format!("a, {today}, at least 1 commit"),
+	);
+	find(&nodes, Role::Cell, &format!("b, {today}, 0 commits"));
+	let header = find(&nodes, Role::RowHeader, "a, ");
+	assert!(header.name.contains(&note), "{header:?}");
 }
