@@ -5,10 +5,11 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use eframe::egui;
-use repose_core::git::activity::{Activity, read_activity};
+use repose_core::git::activity::{Activity, CommitDay, read_activity};
 use repose_core::model::RepoSummary;
 
 use super::{AppState, Msg};
@@ -49,21 +50,27 @@ pub struct ActivityState {
 	pub reads: HashMap<PathBuf, ActivityRead>,
 	/// The quiet repositories' closing row is open.
 	pub quiet_open: bool,
-	/// The grid's focused cell: (row in drawn order, day index).
-	pub cell: (usize, usize),
+	/// The grid's focused cell: (row in drawn order, day index), the day None on the row's name.
+	pub cell: (usize, Option<usize>),
 	/// The grid widget's id as last drawn, its one Tab stop.
 	pub grid_id: Option<egui::Id>,
 	serial: u64,
+	/// The serial the workers check before each read, so a superseded run stops early (Morticia
+	/// L-2 on 4051085).
+	live: Arc<AtomicU64>,
 }
 
-/// Which day each commit time falls on, as counts for the `DAYS` days ending on `now`'s local day.
-/// `offset_min` is minutes east of UTC; index `DAYS - 1` is today.
-pub fn day_counts(times: &[i64], now: i64, offset_min: i32) -> [u32; DAYS] {
-	let shift = i64::from(offset_min) * 60;
-	let today = (now + shift).div_euclid(DAY);
+/// Today's local date as days since 1970-01-01; `offset_min` is the current minutes east of UTC.
+pub fn local_today(now: i64, offset_min: i32) -> i64 {
+	(now + i64::from(offset_min) * 60).div_euclid(DAY)
+}
+
+/// Commits per local day for the `DAYS` days ending on `today`; index `DAYS - 1` is today. Each
+/// commit's local date is git's, taken with the zone rule at its own instant.
+pub fn day_counts(commits: &[CommitDay], today: i64) -> [u32; DAYS] {
 	let mut out = [0u32; DAYS];
-	for t in times {
-		let back = today - (t + shift).div_euclid(DAY);
+	for c in commits {
+		let back = today - c.local_day;
 		if (0..DAYS as i64).contains(&back) {
 			out[DAYS - 1 - back as usize] += 1;
 		}
@@ -117,6 +124,7 @@ impl AppState {
 	pub fn read_activity(&mut self, ctx: &egui::Context) {
 		self.activity.serial += 1;
 		let serial = self.activity.serial;
+		self.activity.live.store(serial, Ordering::Relaxed);
 		let since = now_secs() - DAYS as i64 * DAY - DAY;
 		let paths: VecDeque<PathBuf> = self.repos.iter().map(|r| r.path.clone()).collect();
 		for p in &paths {
@@ -125,10 +133,11 @@ impl AppState {
 		let queue = Arc::new(Mutex::new(paths));
 		for _ in 0..WORKERS {
 			let queue = Arc::clone(&queue);
+			let live = Arc::clone(&self.activity.live);
 			let tx = self.sender();
 			let ctx = ctx.clone();
 			std::thread::spawn(move || {
-				loop {
+				while live.load(Ordering::Relaxed) == serial {
 					let next = queue.lock().ok().and_then(|mut q| q.pop_front());
 					let Some(path) = next else { break };
 					let result = read_activity(&path, since).map_err(|e| e.to_string());
@@ -164,12 +173,11 @@ pub fn now_secs() -> i64 {
 
 /// The grid column `index` (0 is the oldest, `DAYS - 1` today) as a local date label, "Tue 4 Nov",
 /// and its day of the month for the column header.
-pub fn day_label(index: usize, now: i64, offset_min: i32) -> (String, u32) {
+pub fn day_label(index: usize, today: i64) -> (String, u32) {
 	const WEEKDAYS: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
 	const MONTHS: [&str; 12] = [
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 	];
-	let today = (now + i64::from(offset_min) * 60).div_euclid(DAY);
 	let days = today - (DAYS - 1 - index) as i64;
 	// Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
 	let z = days + 719_468;
@@ -186,34 +194,33 @@ pub fn day_label(index: usize, now: i64, offset_min: i32) -> (String, u32) {
 
 #[cfg(test)]
 mod tests {
-	use super::{DAY, DAYS, day_counts, day_label, is_quiet, step};
+	use repose_core::git::activity::CommitDay;
+
+	use super::{DAY, DAYS, day_counts, day_label, is_quiet, local_today, step};
 
 	#[test]
 	fn day_labels_name_the_local_date() {
 		// 2026-11-11 is a Wednesday, 20,768 days after 1970-01-01.
-		let now = 20_768 * DAY + 12 * 3_600;
-		assert_eq!(day_label(DAYS - 1, now, 0), ("Wed 11 Nov".to_string(), 11));
-		assert_eq!(day_label(DAYS - 12, now, 0), ("Sat 31 Oct".to_string(), 31));
+		assert_eq!(day_label(DAYS - 1, 20_768), ("Wed 11 Nov".to_string(), 11));
+		assert_eq!(day_label(DAYS - 12, 20_768), ("Sat 31 Oct".to_string(), 31));
 	}
 
-	/// clause 4: counts land on local days, the last index is today, and older commits drop out.
+	/// clause 4: counts land on their local days, the last index is today, and older commits drop
+	/// out. Today follows the current offset: 01:00 UTC is still yesterday six hours west.
 	#[test]
 	fn commits_land_on_their_local_day() {
-		let now = 1_000 * DAY + 3_600; // 01:00 UTC on day 1000
-		let counts = day_counts(&[now, now - DAY, now - 2 * 3_600, now - 40 * DAY], now, 0);
+		let now = 1_000 * DAY + 3_600;
+		let today = local_today(now, 0);
+		assert_eq!(today, 1_000);
+		assert_eq!(local_today(now, -360), 999);
+		let on = |local_day| CommitDay { time: 0, local_day };
+		let counts = day_counts(&[on(1_000), on(999), on(999), on(960)], today);
 		assert_eq!(counts[DAYS - 1], 1, "today");
-		assert_eq!(counts[DAYS - 2], 2, "yesterday, including 23:00 UTC");
+		assert_eq!(counts[DAYS - 2], 2, "yesterday");
 		assert_eq!(
 			counts.iter().sum::<u32>(),
 			3,
 			"40 days ago is outside the grid"
-		);
-		// Six hours west, 01:00 UTC is still the previous local day.
-		let west = day_counts(&[now], now, -360);
-		assert_eq!(
-			west[DAYS - 1],
-			1,
-			"now is always today, whatever the offset"
 		);
 	}
 

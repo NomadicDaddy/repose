@@ -27,6 +27,8 @@ mod ui_a11y_tests;
 #[cfg(test)]
 mod ui_action_failure_tests;
 #[cfg(test)]
+mod ui_activity_grid_tests;
+#[cfg(test)]
 mod ui_activity_tests;
 #[cfg(test)]
 mod ui_branch_menu_tests;

@@ -11,7 +11,9 @@ use repose_core::model::RepoSummary;
 use super::a11y;
 use super::activity_grid::{grid, legend, quiet_row};
 use crate::state::AppState;
-use crate::state::activity::{ActivityRead, DAYS, Tile, day_counts, in_tile, now_secs};
+use crate::state::activity::{
+	ActivityRead, DAYS, Tile, day_counts, in_tile, local_today, now_secs,
+};
 use crate::theme::*;
 
 /// A tile: which repositories it counts, its label, the note under it, and its number's colour.
@@ -79,13 +81,21 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		});
 	}
 	ui.add_space(12.0);
-	let (active, quiet) = rows(state, now, offset);
+	let today = local_today(now, offset);
+	let (mut drawn, quiet) = rows(state, now, today);
+	// Under the Quiet tile every row is quiet, so nothing folds; otherwise the closing row opens
+	// the quiet repositories into the grid as rows like any other (Roger 5Q-1 on 4051085).
+	let folds = state.activity.filter != Some(Tile::Quiet);
+	let quiet_count = quiet.len();
+	if !folds || state.activity.quiet_open {
+		drawn.extend(quiet);
+	}
 	egui::ScrollArea::vertical()
 		.auto_shrink(false)
 		.show(ui, |ui| {
-			grid(ui, state, &active, now, offset);
-			if !quiet.is_empty() {
-				quiet_row(ui, state, &quiet);
+			grid(ui, state, &drawn, today);
+			if folds && quiet_count > 0 {
+				quiet_row(ui, state, quiet_count);
 			}
 			legend(ui);
 		});
@@ -130,7 +140,7 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 			a11y::control(&response, Role::Button, Some(on), &name);
 			if response.clicked() {
 				state.activity.filter = if on { None } else { Some(*tile) };
-				state.activity.cell = (0, DAYS - 1);
+				state.activity.cell = (0, Some(DAYS - 1));
 			}
 		}
 	});
@@ -138,7 +148,7 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 
 /// The rows to draw, filtered by the tile, newest activity first; and the quiet ones (read, with
 /// no commit in the grid's days) apart, for the folded closing row.
-fn rows(state: &AppState, now: i64, offset: i32) -> (Vec<GridRow>, Vec<GridRow>) {
+fn rows(state: &AppState, now: i64, today: i64) -> (Vec<GridRow>, Vec<GridRow>) {
 	let reads = &state.activity.reads;
 	let filter = state.activity.filter;
 	let mut all: Vec<(Option<i64>, GridRow)> = state
@@ -148,7 +158,7 @@ fn rows(state: &AppState, now: i64, offset: i32) -> (Vec<GridRow>, Vec<GridRow>)
 		.map(|r| {
 			let read = reads.get(&r.path);
 			let (newest, counts) = match read {
-				Some(ActivityRead::Read(a)) => (a.newest, Some(day_counts(&a.times, now, offset))),
+				Some(ActivityRead::Read(a)) => (a.newest, Some(day_counts(&a.commits, today))),
 				_ => (None, None),
 			};
 			let failed = matches!(read, Some(ActivityRead::Failed(_)));
