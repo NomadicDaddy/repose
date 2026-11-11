@@ -70,13 +70,18 @@ impl AppState {
 		match started {
 			Ok((watch, unwatched)) => {
 				self.watching.watch = Some(watch);
-				self.watching.note = unwatched_note(&unwatched, &self.missing_roots);
+				self.note_unwatched(&unwatched);
 			}
 			Err(e) => {
 				self.watching.note =
 					Some(format!("No file watcher ({e}); the 60 s timer refreshes"));
 			}
 		}
+	}
+
+	/// Sets the status line's watcher note from the roots the watcher refused.
+	fn note_unwatched(&mut self, unwatched: &[Unwatched]) {
+		self.watching.note = unwatched_note(unwatched, &self.missing_roots);
 	}
 
 	/// Drains the watcher's refreshes: one repository each, and a lost-events report that marks a
@@ -150,128 +155,5 @@ fn unwatched_note(unwatched: &[Unwatched], missing: &[PathBuf]) -> Option<String
 }
 
 #[cfg(test)]
-mod tests {
-	use std::path::PathBuf;
-
-	use repose_core::config::Config;
-	use repose_core::model::{RepoKind, RepoSummary};
-	use repose_core::watch::Refresh;
-	use repose_core::watch::watcher::Unwatched;
-
-	use super::unwatched_note;
-	use crate::state::AppState;
-	use crate::state::ui_harness::{frame, texts};
-
-	fn refused(root: &str) -> Unwatched {
-		Unwatched {
-			root: PathBuf::from(root),
-			reason: "Input watch path is neither a file nor a directory.".to_string(),
-		}
-	}
-
-	/// Clause 1: a configured root that does not exist reaches the status line once, as not
-	/// found, and the watcher's refusal of that same root adds nothing.
-	#[test]
-	fn a_missing_root_is_named_once_as_not_found() {
-		let ctx = eframe::egui::Context::default();
-		let gone = std::env::temp_dir().join("repose-test-root-that-does-not-exist");
-		let config = Config {
-			roots: vec![gone.clone()],
-			..Config::default()
-		};
-		let mut state = AppState::new(config);
-		assert_eq!(state.missing_roots, vec![gone.clone()]);
-		state.sync_watch(&ctx);
-		assert_eq!(state.watching.note, None, "no Not watching clause for it");
-		state.checked_at = Some(std::time::SystemTime::now());
-		let shapes = frame(&ctx, &mut state, Vec::new());
-		let line = texts(&shapes)
-			.into_iter()
-			.find(|t| t.contains("root not found"))
-			.unwrap_or_else(|| panic!("no status line naming the root"));
-		assert_eq!(
-			line.matches(&*gone.display().to_string()).count(),
-			1,
-			"named once: {line}"
-		);
-		assert!(line.contains("1 root not found"), "{line}");
-		assert!(!line.contains("neither a file"), "{line}");
-	}
-
-	/// Clause 2: a root that exists but was refused is still reported, in plain words, never
-	/// with the watcher library's error text.
-	#[test]
-	fn an_unwatchable_root_gets_a_plain_note() {
-		let missing = vec![PathBuf::from("E:/unplugged")];
-		assert_eq!(unwatched_note(&[refused("E:/unplugged")], &missing), None);
-		let one = unwatched_note(&[refused("D:/locked")], &missing);
-		assert_eq!(
-			one.as_deref(),
-			Some(
-				"Not watching D:/locked: Windows refused a watch on it; the 60 s timer refreshes it"
-			)
-		);
-		let two = unwatched_note(
-			&[
-				refused("D:/locked"),
-				refused("E:/unplugged"),
-				refused("F:/share"),
-			],
-			&missing,
-		);
-		assert_eq!(
-			two.as_deref(),
-			Some(
-				"Not watching D:/locked and 1 more: Windows refused a watch on them; the 60 s \
-				 timer refreshes them"
-			)
-		);
-	}
-
-	/// Roger 5Q-1 on 7e70f1f: a lost-events report that arrives while a scan or a pass is
-	/// running must not be dropped; it waits and runs when the pass has finished.
-	#[test]
-	fn an_overflow_during_a_pass_waits_and_then_runs_once() {
-		let ctx = eframe::egui::Context::default();
-		let mut state = AppState::new(Config::default());
-		state.repos = vec![RepoSummary::new(
-			PathBuf::from("D:/t/a"),
-			RepoKind::Repository,
-		)];
-		state.backstop_running = true;
-		state
-			.watching
-			.tx
-			.send(Refresh::All)
-			.unwrap_or_else(|e| panic!("{e}"));
-		state.pump_watch(&ctx);
-		assert!(state.watching.full_pending, "kept while a pass runs");
-		assert!(!state.watching.overflow_pass);
-		// The pass finishes: the pending re-read starts now, as an overflow pass.
-		state.pass_done(None, &ctx);
-		assert!(!state.watching.full_pending);
-		assert!(state.watching.overflow_pass);
-		assert!(state.backstop_running);
-		assert!(
-			!state.watching.caught_up,
-			"not claimed before the pass completes"
-		);
-		// A second report inside the quiet window stays pending rather than being lost.
-		state
-			.watching
-			.tx
-			.send(Refresh::All)
-			.unwrap_or_else(|e| panic!("{e}"));
-		state.pump_watch(&ctx);
-		assert!(state.watching.full_pending);
-		// That pass completes: the second report still waits for quiet, so Watcher caught up is
-		// not claimed yet (Roger 5Q-2 on 740b7fd); the pass that answers it will claim it.
-		state.pass_done(None, &ctx);
-		assert!(!state.watching.caught_up);
-		assert!(!state.watching.overflow_pass);
-		assert!(
-			state.watching.full_pending,
-			"inside OVERFLOW_QUIET it waits"
-		);
-	}
-}
+#[path = "refresh_tests.rs"]
+mod tests;
