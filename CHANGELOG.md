@@ -63,6 +63,24 @@ All notable changes to repose are recorded here. The format follows
   rows a frame takes 11.5 to 20.9 ms (median), and up to 30 ms in Files, as measured for 1.2.0.
   Drawing only the visible rows is planned for v2.0.
 
+### Accepted at this release
+
+The release-readiness table for 1.3.0 had these lines Red or not checked, and Phillip accepted
+each one:
+
+- **A4, review findings** (#41943): the gate still self-tests the leak guard with repose's own
+  `scripts/check-leak-guard.sh`, not the copy smokestack delivers at
+  `scripts/smokestack/check-leak-guard.sh`. The guard itself is tested either way. Switching is
+  the record remediation-20261111-gate-runs-the-delivered-leak-guard-self-test.
+- **C3, audits current** (#41915): of the 28 audits aidd counts as applicable, 17 are fresh. Seven
+  (CODE_QUALITY, DOCUMENTATION, FRONTEND, HYGIENE, SECRET_HANDLING_RETENTION, TESTING and
+  WEB_DESIGN_GUIDELINES) went stale when this release's changes touched the code after their
+  reports, and the same four as at 1.2.0 have no report.
+- **C5, roadmap and priorities** (#41916): the records and roadmap entries reconcile, but `.aidd`
+  is untracked, so no history shows whether a priority changed since 1.2.0.
+- **F5, installer and first run** (#41942): `scripts/install-user.ps1` is unchanged since 1.2.0,
+  whose install was watched on the development machine; there is no clean-machine install record.
+
 ## [1.2.0] - 2026-11-08
 
 ### Added
