@@ -91,15 +91,20 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	if !folds || state.activity.quiet_open {
 		drawn.extend(quiet);
 	}
-	egui::ScrollArea::vertical()
-		.auto_shrink(false)
-		.show(ui, |ui| {
-			grid(ui, state, &drawn, today);
-			if folds && quiet_count > 0 {
-				quiet_row(ui, state, quiet_count);
-			}
-			legend(ui);
-		});
+	ui.scope(|ui| {
+		// A solid bar takes its own lane beside the grid; the default floating bar was drawn over
+		// today's column whenever the grid scrolled (captures at a3f5f71, slot EXIT #42532).
+		ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+		egui::ScrollArea::vertical()
+			.auto_shrink(false)
+			.show(ui, |ui| {
+				grid(ui, state, &drawn, today);
+				if folds && quiet_count > 0 {
+					quiet_row(ui, state, quiet_count);
+				}
+				legend(ui);
+			});
+	});
 }
 
 fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {

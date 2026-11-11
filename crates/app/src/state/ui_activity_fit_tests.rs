@@ -1,32 +1,25 @@
-//! The Activity screen's fit (activity-screen clause 8), from the 1440x900 capture at 150% scale
-//! (capture slot EXIT #42506): with the pane about 600 points wide, today's cell ends inside the window,
-//! and a tile's wrapped text is laid out left-aligned, never justified across the tile.
+//! The Activity screen's fit (activity-screen clause 8), from the native captures: with the pane
+//! about 600 points wide (1440x900 at 150% scale, slot EXIT #42506) today's cell ends inside the
+//! window and a tile's wrapped text is left-aligned, never justified; and when the grid scrolls its
+//! bar keeps a lane of its own instead of covering today's column (slot EXIT #42532).
 
 use eframe::egui::epaint::Shape;
-use eframe::egui::{self, Pos2};
+use eframe::egui::{self, Pos2, Rect};
 
+use super::AppState;
 use super::activity::{DAYS, day_label, local_today, now_secs};
 use super::ui_activity_tests::{fleet, with_reads};
 use super::ui_frame::run;
 
-#[test]
-fn a_narrow_pane_keeps_today_and_unjustified_tiles() {
-	let ctx = egui::Context::default();
-	ctx.enable_accesskit();
+fn shown_fleet() -> AppState {
 	let mut state = fleet();
 	with_reads(&mut state);
 	state.activity.shown = true;
-	let width = 920.0;
-	let input = || egui::RawInput {
-		screen_rect: Some(egui::Rect::from_min_size(
-			Pos2::ZERO,
-			egui::vec2(width, 600.0),
-		)),
-		..Default::default()
-	};
-	run(&ctx, &mut state, input());
-	let out = run(&ctx, &mut state, input());
+	state
+}
 
+/// Where repository a's cell for today sits, from a frame's AccessKit tree.
+fn todays_cell(out: egui::FullOutput) -> (Rect, Vec<egui::epaint::ClippedShape>) {
 	let today = day_label(DAYS - 1, local_today(now_secs(), 0)).0;
 	let name = format!("a, {today}, 1 commit");
 	let nodes = out
@@ -40,14 +33,32 @@ fn a_narrow_pane_keeps_today_and_unjustified_tiles() {
 	let Some(b) = found.and_then(|(_, n)| n.bounds()) else {
 		panic!("no node named {name:?}");
 	};
+	let min = egui::pos2(b.x0 as f32, b.y0 as f32);
+	(
+		Rect::from_min_max(min, egui::pos2(b.x1 as f32, b.y1 as f32)),
+		out.shapes,
+	)
+}
+
+#[test]
+fn a_narrow_pane_keeps_today_and_unjustified_tiles() {
+	let ctx = egui::Context::default();
+	ctx.enable_accesskit();
+	let mut state = shown_fleet();
+	let width = 920.0;
+	let input = || egui::RawInput {
+		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(width, 600.0))),
+		..Default::default()
+	};
+	run(&ctx, &mut state, input());
+	let (cell, shapes) = todays_cell(run(&ctx, &mut state, input()));
 	assert!(
-		b.x1 <= f64::from(width),
+		cell.max.x <= width,
 		"today's cell ends at {} in a {width} window",
-		b.x1
+		cell.max.x
 	);
 
-	let justified: Vec<String> = out
-		.shapes
+	let justified: Vec<String> = shapes
 		.iter()
 		.filter_map(|s| match &s.shape {
 			Shape::Text(t) if t.galley.job.justify => Some(t.galley.text().to_string()),
@@ -57,5 +68,38 @@ fn a_narrow_pane_keeps_today_and_unjustified_tiles() {
 	assert!(
 		!justified.iter().any(|t| t.contains("Uncommitted")),
 		"{justified:?}"
+	);
+}
+
+/// No painted rectangle (the bar's track or handle) crosses today's cell without containing it.
+#[test]
+fn the_scroll_bar_never_covers_todays_column() {
+	let ctx = egui::Context::default();
+	ctx.enable_accesskit();
+	let mut state = shown_fleet();
+	state.activity.quiet_open = true;
+	// The pointer rests over the pane, as the capture's cursor did: a floating bar is drawn only
+	// while the pointer is over its area, so without it no bar would be painted to find.
+	let input = || egui::RawInput {
+		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(920.0, 330.0))),
+		events: vec![egui::Event::PointerMoved(egui::pos2(600.0, 250.0))],
+		..Default::default()
+	};
+	// The floating bar fades in over a few frames; enough of them for it to be fully drawn.
+	for _ in 0..30 {
+		run(&ctx, &mut state, input());
+	}
+	let (cell, shapes) = todays_cell(run(&ctx, &mut state, input()));
+	let crossing: Vec<Rect> = shapes
+		.iter()
+		.filter_map(|s| match &s.shape {
+			Shape::Rect(r) => Some(r.rect),
+			_ => None,
+		})
+		.filter(|r| r.intersects(cell) && !r.contains_rect(cell) && !cell.contains_rect(*r))
+		.collect();
+	assert!(
+		crossing.is_empty(),
+		"today's cell {cell:?} crossed by {crossing:?}"
 	);
 }
