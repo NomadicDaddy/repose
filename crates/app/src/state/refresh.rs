@@ -3,12 +3,13 @@
 //! overflow re-reads every row once and says so in the status line, and the 60 second backstop
 //! covers whatever the watcher missed.
 
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
 use eframe::egui;
 use repose_core::watch::RepoMap;
-use repose_core::watch::watcher::{Refresh, Watch};
+use repose_core::watch::watcher::{Refresh, Unwatched, Watch};
 
 use super::{AppState, scan};
 
@@ -69,18 +70,7 @@ impl AppState {
 		match started {
 			Ok((watch, unwatched)) => {
 				self.watching.watch = Some(watch);
-				if let Some(first) = unwatched.first() {
-					self.watching.note = Some(format!(
-						"Not watching {}{}: {}",
-						first.root.display(),
-						if unwatched.len() > 1 {
-							format!(" and {} more", unwatched.len() - 1)
-						} else {
-							String::new()
-						},
-						first.reason
-					));
-				}
+				self.watching.note = unwatched_note(&unwatched, &self.missing_roots);
 			}
 			Err(e) => {
 				self.watching.note =
@@ -136,6 +126,29 @@ impl AppState {
 	}
 }
 
+/// The status-line note for roots the watcher refused, in plain words rather than the watcher
+/// library's error. A root that does not exist is left out: the status line already names it as
+/// not found (status-line-names-a-missing-root-once).
+fn unwatched_note(unwatched: &[Unwatched], missing: &[PathBuf]) -> Option<String> {
+	let refused: Vec<&Unwatched> = unwatched
+		.iter()
+		.filter(|u| !missing.contains(&u.root))
+		.collect();
+	let first = refused.first()?;
+	Some(match refused.len() {
+		1 => format!(
+			"Not watching {}: Windows refused a watch on it; the 60 s timer refreshes it",
+			first.root.display()
+		),
+		n => format!(
+			"Not watching {} and {} more: Windows refused a watch on them; the 60 s timer \
+			 refreshes them",
+			first.root.display(),
+			n - 1
+		),
+	})
+}
+
 #[cfg(test)]
 mod tests {
 	use std::path::PathBuf;
@@ -143,8 +156,77 @@ mod tests {
 	use repose_core::config::Config;
 	use repose_core::model::{RepoKind, RepoSummary};
 	use repose_core::watch::Refresh;
+	use repose_core::watch::watcher::Unwatched;
 
+	use super::unwatched_note;
 	use crate::state::AppState;
+	use crate::state::ui_harness::{frame, texts};
+
+	fn refused(root: &str) -> Unwatched {
+		Unwatched {
+			root: PathBuf::from(root),
+			reason: "Input watch path is neither a file nor a directory.".to_string(),
+		}
+	}
+
+	/// Clause 1: a configured root that does not exist reaches the status line once, as not
+	/// found, and the watcher's refusal of that same root adds nothing.
+	#[test]
+	fn a_missing_root_is_named_once_as_not_found() {
+		let ctx = eframe::egui::Context::default();
+		let gone = std::env::temp_dir().join("repose-test-root-that-does-not-exist");
+		let config = Config {
+			roots: vec![gone.clone()],
+			..Config::default()
+		};
+		let mut state = AppState::new(config);
+		assert_eq!(state.missing_roots, vec![gone.clone()]);
+		state.sync_watch(&ctx);
+		assert_eq!(state.watching.note, None, "no Not watching clause for it");
+		state.checked_at = Some(std::time::SystemTime::now());
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		let line = texts(&shapes)
+			.into_iter()
+			.find(|t| t.contains("root not found"))
+			.unwrap_or_else(|| panic!("no status line naming the root"));
+		assert_eq!(
+			line.matches(&*gone.display().to_string()).count(),
+			1,
+			"named once: {line}"
+		);
+		assert!(line.contains("1 root not found"), "{line}");
+		assert!(!line.contains("neither a file"), "{line}");
+	}
+
+	/// Clause 2: a root that exists but was refused is still reported, in plain words, never
+	/// with the watcher library's error text.
+	#[test]
+	fn an_unwatchable_root_gets_a_plain_note() {
+		let missing = vec![PathBuf::from("E:/unplugged")];
+		assert_eq!(unwatched_note(&[refused("E:/unplugged")], &missing), None);
+		let one = unwatched_note(&[refused("D:/locked")], &missing);
+		assert_eq!(
+			one.as_deref(),
+			Some(
+				"Not watching D:/locked: Windows refused a watch on it; the 60 s timer refreshes it"
+			)
+		);
+		let two = unwatched_note(
+			&[
+				refused("D:/locked"),
+				refused("E:/unplugged"),
+				refused("F:/share"),
+			],
+			&missing,
+		);
+		assert_eq!(
+			two.as_deref(),
+			Some(
+				"Not watching D:/locked and 1 more: Windows refused a watch on them; the 60 s \
+				 timer refreshes them"
+			)
+		);
+	}
 
 	/// Roger 5Q-1 on 7e70f1f: a lost-events report that arrives while a scan or a pass is
 	/// running must not be dropped; it waits and runs when the pass has finished.

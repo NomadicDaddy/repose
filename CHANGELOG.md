@@ -30,6 +30,11 @@ All notable changes to repose are recorded here. The format follows
   Before, when a branch forked from an early commit that main later moved on from, main bent into
   that branch's lane on the way down, so the early commits read as the branch's. Now the branch
   keeps its own lane and joins main at the commit it forked from.
+- A configured root that doesn't exist, such as an unplugged drive, is named once in the list's
+  status line, as not found. Before, it was named a second time as "Not watching <path>: Input
+  watch path is neither a file nor a directory", the file watcher's own error. A root that exists
+  but can't be watched is still reported, in plain words: "Windows refused a watch on it; the
+  60 s timer refreshes it".
 
 ### Development
 
