@@ -50,6 +50,11 @@ All notable changes to repose are recorded here. The format follows
   machine's global config, and the CI runner has no identity there, so eight tests that commit
   were refused with "Author identity unknown" (run 42920036918). The same run's other two
   failures were the worktree fix above: the runner's temp folder is a short name.
+- The shared gate scripts under `scripts/smokestack/` are at smokestack 0.7.3: the 0.7.2 and
+  0.7.3 deliveries add the leak guard's self-test scripts there (its cases, its binary cases and
+  its setup), and 0.7.3 makes the self-test check the refusal of an unreadable staged file on
+  Linux git without depending on the machine's own git settings. repose's gate still runs its
+  own `scripts/check-leak-guard.sh`; moving it to the delivered one is later work.
 
 ## [1.2.0] - 2026-11-08
 
