@@ -67,9 +67,14 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with
   defaults on first run), within its configured depth (3 folders by default) and skipping its
   exclude folders. Submodules are counted on their parent rather than listed as rows.
+- Settings, beside Refresh in the repository list, edits the roots, the folder names to skip, the
+  scan depth, the theme and the editor and terminal commands, and saves them to the config file
+  in use. Only the settings you changed are rewritten; other keys, pins and comments stay. A
+  saved root that is missing now, such as an unplugged drive, is kept with a note. You can still
+  edit config.toml by hand.
 - The window follows the Windows app mode (Settings > Personalization > Colors), light or dark,
-  and switches when you change it. To keep one theme, set `theme = "dark"` or `theme = "light"`
-  in config.toml. The default is `theme = "system"`.
+  and switches when you change it. To keep one theme, choose Dark or Light in Settings, or set
+  `theme = "dark"` or `theme = "light"` in config.toml. The default is `theme = "system"`.
 - Pin a repository from its row's menu (right-click or the Menu key) to keep it at the top of
   the list. A worktree row's menu pins its parent. Pins are saved as `pinned_repositories` in
   the config file in use, `--config` included. Only that key is rewritten, so your other keys and

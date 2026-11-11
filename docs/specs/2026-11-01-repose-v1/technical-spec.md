@@ -220,8 +220,11 @@ terminal = "wt"
 `pinned_repositories` alone in the file in use, through `toml_edit`, keeping every other key and
 comment, and replaces the file through a sibling `config.toml.saving` and one rename; a failed
 save leaves the old file and the old pins and shows its error (`core::pins`,
-`state/pins.rs`). There is no settings screen in v1.0 (record
-`settings-screen`, v1.1).
+`state/pins.rs`). There was no settings screen in v1.0. Since 1.3.0, Settings (record
+`settings-screen`; `screens/settings.rs`, `state/settings.rs`, `core::settings`) edits roots,
+exclude, depth, theme and commands in the same file through `toml_edit`. It rewrites only the keys
+whose values changed, never touches `pinned_repositories` or unknown keys, validates before
+writing, and replaces the file in one rename.
 
 ### Budgets
 
