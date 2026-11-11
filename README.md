@@ -75,6 +75,12 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   changed list is written on one line, losing any comments inside it. A saved root that is
   missing now, such as an unplugged drive, is kept with a note. You can still edit config.toml by
   hand.
+- Activity, beside Refresh and Settings, shows every listed repository at once, and repose opens
+  on it when started outside any repository with no `--select`. Four tiles count the
+  repositories with uncommitted changes, ahead of or behind their upstream, and quiet for 60 days
+  or more; choosing one shows only those. Below, each repository has a row of its commits per day
+  over the last 30 days, read offline from local and saved remote-tracking branches. Choose a day
+  or a repository name, by click or Enter, to open its History.
 - The window follows the Windows app mode (Settings > Personalization > Colors), light or dark,
   and switches when you change it. To keep one theme, choose Dark or Light in Settings, or set
   `theme = "dark"` or `theme = "light"` in config.toml. The default is `theme = "system"`.
@@ -92,7 +98,7 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 
 - `--config <path>`: read this config file instead of `%APPDATA%\repose\config.toml`.
 - `--select <path>`: open on this repository. Without it, starting from inside a listed
-  repository selects that one.
+  repository selects that one, and starting anywhere else opens on Activity.
 - `--view changes|history|files|branches`: open on this tab. Any other value, or none, is
   refused with a message naming the four, and repose exits with code 2.
 - `--file <path>`: open this file's working-tree diff; `--inline` shows it inline.
