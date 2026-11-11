@@ -52,7 +52,9 @@ fn main() {
 /// without it. A failure to compile the resource fails the build rather than ship an exe with none.
 fn program_icon() {
 	const ICON: &str = "../../assets/icon/repose.ico";
-	println!("cargo:rerun-if-changed={ICON}");
+	// The whole folder: main.rs also embeds repose-256.png, so an edit to either file must restamp
+	// the build, as for the crate's own sources (Morticia L-1 on 1e170f7).
+	println!("cargo:rerun-if-changed=../../assets/icon");
 	if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
 		return;
 	}
