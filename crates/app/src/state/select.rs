@@ -1,12 +1,32 @@
-//! Which rows are visible after the filter, and keyboard movement over them.
+//! The selected repository, which rows are visible after the filter, and keyboard movement over
+//! them.
 
 use std::path::PathBuf;
 
 use repose_core::model::RepoSummary;
 
-use super::AppState;
+use super::{AppState, find};
 
 impl AppState {
+	pub fn selected_repo(&self) -> Option<&RepoSummary> {
+		self.selected.as_ref().and_then(|p| find(&self.repos, p))
+	}
+
+	/// Selects a repository. An open diff or file belongs to the repository it was opened on, so
+	/// moving to another closes it rather than drawing it under the new header.
+	pub fn select(&mut self, path: PathBuf) {
+		if self.selected.as_ref() != Some(&path) {
+			self.selected_file = None;
+			if self.diff.as_ref().is_some_and(|d| d.open.repo != path) {
+				self.close_diff();
+			}
+			if self.file_view.as_ref().is_some_and(|v| v.open.repo != path) {
+				self.close_file();
+			}
+		}
+		self.selected = Some(path);
+	}
+
 	/// Rows in display order after the filter: top-level repositories plus the worktrees of the
 	/// expanded ones. Used for both drawing and keyboard movement.
 	pub fn visible_paths(&self) -> Vec<PathBuf> {

@@ -278,23 +278,4 @@ impl AppState {
 	pub(crate) fn sender(&self) -> Sender<Msg> {
 		self.tx.clone()
 	}
-
-	pub fn selected_repo(&self) -> Option<&RepoSummary> {
-		self.selected.as_ref().and_then(|p| find(&self.repos, p))
-	}
-
-	/// Selects a repository. An open diff or file belongs to the repository it was opened on, so
-	/// moving to another closes it rather than drawing it under the new header.
-	pub fn select(&mut self, path: PathBuf) {
-		if self.selected.as_ref() != Some(&path) {
-			self.selected_file = None;
-			if self.diff.as_ref().is_some_and(|d| d.open.repo != path) {
-				self.close_diff();
-			}
-			if self.file_view.as_ref().is_some_and(|v| v.open.repo != path) {
-				self.close_file();
-			}
-		}
-		self.selected = Some(path);
-	}
 }
