@@ -4,6 +4,23 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Activity, beside Refresh and Settings in the repository list, shows every listed repository at
+  once, and repose opens on it when started with no repository named and outside any repository.
+  Four tiles count the repositories with uncommitted changes, ahead of their upstream, behind it,
+  and quiet for 60 days or more; choosing a tile shows only those, and Clear or choosing it again
+  shows all. Below them, each repository has a row of its commits per day over the last 30 days,
+  newest activity first, in five shades with a legend that names each step. Commits are counted
+  once each from local and saved remote-tracking branches, on the day they were made in local
+  time, read offline with no fetch. Repositories with no commit in those days fold into one row
+  that opens into the grid. A repository whose history is too long to read in full says so, and
+  its days read "at least" the count. Every row name and day has a tooltip and an accessible
+  name; the grid is one Tab stop, the arrow keys, Home and End move within it, and Enter or a
+  click opens that repository's History.
+
 ## [1.3.0] - 2026-11-11
 
 ### Added
