@@ -25,7 +25,8 @@ fn a_repository_with_no_commit_reads_as_empty() {
 }
 
 /// Roger 5Q-1 and Morticia on 4431bdb: a walk that reaches `MAX_WALK` says so, so the screen can
-/// show the count as cut rather than complete; one commit fewer reads as complete.
+/// show the count as cut rather than complete; exactly `MAX_WALK` commits reads as complete
+/// (Morticia nit on 5c2b7f0).
 #[test]
 fn a_walk_that_reaches_the_bound_says_it_was_truncated() {
 	let repo = TempRepo::new("activity-truncated");
@@ -52,10 +53,13 @@ fn a_walk_that_reaches_the_bound_says_it_was_truncated() {
 	);
 	assert_eq!(activity.commits.len(), MAX_WALK);
 
-	repo.git(&["update-ref", "refs/heads/main", "refs/heads/main~2"]);
+	repo.git(&["update-ref", "refs/heads/main", "refs/heads/main~1"]);
 	let activity = read_activity(&repo.path, 0).unwrap_or_else(|e| panic!("{e}"));
-	assert_eq!(activity.commits.len(), MAX_WALK - 1);
-	assert!(!activity.truncated, "below the bound the count is complete");
+	assert_eq!(activity.commits.len(), MAX_WALK);
+	assert!(
+		!activity.truncated,
+		"exactly at the bound the count is complete"
+	);
 }
 
 #[test]

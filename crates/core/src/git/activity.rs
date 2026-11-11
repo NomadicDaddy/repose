@@ -42,7 +42,9 @@ pub struct Activity {
 
 /// Reads `repo`'s activity since `since` (seconds since the Unix epoch).
 pub fn read_activity(repo: &Path, since: i64) -> Result<Activity, GitError> {
-	let max = format!("--max-count={MAX_WALK}");
+	// One commit past the bound, so a history of exactly MAX_WALK commits reads as complete
+	// (Morticia nit on 5c2b7f0); the extra one is only the evidence and is dropped.
+	let max = format!("--max-count={}", MAX_WALK + 1);
 	let args = [
 		"--format=%H %ct %cd",
 		"--date=format-local:%Y-%m-%d",
@@ -51,9 +53,11 @@ pub fn read_activity(repo: &Path, since: i64) -> Result<Activity, GitError> {
 		"--remotes",
 		"--",
 	];
-	let walked = parse_commits(&run(repo, Verb::Log, &args)?);
+	let mut walked = parse_commits(&run(repo, Verb::Log, &args)?);
+	let truncated = walked.len() > MAX_WALK;
+	walked.truncate(MAX_WALK);
 	Ok(Activity {
-		truncated: walked.len() >= MAX_WALK,
+		truncated,
 		newest: walked.iter().map(|c| c.time).max(),
 		commits: walked.into_iter().filter(|c| c.time >= since).collect(),
 	})

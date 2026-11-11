@@ -178,7 +178,8 @@ fn cells_are_painted_in_their_colour_steps() {
 }
 
 /// Roger 5Q-1 and Morticia on 4431bdb: a read that stopped at the walk's bound says so on its row,
-/// in paint and in its row name, and its cells read as a floor, never as a complete count.
+/// in paint and in its row name, and its cells read as a floor, never as a complete count. Roger
+/// 5Q-1 on 5c2b7f0: the painted row keeps its branch beside the note, whole inside the name column.
 #[test]
 fn a_truncated_read_is_shown_as_a_floor() {
 	let ctx = egui::Context::default();
@@ -186,9 +187,27 @@ fn a_truncated_read_is_shown_as_a_floor() {
 	if let Some(ActivityRead::Read(a)) = state.activity.reads.get_mut(&path_of(&state, "a")) {
 		a.truncated = true;
 	}
-	let note = format!("newest {MAX_WALK} commits only");
+	let line = format!("main · 0123abc · newest {MAX_WALK} only");
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let painted = shapes.iter().find_map(|s| match &s.shape {
+		Shape::Text(t) if t.galley.text() == line => Some((t.visual_bounding_rect(), s.clip_rect)),
+		_ => None,
+	});
+	let Some((bounds, column)) = painted else {
+		panic!("{line:?} not painted: {:?}", texts(&shapes));
+	};
+	assert!(column.contains_rect(bounds), "{bounds:?} cut by {column:?}");
+	// A failed read keeps its branch too.
+	let failed = ActivityRead::Failed("unreadable".into());
+	state.activity.reads.insert(path_of(&state, "c"), failed);
 	let painted = texts(&frame(&ctx, &mut state, Vec::new()));
-	assert!(painted.contains(&note), "{painted:?}");
+	assert!(
+		painted
+			.iter()
+			.any(|t| t == "main · 0123abc · could not read"),
+		"{painted:?}"
+	);
+	let note = format!("newest {MAX_WALK} commits only");
 	let nodes = a11y_frame(&ctx, &mut state);
 	let today = day_label(DAYS - 1, local_today(now_secs(), 0)).0;
 	find(

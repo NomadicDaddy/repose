@@ -95,26 +95,33 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 		let node = ui.interact(area, id.with(at), Sense::hover());
 		a11y::text(ui, node.id, area, role, &describe(at));
 	};
+	// A long name or note stops at the name column instead of running under the cells; the row's
+	// tooltip and accessible name carry it whole.
+	let column = Rect::from_min_max(
+		rect.min,
+		pos2(rect.left() + NAME_WIDTH - 4.0, rect.bottom()),
+	);
+	let names = painter.with_clip_rect(column);
 	for (i, r) in rows.iter().enumerate() {
 		let top = rect.top() + HEADER_HEIGHT + ROW_HEIGHT * i as f32;
 		let mono = FontId::new(TEXT_ROW_NAME, FontFamily::Monospace);
 		let name_at = pos2(rect.left(), top + 12.0);
-		painter.text(
+		names.text(
 			name_at,
 			egui::Align2::LEFT_CENTER,
 			&r.repo.name,
 			mono,
 			TEXT.get(),
 		);
-		let note = if r.failed {
-			"could not read".to_string()
+		// The branch always shows (clause 4); a failed or cut read adds why (Roger 5Q-1 on 5c2b7f0).
+		let mut note = r.repo.branch_line();
+		if r.failed {
+			note.push_str(" · could not read");
 		} else if r.truncated {
-			truncated_note()
-		} else {
-			r.repo.branch_line()
-		};
+			note.push_str(&format!(" · newest {MAX_WALK} only"));
+		}
 		let note_at = pos2(rect.left(), top + 28.0);
-		painter.text(
+		names.text(
 			note_at,
 			egui::Align2::LEFT_CENTER,
 			note,
