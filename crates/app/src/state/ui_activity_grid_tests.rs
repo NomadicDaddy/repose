@@ -5,8 +5,9 @@
 //! at its bound shown as such.
 
 use eframe::egui::epaint::{ClippedShape, Shape};
-use eframe::egui::{self, Color32, Pos2, Role};
-use repose_core::git::activity::MAX_WALK;
+use eframe::egui::{self, Pos2, Role};
+use repose_core::git::activity::{Activity, CommitDay, MAX_WALK};
+use repose_core::model::BranchState;
 
 use super::activity::{ActivityRead, DAYS, Tile, day_label, local_today, now_secs};
 use super::ui_a11y_tests::{A11yNode, a11y_frame, find};
@@ -151,35 +152,64 @@ fn enter_on_a_row_name_and_a_click_on_a_cell_open_history() {
 	);
 }
 
-/// Clauses 4 and 9: the cells are painted in the five steps. 20 commits today is the top step and 5
-/// yesterday the middle one; each fill appears once in its cell and once in the legend, and the
-/// steps no cell reaches appear in the legend alone.
+/// Clauses 4 and 9, Roger on 09eb88a: one painted cell in each of the five bands, each found under
+/// its own cell and filled with its step: 20, 10, 5, 2 and 0 commits on the last five days.
 #[test]
-fn cells_are_painted_in_their_colour_steps() {
+fn each_band_paints_its_cell_in_its_step() {
 	let ctx = egui::Context::default();
 	let mut state = fleet();
-	read_as(&mut state, "a", 20, 0);
-	read_as(&mut state, "b", 5, 1);
+	let now = now_secs();
+	let today = local_today(now, 0);
+	let bands = [(20, 1.0), (10, 0.75), (5, 0.5), (2, 0.25), (0, 0.0)];
+	let mut commits = Vec::new();
+	for (back, (count, _)) in bands.iter().enumerate() {
+		let time = now - back as i64 * 86_400;
+		let local_day = today - back as i64;
+		commits.extend(std::iter::repeat_n(CommitDay { time, local_day }, *count));
+	}
+	let read = Activity {
+		commits,
+		newest: Some(now),
+		truncated: false,
+	};
+	state
+		.activity
+		.reads
+		.insert(path_of(&state, "a"), ActivityRead::Read(read));
+	read_as(&mut state, "b", 1, 0);
 	read_as(&mut state, "c", 0, 0);
 	state.activity.shown = true;
-	let shapes = frame(&ctx, &mut state, Vec::new());
-	let fills = |shapes: &[ClippedShape], colour: Color32| {
-		let rects = shapes.iter().filter_map(|s| match &s.shape {
-			Shape::Rect(r) => Some(r.fill),
-			_ => None,
-		});
-		rects.filter(|f| *f == colour).count()
-	};
 	let step = |t: f32| BG_PANEL.get().lerp_to_gamma(ACCENT.get(), t);
-	assert_eq!(fills(&shapes, step(1.0)), 2, "a's day and the legend");
-	assert_eq!(fills(&shapes, step(0.5)), 2, "b's day and the legend");
-	assert_eq!(fills(&shapes, step(0.25)), 1, "the legend alone");
-	assert_eq!(fills(&shapes, step(0.75)), 1, "the legend alone");
+	for (back, (count, t)) in bands.iter().enumerate() {
+		let when = day_label(DAYS - 1 - back, today).0;
+		// No band holds exactly one commit, so every name is plural.
+		let at = centre_of(&ctx, &mut state, &format!("a, {when}, {count} commits"));
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		// The cell is the smallest filled rectangle under its centre.
+		let fill = shapes
+			.iter()
+			.filter_map(|s| match &s.shape {
+				Shape::Rect(r) if r.rect.contains(at) => Some((r.rect.area(), r.fill)),
+				_ => None,
+			})
+			.min_by(|a, b| a.0.total_cmp(&b.0))
+			.map(|(_, fill)| fill);
+		assert_eq!(fill, Some(step(*t)), "{count} commits on {when}");
+	}
+}
+
+/// The painted text shape that reads exactly `text`: its bounds and the clip it was painted under.
+fn painted(shapes: &[ClippedShape], text: &str) -> Option<(egui::Rect, egui::Rect)> {
+	shapes.iter().find_map(|s| match &s.shape {
+		Shape::Text(t) if t.galley.text() == text => Some((t.visual_bounding_rect(), s.clip_rect)),
+		_ => None,
+	})
 }
 
 /// Roger 5Q-1 and Morticia on 4431bdb: a read that stopped at the walk's bound says so on its row,
 /// in paint and in its row name, and its cells read as a floor, never as a complete count. Roger
-/// 5Q-1 on 5c2b7f0: the painted row keeps its branch beside the note, whole inside the name column.
+/// 5Q-1 on 5c2b7f0 and 72644e1: the row keeps its branch, and the note stays wholly visible in the
+/// name column however long the branch; the branch is the part that is cut short.
 #[test]
 fn a_truncated_read_is_shown_as_a_floor() {
 	let ctx = egui::Context::default();
@@ -187,26 +217,32 @@ fn a_truncated_read_is_shown_as_a_floor() {
 	if let Some(ActivityRead::Read(a)) = state.activity.reads.get_mut(&path_of(&state, "a")) {
 		a.truncated = true;
 	}
-	let line = format!("main · 0123abc · newest {MAX_WALK} only");
+	if let Some(a) = state.repos.iter_mut().find(|r| r.name == "a") {
+		a.branch =
+			BranchState::Branch("feature/an-extremely-long-branch-name-for-the-column".into());
+	}
+	let status = format!(" · newest {MAX_WALK} only");
 	let shapes = frame(&ctx, &mut state, Vec::new());
-	let painted = shapes.iter().find_map(|s| match &s.shape {
-		Shape::Text(t) if t.galley.text() == line => Some((t.visual_bounding_rect(), s.clip_rect)),
-		_ => None,
-	});
-	let Some((bounds, column)) = painted else {
-		panic!("{line:?} not painted: {:?}", texts(&shapes));
+	let Some((bounds, column)) = painted(&shapes, &status) else {
+		panic!("{status:?} not painted: {:?}", texts(&shapes));
 	};
 	assert!(column.contains_rect(bounds), "{bounds:?} cut by {column:?}");
-	// A failed read keeps its branch too.
+	let branch = texts(&shapes)
+		.into_iter()
+		.find(|t| t.starts_with("feature/an-extremely"));
+	assert!(
+		branch.as_deref().is_some_and(|b| b.ends_with('…')),
+		"{branch:?}"
+	);
+	// A failed read keeps its branch too, with its own note.
 	let failed = ActivityRead::Failed("unreadable".into());
 	state.activity.reads.insert(path_of(&state, "c"), failed);
-	let painted = texts(&frame(&ctx, &mut state, Vec::new()));
-	assert!(
-		painted
-			.iter()
-			.any(|t| t == "main · 0123abc · could not read"),
-		"{painted:?}"
-	);
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let Some((bounds, column)) = painted(&shapes, " · could not read") else {
+		panic!("no failed note: {:?}", texts(&shapes));
+	};
+	assert!(column.contains_rect(bounds), "{bounds:?} cut by {column:?}");
+	assert!(texts(&shapes).iter().any(|t| t == "main · 0123abc"));
 	let note = format!("newest {MAX_WALK} commits only");
 	let nodes = a11y_frame(&ctx, &mut state);
 	let today = day_label(DAYS - 1, local_today(now_secs(), 0)).0;

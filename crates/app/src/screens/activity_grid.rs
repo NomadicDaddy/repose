@@ -5,8 +5,10 @@
 //! opens that repository's History. Every name and cell is its own node in the accessibility tree,
 //! named as its tooltip reads (Roger 5Q-2 on 4051085), without adding a Tab stop.
 
+use eframe::egui::text::{LayoutJob, TextWrapping};
 use eframe::egui::{
-	self, FontFamily, FontId, Key, Rect, RichText, Role, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
+	self, FontFamily, FontId, Key, Pos2, Rect, RichText, Role, Sense, Stroke, StrokeKind, Ui, pos2,
+	vec2,
 };
 use repose_core::git::activity::MAX_WALK;
 use repose_core::model::RepoSummary;
@@ -113,20 +115,21 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 			mono,
 			TEXT.get(),
 		);
-		// The branch always shows (clause 4); a failed or cut read adds why (Roger 5Q-1 on 5c2b7f0).
-		let mut note = r.repo.branch_line();
-		if r.failed {
-			note.push_str(" · could not read");
+		let status = if r.failed {
+			Some("could not read".to_string())
 		} else if r.truncated {
-			note.push_str(&format!(" · newest {MAX_WALK} only"));
-		}
+			Some(format!("newest {MAX_WALK} only"))
+		} else {
+			None
+		};
 		let note_at = pos2(rect.left(), top + 28.0);
-		names.text(
+		note_line(
+			&names,
 			note_at,
-			egui::Align2::LEFT_CENTER,
-			note,
-			font.clone(),
-			MUTED.get(),
+			column.right(),
+			&r.repo.branch_line(),
+			status,
+			&font,
 		);
 		badges(
 			&painter,
@@ -159,6 +162,30 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 		}
 	} else if focused && ui.input(|i| i.key_pressed(Key::Enter)) {
 		open_history(state, &rows[fr].repo);
+	}
+}
+
+/// A row's second line: its branch (clause 4), then, for a failed or cut read, why. The status is
+/// laid out first and its width kept, and the branch is cut with an ellipsis to the room left, so
+/// no branch is long enough to hide it (Roger 5Q-1 on 5c2b7f0 and 72644e1).
+fn note_line(
+	painter: &egui::Painter,
+	at: Pos2,
+	right: f32,
+	branch: &str,
+	status: Option<String>,
+	font: &FontId,
+) {
+	let colour = MUTED.get();
+	let status = status.map(|s| painter.layout_no_wrap(format!(" · {s}"), font.clone(), colour));
+	let room = right - at.x - status.as_ref().map_or(0.0, |g| g.size().x);
+	let mut job = LayoutJob::simple_singleline(branch.to_string(), font.clone(), colour);
+	job.wrap = TextWrapping::truncate_at_width(room.max(0.0));
+	let branch = painter.layout_job(job);
+	let after = at.x + branch.size().x;
+	painter.galley(pos2(at.x, at.y - branch.size().y / 2.0), branch, colour);
+	if let Some(status) = status {
+		painter.galley(pos2(after, at.y - status.size().y / 2.0), status, colour);
 	}
 }
 
