@@ -26,7 +26,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 	};
 	let mut outcome = None;
 	let frame = egui::Frame::popup(&ctx.global_style()).inner_margin(16.0);
-	let height = (ctx.content_rect().height() - 220.0).max(160.0);
+	let height = (ctx.content_rect().height() - 180.0).max(160.0);
 	egui::Modal::new(egui::Id::unique("settings-screen"))
 		.frame(frame)
 		.show(ctx, |ui| {
@@ -99,27 +99,28 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 		&mut draft.exclude,
 		&mut draft.new_exclude,
 	);
-	heading(
-		ui,
-		"Scan depth",
-		"How many folders below each root to look.",
-	);
+	// Depth and theme take one row each, with their help beside or under the pointer, so that the
+	// commands show without scrolling at 1920x1080 (Morticia on the clause-4 frames, #41069).
+	ui.add_space(10.0);
 	ui.horizontal(|ui| {
-		let label = ui.label("Depth");
+		let label = ui.label(RichText::new("Scan depth").color(TEXT_BRIGHT).strong());
 		// A depth the file already held outside the range is shown and kept as it is; only a drag
 		// or a typed value is bounded (Morticia 5Q-1 on 25e8094).
 		let depth = egui::DragValue::new(&mut draft.depth)
 			.range(1..=MAX_DEPTH)
 			.clamp_existing_to_range(false);
 		ui.add(depth).labelled_by(label.id);
+		ui.label(
+			RichText::new("folders below each root to look in")
+				.size(TEXT_SMALL)
+				.color(MUTED),
+		);
 	});
-	heading(
-		ui,
-		"Theme",
-		"Follow Windows switches when the Windows app mode does.",
-	);
+	ui.add_space(10.0);
 	ui.horizontal(|ui| {
-		ui.radio_value(&mut draft.theme, Theme::System, "Follow Windows");
+		ui.label(RichText::new("Theme").color(TEXT_BRIGHT).strong());
+		ui.radio_value(&mut draft.theme, Theme::System, "Follow Windows")
+			.on_hover_text("Switches between dark and light when Windows' app mode changes.");
 		ui.radio_value(&mut draft.theme, Theme::Dark, "Dark");
 		ui.radio_value(&mut draft.theme, Theme::Light, "Light");
 	});
