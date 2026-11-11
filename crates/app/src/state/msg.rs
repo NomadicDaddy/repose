@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use eframe::egui;
 use repose_core::model::RepoSummary;
 
+use super::activity::ActivityMsg;
 use super::{BranchesMsg, DiffMsg, FilesMsg, HistoryMsg, Remote, WriteOutcome};
 
 pub enum Msg {
@@ -24,6 +25,8 @@ pub enum Msg {
 	Remote(u64, PathBuf, Remote),
 	/// An external action that ran on a thread failed; shown under the repository header.
 	Notice(String),
+	/// One repository's commit activity for the Activity screen.
+	Activity(ActivityMsg),
 }
 
 /// Which pane the right side shows for the selected repository.

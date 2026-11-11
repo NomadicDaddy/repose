@@ -13,8 +13,10 @@ impl AppState {
 	}
 
 	/// Selects a repository. An open diff or file belongs to the repository it was opened on, so
-	/// moving to another closes it rather than drawing it under the new header.
+	/// moving to another closes it rather than drawing it under the new header. Choosing a
+	/// repository leaves the Activity screen (activity-screen clause 1).
 	pub fn select(&mut self, path: PathBuf) {
+		self.activity.shown = false;
 		if self.selected.as_ref() != Some(&path) {
 			self.selected_file = None;
 			if self.diff.as_ref().is_some_and(|d| d.open.repo != path) {

@@ -12,6 +12,10 @@ impl AppState {
 				Msg::Discovered(g, repos) if g == self.generation => {
 					let landed = self.merge_discovered(repos);
 					self.sync_watch(ctx);
+					// The rows Activity reads exist only now, at start-up and after Refresh.
+					if self.activity.shown {
+						self.read_activity(ctx);
+					}
 					// A --file diff opens only on the repository that was asked for; a --select
 					// that matched nothing falls back to the first row, and that row's working
 					// tree is not the one the caller meant.
@@ -74,6 +78,7 @@ impl AppState {
 				Msg::Diff(m) => self.merge_diff(m),
 				Msg::Files(m) => self.merge_files(m),
 				Msg::Remote(g, repo, remote) => self.merge_remote(g, repo, remote),
+				Msg::Activity(m) => self.merge_activity(m),
 				_ => {}
 			}
 		}

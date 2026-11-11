@@ -238,7 +238,7 @@ fn main() -> eframe::Result {
 				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out, args.select.clone()));
 			}
 			app.state.view = args.view;
-			app.state.requested_selection = args.select.or_else(repo_at_cwd);
+			app.state.start_on(args.select.or_else(repo_at_cwd));
 			app.state.requested_diff = args.file.map(|f| (f, args.inline));
 			app.state.requested_file = args.open;
 			Ok(Box::new(app))

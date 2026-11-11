@@ -1,6 +1,8 @@
 //! The screens. Each file draws one pane from `AppState` and never owns state of its own.
 
 mod a11y;
+mod activity;
+mod activity_grid;
 pub mod branches;
 pub mod changes;
 mod close_guard;

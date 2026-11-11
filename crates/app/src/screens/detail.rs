@@ -6,8 +6,8 @@ use eframe::egui::{self, FontFamily, RichText, Ui};
 use repose_core::git::remote::{display_url, https_page};
 
 use super::{
-	a11y, branches, changes, close_guard, commit_box, confirm, diff, fetch, file_view, files,
-	history, settings,
+	a11y, activity, branches, changes, close_guard, commit_box, confirm, diff, fetch, file_view,
+	files, history, settings,
 };
 use crate::platform::Platform;
 use crate::state::{AppState, Remote, View};
@@ -161,6 +161,10 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	egui::CentralPanel::default()
 		.frame(egui::Frame::new().fill(BG_APP.get()).inner_margin(16.0))
 		.show(root, |ui| {
+			if state.activity.shown {
+				activity::show(ui, state);
+				return;
+			}
 			let Some(repo) = state.selected_repo().cloned() else {
 				ui.label(RichText::new("Choose a repository to inspect it.").color(MUTED));
 				return;

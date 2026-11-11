@@ -2,6 +2,7 @@
 //! messages tagged with a generation; results are merged by repository path so a refresh never
 //! resets the selection or scroll. Writes go through one serial queue.
 
+pub mod activity;
 mod backstop;
 mod branches;
 mod diff;
@@ -25,6 +26,8 @@ mod settings;
 mod ui_a11y_tests;
 #[cfg(test)]
 mod ui_action_failure_tests;
+#[cfg(test)]
+mod ui_activity_tests;
 #[cfg(test)]
 mod ui_branch_menu_tests;
 #[cfg(test)]
@@ -188,6 +191,8 @@ pub struct AppState {
 	pub(crate) remote_reads: HashSet<PathBuf>,
 	/// The file-system watcher, its channel and its status-line note.
 	pub(crate) watching: refresh::Watching,
+	/// The Activity screen across every repository (activity-screen).
+	pub activity: activity::ActivityState,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -240,6 +245,7 @@ impl AppState {
 			remotes: HashMap::new(),
 			remote_reads: HashSet::new(),
 			watching: refresh::Watching::default(),
+			activity: activity::ActivityState::default(),
 			generation: 0,
 			tx,
 			rx,

@@ -41,24 +41,30 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 		});
 }
 
+/// The title, then Refresh, Settings and Activity on their own row: three buttons beside the title
+/// would not fit the 300 px sidebar (activity-screen clause 1).
 fn header(ui: &mut Ui, state: &mut AppState) {
+	ui.label(
+		RichText::new("Repositories")
+			.size(TEXT_TITLE)
+			.color(TEXT_BRIGHT)
+			.strong(),
+	);
 	ui.horizontal(|ui| {
-		ui.label(
-			RichText::new("Repositories")
-				.size(TEXT_TITLE)
-				.color(TEXT_BRIGHT)
-				.strong(),
-		);
-		ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-			if ui.button("Settings").clicked() {
-				state.open_settings();
-			}
-			let refresh = ui.add_enabled(!state.scanning, egui::Button::new("Refresh"));
-			if refresh.clicked() {
-				let ctx = ui.ctx().clone();
-				state.start_scan(&ctx);
-			}
-		});
+		let ctx = ui.ctx().clone();
+		if ui
+			.add_enabled(!state.scanning, egui::Button::new("Refresh"))
+			.clicked()
+		{
+			state.start_scan(&ctx);
+		}
+		if ui.button("Settings").clicked() {
+			state.open_settings();
+		}
+		let activity = egui::Button::new("Activity").selected(state.activity.shown);
+		if ui.add(activity).clicked() {
+			state.show_activity(&ctx);
+		}
 	});
 	let label = ui.label("Find a repository");
 	let edit = egui::TextEdit::singleline(&mut state.filter)
@@ -203,7 +209,10 @@ fn row_events(
 		RowKind::Parent { expanded } => (0.0, expanded),
 		RowKind::Worktree => (16.0, false),
 	};
-	let out = row::draw(ui, state, repo, is_selected, indent, expanded);
+	// While Activity fills the pane no row is drawn selected, so the list never names a repository
+	// the pane is not showing.
+	let drawn_selected = is_selected && !state.activity.shown;
+	let out = row::draw(ui, state, repo, drawn_selected, indent, expanded);
 	if is_selected && state.reveal_selected {
 		out.response.scroll_to_me(Some(egui::Align::Center));
 	}
