@@ -44,6 +44,21 @@ fn main() {
 		println!("cargo:rerun-if-changed={dir}/index");
 		println!("cargo:rerun-if-changed={dir}/refs/heads");
 	}
+	program_icon();
+}
+
+/// The program icon (program-icon): on a Windows target the executable carries repose.ico as its
+/// icon resource, which Explorer, the taskbar, Alt+Tab and the Start menu show. Other targets build
+/// without it. A failure to compile the resource fails the build rather than ship an exe with none.
+fn program_icon() {
+	const ICON: &str = "../../assets/icon/repose.ico";
+	println!("cargo:rerun-if-changed={ICON}");
+	if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+		return;
+	}
+	if let Err(e) = winresource::WindowsResource::new().set_icon(ICON).compile() {
+		panic!("could not compile the program icon {ICON}: {e}");
+	}
 }
 
 /// `YYYY-MM-DD HH:MM UTC` from seconds since the epoch, with no date crate.

@@ -172,9 +172,11 @@ fn error_window(message: String) -> eframe::Result {
 		}
 	}
 	let options = eframe::NativeOptions {
-		viewport: egui::ViewportBuilder::default()
-			.with_inner_size([560.0, 240.0])
-			.with_title("repose"),
+		viewport: with_icon(
+			egui::ViewportBuilder::default()
+				.with_inner_size([560.0, 240.0])
+				.with_title("repose"),
+		),
 		..Default::default()
 	};
 	eframe::run_native(
@@ -186,6 +188,19 @@ fn error_window(message: String) -> eframe::Result {
 			Ok(Box::new(ErrorApp(message)))
 		}),
 	)
+}
+
+/// The program icon at 256 px (program-icon), from assets/icon/make-icon.sh.
+const ICON_PNG: &[u8] = include_bytes!("../../../assets/icon/repose-256.png");
+
+/// The window's own icon, for its title bar (program-icon): the mark the executable also carries,
+/// decoded with eframe's PNG loader. A PNG that will not decode leaves the default icon rather
+/// than stopping repose from starting.
+fn with_icon(viewport: egui::ViewportBuilder) -> egui::ViewportBuilder {
+	match eframe::icon_data::from_png_bytes(ICON_PNG) {
+		Ok(icon) => viewport.with_icon(icon),
+		Err(_) => viewport,
+	}
 }
 
 fn main() -> eframe::Result {
@@ -214,10 +229,12 @@ fn main() -> eframe::Result {
 		}
 	};
 	let options = eframe::NativeOptions {
-		viewport: egui::ViewportBuilder::default()
-			.with_inner_size([1440.0, 900.0])
-			.with_min_inner_size([960.0, 600.0])
-			.with_title("repose"),
+		viewport: with_icon(
+			egui::ViewportBuilder::default()
+				.with_inner_size([1440.0, 900.0])
+				.with_min_inner_size([960.0, 600.0])
+				.with_title("repose"),
+		),
 		..Default::default()
 	};
 	eframe::run_native(
@@ -244,4 +261,16 @@ fn main() -> eframe::Result {
 			Ok(Box::new(app))
 		}),
 	)
+}
+
+#[cfg(test)]
+mod icon_tests {
+	/// program-icon clause 3: the window icon decodes, at the 256 px the executable's largest frame
+	/// has, so with_icon never falls back to the default without a test failing.
+	#[test]
+	fn the_window_icon_decodes() {
+		let icon =
+			eframe::icon_data::from_png_bytes(super::ICON_PNG).unwrap_or_else(|e| panic!("{e}"));
+		assert_eq!((icon.width, icon.height), (256, 256));
+	}
 }

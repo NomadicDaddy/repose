@@ -17,6 +17,9 @@ similar = { workspace = true }
 syntect = { workspace = true }
 two-face = { workspace = true }
 
+[build-dependencies]
+winresource = { workspace = true }
+
 [lints.rust]
 unsafe_code = "forbid"
 

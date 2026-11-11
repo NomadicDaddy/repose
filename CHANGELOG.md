@@ -20,6 +20,9 @@ All notable changes to repose are recorded here. The format follows
   its days read "at least" the count. Every row name and day has a tooltip and an accessible
   name; the grid is one Tab stop, the arrow keys, Home and End move within it, and Enter or a
   click opens that repository's History.
+- repose has its own icon: a branch mark in the accent colour on a dark rounded tile. The
+  executable carries it, so Explorer, the taskbar, Alt+Tab and the Start menu show it, and the
+  window's title bar shows it too. Before, Windows showed its generic program icon.
 
 ### Changed
 

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="256" height="256">
+  <!-- repose's program icon (program-icon; Phillip chose A, #42609): the accent branch on the dark
+       app tile. The tile's edge is lighter than the tile so it still reads on a dark taskbar. -->
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#101518" stroke="#4a6360" stroke-width="1"/>
+  <g fill="none" stroke="#87d6b2" stroke-width="3" stroke-linecap="round">
+    <line x1="11" y1="9" x2="11" y2="23"/>
+    <path d="M21 11.5 C21 17 11 15.5 11 20"/>
+  </g>
+  <g fill="#87d6b2">
+    <circle cx="11" cy="8.5" r="3"/>
+    <circle cx="11" cy="23.5" r="3"/>
+    <circle cx="21" cy="10" r="3"/>
+  </g>
+</svg>
