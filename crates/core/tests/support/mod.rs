@@ -27,6 +27,7 @@ impl TempRepo {
 		// The code under test runs git with the developer's own global config, this harness runs
 		// it with none; pin line endings locally so the two agree on what "unchanged" means.
 		repo.git(&["config", "core.autocrlf", "false"]);
+		set_identity(&repo.path);
 		repo
 	}
 
@@ -65,6 +66,14 @@ impl TempRepo {
 		assert!(out.status.success(), "git {args:?} failed");
 		String::from_utf8_lossy(&out.stdout).to_string()
 	}
+}
+
+/// Gives the repository at `dir` its own committer identity. The code under test runs git with the
+/// machine's global config, and a CI runner has no identity there, so a commit it makes would be
+/// refused with "Author identity unknown" (CI run 42920036918).
+pub fn set_identity(dir: &Path) {
+	git_in(dir, &["config", "user.name", "Test"]);
+	git_in(dir, &["config", "user.email", "test@example.invalid"]);
 }
 
 pub fn git_in(dir: &Path, args: &[&str]) -> String {

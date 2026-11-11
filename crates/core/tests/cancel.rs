@@ -101,8 +101,11 @@ fn assert_cancelled(repo_dir: &Path, marker: &str, lock_under: &Path) {
 		"the commit must not land"
 	);
 	let lock = index_lock_path(repo_dir).expect("lock path");
+	// git spells the path with long folder names; the temp folder may be an 8.3 short name (as on
+	// a CI runner), so the folders are compared, not the text.
+	let real = |p: &Path| std::fs::canonicalize(p).expect("folder exists");
 	assert!(
-		lock.starts_with(lock_under),
+		real(lock.parent().expect("lock folder")).starts_with(real(lock_under)),
 		"lock {} is not under {}",
 		lock.display(),
 		lock_under.display()
@@ -123,6 +126,7 @@ fn cancel_kills_the_hook_tree_in_a_repository_and_in_a_worktree() {
 	std::fs::create_dir_all(&main).expect("main dir");
 	support::git_in(&main, &["init", "-q", "-b", "main"]);
 	support::git_in(&main, &["config", "core.autocrlf", "false"]);
+	support::set_identity(&main);
 	std::fs::write(main.join("a.txt"), "a\n").expect("write");
 	support::git_in(&main, &["add", "a.txt"]);
 	support::git_in(&main, &["commit", "-q", "-m", "base"]);

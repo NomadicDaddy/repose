@@ -6,6 +6,12 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A worktree is listed under its repository when the root is written another way than git
+  writes the folder, such as an 8.3 short name or a path through a junction. Before, it got a row
+  of its own, and a change to its index refreshed the main repository's row instead of its own.
+
 ### Development
 
 - The status-line width test no longer depends on which folders exist on the machine running
@@ -16,6 +22,10 @@ All notable changes to repose are recorded here. The format follows
   --no-fail-fast`), so a red gate names every failing test at once; the step still fails. The
   cancel test now says why when a commit ends before its hook's child appears, instead of
   waiting out its 20 seconds, after the second CI run (42907194932) failed there with no reason.
+- The tests' repositories carry their own committer identity. repose runs git with the
+  machine's global config, and the CI runner has no identity there, so eight tests that commit
+  were refused with "Author identity unknown" (run 42920036918). The same run's other two
+  failures were the worktree fix above: the runner's temp folder is a short name.
 
 ## [1.2.0] - 2026-11-08
 
