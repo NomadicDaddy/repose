@@ -42,9 +42,11 @@ function CachedStep($name, [string[]] $paths, [string[]] $facts, [scriptblock] $
 }
 Step 'gate cache self-test' { pwsh -NoProfile -File (Join-Path $PSScriptRoot 'gate-cache-test.ps1') }
 # The delivered leak guard is tested on every gate, in every clone, whether or not the hooks are
-# installed (audit-secret-handling-retention-1794018053). It runs under Git's own bash, the one the
-# hooks use, found beside git: a bare `bash` can be WSL's. Never cached: it is quick, and its
-# input includes the machine's git.
+# installed (audit-secret-handling-retention-1794018053), by the self-test smokestack delivers with
+# it (scripts/smokestack/check-leak-guard.sh, its cases and setup; it builds scratch repositories in
+# a temp folder and always names a fixture pattern file). It runs under Git's own bash, the one the
+# hooks use, found beside git: a bare `bash` can be WSL's. Never cached: it is quick, and its input
+# includes the machine's git.
 $gitBash = $null
 $gitDir = Split-Path -Parent "$((Get-Command git -ErrorAction SilentlyContinue).Source)"
 while ($gitDir -and -not $gitBash) {
@@ -54,7 +56,7 @@ while ($gitDir -and -not $gitBash) {
 }
 Step 'leak guard self-test' {
     if (-not $gitBash) { throw "no bash.exe beside git" }
-    & $gitBash (Join-Path $PSScriptRoot 'check-leak-guard.sh')
+    & $gitBash (Join-Path $PSScriptRoot 'smokestack\check-leak-guard.sh')
 }
 CachedStep 'cargo fmt --check' $rustInputs $rustFacts { cargo fmt --all -- --check }
 CachedStep 'cargo clippy' $rustInputs $rustFacts { cargo clippy --workspace --all-targets -- -D warnings }

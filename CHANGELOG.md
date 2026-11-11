@@ -21,6 +21,13 @@ All notable changes to repose are recorded here. The format follows
   name; the grid is one Tab stop, the arrow keys, Home and End move within it, and Enter or a
   click opens that repository's History.
 
+### Changed
+
+- The gate's leak-guard self-test is now the one smokestack delivers with the guard,
+  `scripts/smokestack/check-leak-guard.sh` with its cases and setup, run under Git's own bash.
+  repose's own `scripts/check-leak-guard.sh` is removed. The delivered test covers far more
+  cases than the five repose's copy had, and it is kept in step with the guard by smokestack.
+
 ## [1.3.0] - 2026-11-11
 
 ### Added
