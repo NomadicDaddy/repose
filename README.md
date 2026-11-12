@@ -84,9 +84,10 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   missing now, such as an unplugged drive, is kept with a note. You can still edit config.toml by
   hand.
 - Activity, beside Refresh and Settings, shows every listed repository at once, and repose opens
-  on it when started outside any repository with no `--select`. Four tiles count the
-  repositories with uncommitted changes, ahead of or behind their upstream, and quiet for 60 days
-  or more; choosing one shows only those. Below, each repository has a row of its commits per day
+  on it when started outside any repository with no `--select`. An "All repositories" card shows
+  how many are listed, and four more count those with uncommitted changes, ahead of or behind
+  their upstream, and quiet for 60 days or more; choosing one of the four shows only those, and
+  All repositories shows every one again. Below, each repository has a row of its commits per day
   over the last 30 days, read offline from local and saved remote-tracking branches. Choose a day
   or a repository name, by click or Enter, to open its History.
 - The window follows the Windows app mode (Settings > Personalization > Colors), light or dark,
