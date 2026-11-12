@@ -27,6 +27,10 @@ All notable changes to repose are recorded here. The format follows
 - `scripts/install-user.ps1` is gone; the installer replaces it. A green gate on a clean `main`
   still refreshes an installed copy's files, now through `scripts/refresh-install.ps1`, which only
   copies over an existing install and never changes the user PATH.
+- The gate now fails if the staged `repose.exe` names a Visual C++ runtime DLL (`vcruntime*`,
+  `msvcp*` or `api-ms-win-crt-*`), through `scripts/check-no-vc-runtime.ps1`, so a build that
+  would not start on a clean Windows install can't be staged. Its cached Rust steps are also keyed
+  on `.cargo`, so a change to the build flags there is never served from an older cached pass.
 
 - Activity has an "All repositories" card first in its row, with the number of listed
   repositories. It is lit while no filter is on, and selecting it brings back every repository
