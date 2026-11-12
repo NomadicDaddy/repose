@@ -6,7 +6,21 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A per-user installer, `repose-setup.exe`. It installs for your user only, with no administrator
+  prompt, to `%LOCALAPPDATA%\Programs\repose`, where earlier versions were copied, so it upgrades
+  them in place. It adds a Start menu shortcut with the program icon, an entry in Settings > Apps
+  to uninstall it, and the folder to your user PATH when it isn't there already. It stops if
+  repose is running. Uninstalling removes the files, the shortcut and only a PATH entry the
+  installer added itself, and leaves your settings. `scripts/build-installer.ps1` builds it with
+  Inno Setup 7.1.1 when a release is cut; the gate doesn't need Inno Setup.
+
 ### Changed
+
+- `scripts/install-user.ps1` is gone; the installer replaces it. A green gate on a clean `main`
+  still refreshes an installed copy's files, now through `scripts/refresh-install.ps1`, which only
+  copies over an existing install and never changes the user PATH.
 
 - Activity has an "All repositories" card first in its row, with the number of listed
   repositories. It is lit while no filter is on, and selecting it brings back every repository

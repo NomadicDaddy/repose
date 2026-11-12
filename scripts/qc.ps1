@@ -136,7 +136,7 @@ if (Test-Path $exe) {
         }
     }
 }
-# A per-user install (scripts/install-user.ps1) is refreshed by a green gate (Phillip #31471 on
+# A per-user install (repose-setup.exe) is refreshed by a green gate (Phillip #31471 on
 # #31468): when every step passed and a per-user copy exists, the staged pair is copied over it,
 # unless that repose is running, in which case the gate says so and the next green gate does it.
 # A failed gate leaves the copy alone and says whether it is behind, judging every staged file
@@ -174,15 +174,15 @@ if (Test-Path (Join-Path $installDir 'repose.exe')) {
         } elseif ($head -ne 'refs/heads/main') {
             Write-Host "INSTALL kept: HEAD is $head, not refs/heads/main"
         } else {
-            # Copy only: the gate never writes the user PATH, so a folder removed from it stays
-            # removed and the script says so (Morticia L-1 on 2f884b9); every PATH line is echoed.
-            $lines = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'install-user.ps1') -CopyOnly 2>&1 | ForEach-Object { "$_" })
+            # Copy only: the gate never writes the user PATH or the uninstall entry, so a folder
+            # removed from PATH stays removed (Morticia L-1 on 2f884b9).
+            $lines = @(& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'refresh-install.ps1') 2>&1 | ForEach-Object { "$_" })
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "INSTALL refreshed: the per-user copy is now main $commit ($($behind -join ', ') replaced)"
-                $lines | Where-Object { $_ -like 'INSTALLED *' -or $_ -like 'PATH-*' } | ForEach-Object { Write-Host $_ }
+                $lines | Where-Object { $_ -like 'INSTALLED *' } | ForEach-Object { Write-Host $_ }
             } else {
-                $why = $lines | Where-Object { $_ -match 'repose is running|missing ' } | Select-Object -First 1
-                if (-not $why) { $why = "install-user.ps1 exited $LASTEXITCODE" }
+                $why = $lines | Where-Object { $_ -match 'repose is running|missing |no repose installed' } | Select-Object -First 1
+                if (-not $why) { $why = "refresh-install.ps1 exited $LASTEXITCODE" }
                 Write-Host "INSTALL skipped: $why; the next green gate refreshes it"
             }
         }

@@ -39,7 +39,7 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   the executable size, startup time and idle memory as `MEASURE` lines, which are reported
   against targets and never fail the gate (`-SkipMeasure` skips the startup and memory runs).
   When every step passed, the tree is clean and you are on `main`, it also refreshes a per-user
-  copy installed by `install-user.ps1`, or says why it left that copy alone. Its last line is
+  install's files with `scripts/refresh-install.ps1`, or says why it left them alone. Its last line is
   `QC_EXIT=<code>`.
 - The gate remembers passes, never failures, in `target/gate-cache`. A step that passed with
   exactly the same inputs prints `CACHED` with the time of that pass instead of running again.
@@ -62,8 +62,14 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
   step took 54 seconds on a warm build. Before the log tests built their 101 commits with one
   `git fast-import`, it took about 105. A command limit for `cargo test --workspace` should still
   sit well above a minute, and higher when the tests have to compile.
-- `pwsh scripts/install-user.ps1` copies the staged files to `%LOCALAPPDATA%\Programs\repose` and
-  adds that folder to your user PATH; `-Check` reports whether the installed copy is current.
+- To install, run `repose-setup.exe` from a release. It installs for your user only, with no
+  administrator prompt, to `%LOCALAPPDATA%\Programs\repose`, adds a Start menu shortcut, and adds
+  that folder to your user PATH when it isn't there already. It upgrades an earlier install in
+  place and stops if repose is running. Uninstall it from Settings > Apps: that removes the files,
+  the shortcut and the PATH entry it added, and leaves your settings in `%APPDATA%\repose`.
+- `pwsh scripts/build-installer.ps1` builds `target\installer\repose-setup.exe` from the staged
+  files when a release is cut. It needs `REPOSE_ISCC` set to the Inno Setup 7.1.1 `ISCC.exe`;
+  the gate itself does not.
 - `repose` lists the repositories under the roots in `%APPDATA%\repose\config.toml` (created with
   defaults on first run), within its configured depth (3 folders by default) and skipping its
   exclude folders. Submodules are counted on their parent rather than listed as rows.
