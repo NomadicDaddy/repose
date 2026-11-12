@@ -16,6 +16,12 @@ All notable changes to repose are recorded here. The format follows
   installer added itself, and leaves your settings. `scripts/build-installer.ps1` builds it with
   Inno Setup 7.1.1 when a release is cut; the gate doesn't need Inno Setup.
 
+### Fixed
+
+- repose now starts on a Windows install that lacks the Visual C++ runtime. Every earlier release
+  needed `VCRUNTIME140.dll` and stopped with "The code execution cannot proceed" on a clean
+  machine. The C runtime is now linked into `repose.exe`, so nothing else has to be installed.
+
 ### Changed
 
 - `scripts/install-user.ps1` is gone; the installer replaces it. A green gate on a clean `main`

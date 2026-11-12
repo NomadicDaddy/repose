@@ -1,0 +1,5 @@
+# Link the C runtime into repose.exe, so it starts on a Windows install without the Visual C++
+# runtime: before this, every release imported VCRUNTIME140.dll and failed on a clean host
+# (winlab, Carl #43391; Phillip Yes #43404 on #43399). Nothing third-party ships beside the exe.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
