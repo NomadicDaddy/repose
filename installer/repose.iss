@@ -47,31 +47,44 @@ const
   EnvKey = 'Environment';
   MarkKey = 'Software\repose\installer';
 
-{ True when a repose.exe runs from the install folder, by WMI, so setup can stop rather than
-  close it or leave the folder half replaced. }
-function ReposeRunning(): Boolean;
+{ Why setup or uninstall must stop: a repose.exe running from the install folder, found by WMI,
+  or a WMI query that failed, since then nothing says repose is closed (fail closed, Morticia 5Q-1
+  on 1f8ec4e). Empty when it may go ahead. In the WQL string literal a backslash and a quote are
+  each escaped with a backslash, so a profile folder whose name holds an apostrophe queries
+  correctly. }
+function RunningBlock(): String;
 var
   Locator, Service, Found: Variant;
   Target: String;
 begin
-  Result := False;
+  Result := '';
   Target := ExpandConstant('{app}\repose.exe');
   StringChangeEx(Target, '\', '\\', True);
+  StringChangeEx(Target, '''', '\''', True);
   try
     Locator := CreateOleObject('WbemScripting.SWbemLocator');
     Service := Locator.ConnectServer('.', 'root\cimv2');
     Found := Service.ExecQuery('SELECT ProcessId FROM Win32_Process WHERE ExecutablePath = ''' + Target + '''');
-    Result := Found.Count > 0;
+    if Found.Count > 0 then
+      Result := 'repose is running from ' + ExpandConstant('{app}') + '. Close it, then try again.';
   except
-    Result := False;
+    Result := 'Could not check whether repose is running (' + GetExceptionMessage + '). Close repose, then try again.';
   end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  Result := '';
-  if ReposeRunning() then
-    Result := 'repose is running from ' + ExpandConstant('{app}') + '. Close it, then run setup again.';
+  Result := RunningBlock();
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  Why: String;
+begin
+  Why := RunningBlock();
+  Result := Why = '';
+  if not Result then
+    MsgBox(Why, mbError, MB_OK);
 end;
 
 { An entry with each %NAME% replaced by that environment variable, for comparison only; an unknown
@@ -132,18 +145,24 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   Raw, Dir: String;
   Parts: TArrayOfString;
+  Existed, Joined: Boolean;
 begin
   if CurStep <> ssPostInstall then Exit;
   Dir := ExpandConstant('{app}');
-  if not RegQueryStringValue(HKCU, EnvKey, 'Path', Raw) then Raw := '';
+  Existed := RegQueryStringValue(HKCU, EnvKey, 'Path', Raw);
+  if not Existed then Raw := '';
   if PathIndex(Raw, Dir, Parts) >= 0 then Exit;
   { Appended to the value as it is, so every existing byte survives; the value is written as
-    REG_EXPAND_SZ, the type Windows gives the user PATH. }
-  if Raw = '' then Raw := Dir
-  else if Raw[Length(Raw)] = ';' then Raw := Raw + Dir
-  else Raw := Raw + ';' + Dir;
+    REG_EXPAND_SZ, the type Windows gives the user PATH. Whether a separator was added and whether
+    the value existed are recorded, so uninstall can give back exactly what was there. }
+  Joined := (Raw <> '') and (Raw[Length(Raw)] <> ';');
+  if Joined then Raw := Raw + ';' + Dir else Raw := Raw + Dir;
   if RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Raw) then
+  begin
     RegWriteStringValue(HKCU, MarkKey, 'AddedPath', Dir);
+    RegWriteDWordValue(HKCU, MarkKey, 'AddedSeparator', Ord(Joined));
+    RegWriteDWordValue(HKCU, MarkKey, 'CreatedPath', Ord(not Existed));
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -151,6 +170,7 @@ var
   Raw, Added, Kept: String;
   Parts: TArrayOfString;
   At, I: Integer;
+  Separator, Created: Cardinal;
   First: Boolean;
 begin
   if CurUninstallStep <> usPostUninstall then Exit;
@@ -170,7 +190,15 @@ begin
           Kept := Kept + Parts[I];
           First := False;
         end;
-      RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Kept);
+      { The folder was appended after a ';' that was already there: give that ';' back. }
+      if not RegQueryDWordValue(HKCU, MarkKey, 'AddedSeparator', Separator) then Separator := 1;
+      if (At > 0) and (At = GetArrayLength(Parts) - 1) and (Separator = 0) then Kept := Kept + ';';
+      { A Path value the installer created goes again rather than staying behind empty. }
+      if not RegQueryDWordValue(HKCU, MarkKey, 'CreatedPath', Created) then Created := 0;
+      if (Kept = '') and (Created = 1) then
+        RegDeleteValue(HKCU, EnvKey, 'Path')
+      else
+        RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Kept);
     end;
   end;
   RegDeleteKeyIncludingSubkeys(HKCU, MarkKey);
