@@ -25,7 +25,7 @@ use crate::diff_rows::build_rows;
 pub(super) struct A11yNode {
 	pub(super) role: Role,
 	pub(super) name: String,
-	selected: Option<bool>,
+	pub(super) selected: Option<bool>,
 	pub(super) focusable: bool,
 	/// The node announces changes politely (a status line).
 	pub(super) polite: bool,

@@ -6,11 +6,13 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use eframe::egui;
+use eframe::egui::{self, Role};
 use repose_core::config::Config;
 use repose_core::git::activity::{Activity, CommitDay};
 
-use super::activity::{ActivityRead, local_today, now_secs};
+use super::activity::{ActivityRead, Tile, local_today, now_secs};
+use super::ui_a11y_tests::{a11y_frame, find};
+use super::ui_frame::{run, screen_input};
 use super::ui_harness::{click, frame, key, repo, text_at, texts};
 use super::{AppState, View};
 
@@ -137,10 +139,7 @@ fn a_tile_filters_the_grid_to_its_repositories() {
 	};
 	frame(&ctx, &mut state, click(tile));
 	let painted = shown(&ctx, &mut state);
-	assert!(
-		painted.iter().any(|t| t == "Showing: Ahead of upstream"),
-		"{painted:?}"
-	);
+	assert_eq!(state.activity.filter, Some(Tile::Ahead));
 	let names: Vec<&String> = painted
 		.iter()
 		.filter(|t| ["a", "b", "c"].contains(&t.as_str()))
@@ -157,12 +156,111 @@ fn a_tile_filters_the_grid_to_its_repositories() {
 		"{names:?}"
 	);
 
+	// The same tile again shows them all.
 	let shapes = frame(&ctx, &mut state, Vec::new());
-	let Some(clear) = text_at(&shapes, "Clear") else {
-		panic!("no Clear");
+	let Some(tile) = text_at(&shapes, "Ahead of upstream") else {
+		panic!("no Ahead tile");
 	};
-	frame(&ctx, &mut state, click(clear));
+	frame(&ctx, &mut state, click(tile));
 	assert!(state.activity.filter.is_none());
+}
+
+/// activity-all-repositories-card, clauses 1 to 6: the All card comes first with the repository
+/// count and is lit while no filter is on; it clears each of the four filters, by click and by
+/// keyboard; clicking it while lit changes nothing; and no Showing or Clear line is drawn.
+#[test]
+fn the_all_card_returns_from_every_filter() {
+	let ctx = egui::Context::default();
+	let mut state = fleet();
+	with_reads(&mut state);
+	state.activity.shown = true;
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	let (Some(all), Some(first)) = (
+		text_at(&shapes, "All repositories"),
+		text_at(&shapes, "Uncommitted changes"),
+	) else {
+		panic!("cards not painted: {:?}", texts(&shapes));
+	};
+	assert!(all.x < first.x, "the All card comes first");
+	let painted = texts(&shapes);
+	assert!(painted.iter().any(|t| t == "Every listed repository"));
+	assert!(
+		!painted
+			.iter()
+			.any(|t| t == "Clear" || t.starts_with("Showing"))
+	);
+	assert_eq!(
+		all_card_selected(&ctx, &mut state),
+		Some(true),
+		"lit on open"
+	);
+
+	frame(&ctx, &mut state, click(all));
+	assert!(
+		state.activity.filter.is_none(),
+		"clicking it lit changes nothing"
+	);
+
+	for (label, tile) in [
+		("Uncommitted changes", Tile::Uncommitted),
+		("Ahead of upstream", Tile::Ahead),
+		("Behind upstream", Tile::Behind),
+		("Quiet for 60+ days", Tile::Quiet),
+	] {
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		let Some(at) = text_at(&shapes, label) else {
+			panic!("no {label}");
+		};
+		frame(&ctx, &mut state, click(at));
+		assert_eq!(state.activity.filter, Some(tile), "{label}");
+		let unlit = all_card_selected(&ctx, &mut state);
+		assert_eq!(unlit, Some(false), "{label}: All unlit");
+		let shapes = frame(&ctx, &mut state, Vec::new());
+		let Some(all) = text_at(&shapes, "All repositories") else {
+			panic!("no All card under {label}");
+		};
+		frame(&ctx, &mut state, click(all));
+		assert!(state.activity.filter.is_none(), "{label}: All clears it");
+	}
+
+	// By keyboard: Tab to the All card, then Enter, and Space for a second filter.
+	for (tile, k) in [
+		(Tile::Behind, egui::Key::Enter),
+		(Tile::Quiet, egui::Key::Space),
+	] {
+		state.activity.filter = Some(tile);
+		tab_to_all_card(&ctx, &mut state);
+		frame(&ctx, &mut state, key(k));
+		assert!(
+			state.activity.filter.is_none(),
+			"{k:?} on All clears {tile:?}"
+		);
+	}
+}
+
+/// Whether the All card's node reads as selected, from one frame's AccessKit tree.
+fn all_card_selected(ctx: &egui::Context, state: &mut AppState) -> Option<bool> {
+	let nodes = a11y_frame(ctx, state);
+	find(&nodes, Role::Button, "All repositories: ").selected
+}
+
+/// Presses Tab until AccessKit reports the All card focused.
+fn tab_to_all_card(ctx: &egui::Context, state: &mut AppState) {
+	ctx.enable_accesskit();
+	for _ in 0..40 {
+		let out = run(ctx, state, screen_input(key(egui::Key::Tab)));
+		let Some(update) = out.platform_output.accesskit_update else {
+			continue;
+		};
+		let focused = update.nodes.iter().find(|(id, _)| *id == update.focus);
+		if focused.is_some_and(|(_, n)| {
+			n.label()
+				.is_some_and(|l| l.starts_with("All repositories: "))
+		}) {
+			return;
+		}
+	}
+	panic!("Tab never reached the All card");
 }
 
 /// Clause 7: the grid's arrows move its own cell and leave the repository selection alone; Enter

@@ -1,7 +1,8 @@
-//! The Activity screen (activity-screen): four tiles for what needs attention, then a grid of each
-//! repository's local commits per day over the last 30 days (`activity_grid`). It reads only what
-//! repose already reads offline. A tile filters the grid to its repositories; activating it again,
-//! or Clear, shows them all.
+//! The Activity screen (activity-screen): an "All repositories" card and four tiles for what needs
+//! attention, then a grid of each repository's local commits per day over the last 30 days
+//! (`activity_grid`). It reads only what repose already reads offline. A tile filters the grid to
+//! its repositories; activating it again, or the All card, shows them all
+//! (activity-all-repositories-card).
 
 use std::cmp::Reverse;
 
@@ -16,35 +17,42 @@ use crate::state::activity::{
 };
 use crate::theme::*;
 
-/// A tile: which repositories it counts, its label, the note under it, and its number's colour.
+/// A card: the filter it selects (None for every repository), its label, the note under it, and
+/// its number's colour.
 struct TileSpec {
-	tile: Tile,
+	tile: Option<Tile>,
 	label: &'static str,
 	note: &'static str,
 	colour: Colour,
 }
 
-const TILES: [TileSpec; 4] = [
+const TILES: [TileSpec; 5] = [
 	TileSpec {
-		tile: Tile::Uncommitted,
+		tile: None,
+		label: "All repositories",
+		note: "Every listed repository",
+		colour: TEXT_BRIGHT,
+	},
+	TileSpec {
+		tile: Some(Tile::Uncommitted),
 		label: "Uncommitted changes",
 		note: "Changed or staged files",
 		colour: WARN,
 	},
 	TileSpec {
-		tile: Tile::Ahead,
+		tile: Some(Tile::Ahead),
 		label: "Ahead of upstream",
 		note: "From saved refs; no fetch",
 		colour: ACCENT,
 	},
 	TileSpec {
-		tile: Tile::Behind,
+		tile: Some(Tile::Behind),
 		label: "Behind upstream",
 		note: "From saved refs; no fetch",
 		colour: INFO,
 	},
 	TileSpec {
-		tile: Tile::Quiet,
+		tile: Some(Tile::Quiet),
 		label: "Quiet for 60+ days",
 		note: "No local commit in 60 days",
 		colour: MUTED,
@@ -69,18 +77,6 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	ui.label(RichText::new(count).size(TEXT_META).color(MUTED));
 	ui.add_space(12.0);
 	tiles(ui, state, now);
-	if let Some(tile) = state.activity.filter {
-		ui.horizontal(|ui| {
-			let name = TILES
-				.iter()
-				.find(|t| t.tile == tile)
-				.map_or("", |t| t.label);
-			ui.label(RichText::new(format!("Showing: {name}")).color(MUTED));
-			if ui.button("Clear").clicked() {
-				state.activity.filter = None;
-			}
-		});
-	}
 	ui.add_space(12.0);
 	let today = local_today(now, offset);
 	let (mut drawn, quiet) = rows(state, now, today);
@@ -111,11 +107,14 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 	let reads = &state.activity.reads;
 	let counts: Vec<usize> = TILES
 		.iter()
-		.map(|spec| {
-			let repos = state.repos.iter();
-			repos
-				.filter(|r| in_tile(spec.tile, r, reads.get(&r.path), now))
-				.count()
+		.map(|spec| match spec.tile {
+			None => state.repos.len(),
+			Some(tile) => {
+				let repos = state.repos.iter();
+				repos
+					.filter(|r| in_tile(tile, r, reads.get(&r.path), now))
+					.count()
+			}
 		})
 		.collect();
 	ui.columns(TILES.len(), |cols| {
@@ -126,7 +125,7 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 				note,
 				colour,
 			} = spec;
-			let on = state.activity.filter == Some(*tile);
+			let on = state.activity.filter == *tile;
 			let line = if on { ACCENT_LINE.get() } else { LINE.get() };
 			let frame = egui::Frame::new()
 				.fill(if on { ACCENT_BG.get() } else { BG_PANEL.get() })
@@ -148,8 +147,11 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 			let response = col.interact(inner.response.rect, id, Sense::click());
 			let name = format!("{label}: {}. {note}", counts[i]);
 			a11y::control(&response, Role::Button, Some(on), &name);
-			if response.clicked() {
-				state.activity.filter = if on { None } else { Some(*tile) };
+			// A lit filter card clears back to all; the All card always means all, so clicking it
+			// while lit changes nothing.
+			let next = if on { None } else { *tile };
+			if response.clicked() && next != state.activity.filter {
+				state.activity.filter = next;
 				state.activity.cell = (0, Some(DAYS - 1));
 			}
 		}

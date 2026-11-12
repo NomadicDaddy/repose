@@ -4,6 +4,15 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Activity has an "All repositories" card first in its row, with the number of listed
+  repositories. It is lit while no filter is on, and selecting it brings back every repository
+  after one of the four filter cards. It replaces the "Showing" line and its Clear button, which
+  appeared only once a filter was on. Selecting a filter card again still clears it.
+
 ## [1.4.0] - 2026-11-11
 
 ### Added
