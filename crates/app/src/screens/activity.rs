@@ -117,6 +117,12 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 			}
 		})
 		.collect();
+	// Every card takes the tallest card's content height, measured on the previous frame, so a card
+	// whose label fits one line is not shorter than its wrapped neighbours (1440x900 capture at
+	// 07b268e). The measure is each card's own text, so it shrinks again when the pane widens.
+	let tall_id = ui.scope_id().with("activity-tile-height");
+	let tallest: f32 = ui.data(|d| d.get_temp(tall_id)).unwrap_or(0.0);
+	let mut measured: f32 = 0.0;
 	ui.columns(TILES.len(), |cols| {
 		for (i, (spec, col)) in TILES.iter().zip(cols.iter_mut()).enumerate() {
 			let TileSpec {
@@ -134,14 +140,16 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 				.inner_margin(12.0);
 			let inner = frame.show(col, |ui| {
 				ui.set_min_width(ui.available_width());
+				ui.set_min_height(tallest);
 				// Left-aligned and unjustified: `columns` hands each column a justified layout, and a
 				// wrapped label there spaces its letters out to the full width (seen at 1440x900).
-				ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+				let text = ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
 					let number = RichText::new(counts[i].to_string());
 					ui.label(number.size(28.0).color(*colour));
 					ui.label(RichText::new(*label).color(TEXT_BRIGHT).strong());
 					ui.label(RichText::new(*note).size(TEXT_SMALL).color(MUTED));
 				});
+				measured = measured.max(text.response.rect.height());
 			});
 			let id = col.scope_id().with(("activity-tile", i));
 			let response = col.interact(inner.response.rect, id, Sense::click());
@@ -156,6 +164,10 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 			}
 		}
 	});
+	if (measured - tallest).abs() > 0.5 {
+		ui.data_mut(|d| d.insert_temp(tall_id, measured));
+		ui.ctx().request_repaint();
+	}
 }
 
 /// The rows to draw, filtered by the tile, newest activity first; and the quiet ones (read, with

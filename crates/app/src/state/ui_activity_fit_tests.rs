@@ -71,6 +71,65 @@ fn a_narrow_pane_keeps_today_and_unjustified_tiles() {
 	);
 }
 
+/// activity-all-repositories-card clause 7: at widths where the cards' labels and notes wrap to
+/// different line counts, the five cards still come out the same height (1440x900 capture at
+/// 07b268e); and after the pane widens again they shrink back rather than keep the narrow height.
+#[test]
+fn the_five_cards_share_one_height_when_labels_wrap() {
+	let ctx = egui::Context::default();
+	ctx.enable_accesskit();
+	let mut state = shown_fleet();
+	let mut last = Vec::new();
+	for width in [760.0, 1000.0, 1100.0] {
+		let heights = card_heights(&ctx, &mut state, width);
+		let (low, high) = heights
+			.iter()
+			.fold((f64::MAX, 0.0_f64), |(lo, hi), h| (lo.min(*h), hi.max(*h)));
+		assert!(high - low < 0.5, "at {width}: card heights {heights:?}");
+		last = heights;
+	}
+	// Unequal by nature at 1100 (92 to 107 points without the shared height), and below 760's 176.
+	assert!(
+		last[0] < 120.0,
+		"the cards shrank back after widening: {last:?}"
+	);
+}
+
+/// The five cards' heights from AccessKit, after frames at `width` settle the shared height.
+fn card_heights(ctx: &egui::Context, state: &mut AppState, width: f32) -> Vec<f64> {
+	let input = || egui::RawInput {
+		screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(width, 600.0))),
+		..Default::default()
+	};
+	run(ctx, state, input());
+	run(ctx, state, input());
+	let out = run(ctx, state, input());
+	let nodes = out
+		.platform_output
+		.accesskit_update
+		.map(|u| u.nodes)
+		.unwrap_or_default();
+	let cards = [
+		"All repositories: ",
+		"Uncommitted changes: ",
+		"Ahead of upstream: ",
+		"Behind upstream: ",
+		"Quiet for 60+ days: ",
+	];
+	cards
+		.iter()
+		.map(|starts| {
+			let found = nodes
+				.iter()
+				.find(|(_, n)| n.label().is_some_and(|l| l.starts_with(starts)));
+			let Some(b) = found.and_then(|(_, n)| n.bounds()) else {
+				panic!("no card {starts:?}");
+			};
+			b.y1 - b.y0
+		})
+		.collect()
+}
+
 /// No painted rectangle (the bar's track or handle) crosses today's cell without containing it.
 #[test]
 fn the_scroll_bar_never_covers_todays_column() {
