@@ -65,6 +65,13 @@ never a fetch from its remote. Machine-readable forms only:
   `ahead` rows of the log are not the unpushed commits, so the ahead count from `branch.ab` is
   not used for this. There is no spawn and no Outgoing group without a counted upstream, and a
   failed read keeps the last known set and shows its error.
+- Activity (since 1.4.0): `git log --format=%H %ct %cd --date=format-local:%Y-%m-%d
+  --max-count=20001 --branches --remotes --` once per top-level repository when the Activity
+  screen opens or a Refresh lands while it is open (`git/activity.rs` read_activity). Each commit
+  is counted once, on the local date git gives it with the zone rule at its own instant. The
+  30-day cutoff is applied after the walk, never with `--since`, which stops at the first
+  older-dated commit. A walk that reaches its 20,000-commit bound is reported as cut, and its
+  days read "at least". Four reads run at once, and a newer read stops the older ones.
 - Branches: `git for-each-ref --format=<refname:short, objectname:short, upstream:short,
   upstream:track, HEAD with %00 separators> refs/heads` for the read-only Branches tab, with
   `git rev-parse --short HEAD` only when no branch is current, to name a detached HEAD. The
