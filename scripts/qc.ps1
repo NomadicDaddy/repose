@@ -27,9 +27,10 @@ function Step($name, [scriptblock] $body) {
     if ($LASTEXITCODE -ne 0 -or -not $started) { Write-Host "FAILED: $name"; $script:exit = 1 }
 }
 # What every Rust step's result depends on: the sources, assets, manifests, lockfile and tool
-# configuration; the gate scripts themselves; and the toolchain and environment cargo reads.
+# configuration, including .cargo/config.toml's build flags (Roger 5Q-1 on dc1d662); the gate
+# scripts themselves; and the toolchain and environment cargo reads.
 $gateScripts = @('scripts/qc.ps1', 'scripts/gate-cache.ps1')
-$rustInputs = @('crates', 'Cargo.toml', 'Cargo.lock', 'clippy.toml', 'rustfmt.toml', 'rust-toolchain.toml') + $gateScripts
+$rustInputs = @('crates', '.cargo', 'Cargo.toml', 'Cargo.lock', 'clippy.toml', 'rustfmt.toml', 'rust-toolchain.toml') + $gateScripts
 $rustFacts = @(
     "rustc $(rustc -vV 2>&1)", "cargo $(cargo -V 2>&1)", "rustfmt $(cargo fmt --version 2>&1)",
     "clippy $(cargo clippy --version 2>&1)"
