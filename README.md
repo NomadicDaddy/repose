@@ -35,7 +35,9 @@ in `docs/specs/2026-11-01-repose-v1/` and the project's aidd records (local only
 - `pwsh scripts/qc.ps1` runs the full gate (the leak guard's self-test that smokestack delivers,
   `scripts/smokestack/check-leak-guard.sh`, under Git's bash; format, clippy, tests, cargo audit, release build, the 300-line check, which
   counts every line including blank ones, and the notices check) and stages the release files in `target/dist`:
-  `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. It then prints
+  `repose.exe`, `LICENSE`, `THIRD-PARTY-NOTICES.md` and `RUST-STD-COPYRIGHT.html`. Staging fails
+  if `repose.exe` names a Visual C++ runtime DLL (`scripts/check-no-vc-runtime.ps1`), since a clean
+  Windows install doesn't have one and the C runtime is linked into the exe. It then prints
   the executable size, startup time and idle memory as `MEASURE` lines, which are reported
   against targets and never fail the gate (`-SkipMeasure` skips the startup and memory runs).
   When every step passed, the tree is clean and you are on `main`, it also refreshes a per-user

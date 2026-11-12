@@ -32,4 +32,6 @@ $files = @(Get-ChildItem -Path $dist -File | Sort-Object Name)
 if ($files.Count -ne $pairs.Count) { Write-Host "FAILED: target\dist holds $($files.Count) files, expected $($pairs.Count)"; exit 1 }
 Write-Host '== release pair (target\dist)'
 foreach ($f in $files) { Write-Host ("RELEASE {0} {1}" -f $f.Name, $f.Length) }
+& pwsh -NoProfile -File (Join-Path $PSScriptRoot 'check-no-vc-runtime.ps1') (Join-Path $dist 'repose.exe')
+if ($LASTEXITCODE -ne 0) { exit 1 }
 exit 0
