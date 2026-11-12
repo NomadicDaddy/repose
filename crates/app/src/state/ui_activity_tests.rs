@@ -195,11 +195,12 @@ fn the_all_card_returns_from_every_filter() {
 		"lit on open"
 	);
 
+	// Clicking it lit changes nothing: the filter stays off and the grid keeps its cell, which a
+	// toggle would reset to the first row's today (Morticia 5Q-1 on b22b9fa).
+	state.activity.cell = (1, Some(3));
 	frame(&ctx, &mut state, click(all));
-	assert!(
-		state.activity.filter.is_none(),
-		"clicking it lit changes nothing"
-	);
+	assert!(state.activity.filter.is_none());
+	assert_eq!(state.activity.cell, (1, Some(3)), "the cell is kept");
 
 	for (label, tile) in [
 		("Uncommitted changes", Tile::Uncommitted),
