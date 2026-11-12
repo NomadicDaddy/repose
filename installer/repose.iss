@@ -112,8 +112,10 @@ begin
   Result := Result + Rest;
 end;
 
-{ The folder's place in the raw user PATH, compared without a trailing backslash and ignoring case;
-  -1 when absent. Entries that hold %variables% are expanded only for the comparison. }
+{ The folder's last place in the raw user PATH, compared without a trailing backslash and ignoring
+  case; -1 when absent. The last, because the installer only ever appends: an equal entry the user
+  added ahead of it stays theirs (Roger on 1f8ec4e). Entries that hold %variables% are expanded
+  only for the comparison. }
 function PathIndex(const Raw, Dir: String; var Parts: TArrayOfString): Integer;
 var
   Rest, Entry: String;
@@ -135,32 +137,28 @@ begin
   end;
   for I := 0 to Count - 1 do
     if (Parts[I] <> '') and (CompareText(RemoveBackslashUnlessRoot(ExpandEnv(Parts[I])), RemoveBackslashUnlessRoot(Dir)) = 0) then
-    begin
       Result := I;
-      Exit;
-    end;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Raw, Dir: String;
   Parts: TArrayOfString;
-  Existed, Joined: Boolean;
+  Existed: Boolean;
 begin
   if CurStep <> ssPostInstall then Exit;
   Dir := ExpandConstant('{app}');
   Existed := RegQueryStringValue(HKCU, EnvKey, 'Path', Raw);
   if not Existed then Raw := '';
   if PathIndex(Raw, Dir, Parts) >= 0 then Exit;
-  { Appended to the value as it is, so every existing byte survives; the value is written as
-    REG_EXPAND_SZ, the type Windows gives the user PATH. Whether a separator was added and whether
-    the value existed are recorded, so uninstall can give back exactly what was there. }
-  Joined := (Raw <> '') and (Raw[Length(Raw)] <> ';');
-  if Joined then Raw := Raw + ';' + Dir else Raw := Raw + Dir;
+  { Appended to the value as it is, always as ';' + folder after a non-empty value (even one
+    ending in ';'), so every existing byte survives and uninstall removes exactly the entry and the
+    ';' before it, whatever the user adds on either side later (Morticia on ce16f38). The value is
+    written as REG_EXPAND_SZ, the type Windows gives the user PATH. }
+  if Raw = '' then Raw := Dir else Raw := Raw + ';' + Dir;
   if RegWriteExpandStringValue(HKCU, EnvKey, 'Path', Raw) then
   begin
     RegWriteStringValue(HKCU, MarkKey, 'AddedPath', Dir);
-    RegWriteDWordValue(HKCU, MarkKey, 'AddedSeparator', Ord(Joined));
     RegWriteDWordValue(HKCU, MarkKey, 'CreatedPath', Ord(not Existed));
   end;
 end;
@@ -170,7 +168,7 @@ var
   Raw, Added, Kept: String;
   Parts: TArrayOfString;
   At, I: Integer;
-  Separator, Created: Cardinal;
+  Created: Cardinal;
   First: Boolean;
 begin
   if CurUninstallStep <> usPostUninstall then Exit;
@@ -180,7 +178,8 @@ begin
     At := PathIndex(Raw, Added, Parts);
     if At >= 0 then
     begin
-      { Every other entry, empty ones included, rejoined in order. }
+      { Every other entry, empty ones included, rejoined in order: the entry goes with the one ';'
+        before it, which install added. }
       Kept := '';
       First := True;
       for I := 0 to GetArrayLength(Parts) - 1 do
@@ -190,9 +189,6 @@ begin
           Kept := Kept + Parts[I];
           First := False;
         end;
-      { The folder was appended after a ';' that was already there: give that ';' back. }
-      if not RegQueryDWordValue(HKCU, MarkKey, 'AddedSeparator', Separator) then Separator := 1;
-      if (At > 0) and (At = GetArrayLength(Parts) - 1) and (Separator = 0) then Kept := Kept + ';';
       { A Path value the installer created goes again rather than staying behind empty. }
       if not RegQueryDWordValue(HKCU, MarkKey, 'CreatedPath', Created) then Created := 0;
       if (Kept = '') and (Created = 1) then
