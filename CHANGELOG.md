@@ -9,9 +9,10 @@ All notable changes to repose are recorded here. The format follows
 ### Changed
 
 - Stage on a file in Merge Changes waits until its conflict markers are gone. While the working
-  copy still holds a `<<<<<<<`, `=======` or `>>>>>>>` line, Stage is disabled and its hover text
-  says to resolve them in your editor first (with Open). Once they are removed, the next refresh
-  enables it and it stages exactly as before. A binary or unreadable file can't be checked, so
+  copy still holds a `<<<<<<<` or `>>>>>>>` line, Stage is disabled and its hover text says to
+  resolve them in your editor first (with Open). A lone `=======` doesn't count, since it's also a
+  Markdown or reStructuredText heading underline. Once the markers are removed, the next refresh
+  enables Stage and it stages exactly as before. A binary or unreadable file can't be checked, so
   Stage stays enabled for it, with hover text that says so. Before, Stage recorded the file with
   its markers as the resolution.
 

@@ -14,9 +14,19 @@ fn each_marker_line_counts_and_lookalikes_do_not() {
 	let repo = TempRepo::new("markers-lines");
 	for (text, expected) in [
 		("a\n<<<<<<< HEAD\nb\n", MarkerCheck::Present),
-		("a\n=======\nb\n", MarkerCheck::Present),
-		("a\r\n=======\r\nb\r\n", MarkerCheck::Present),
+		(
+			"<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> other\n",
+			MarkerCheck::Present,
+		),
+		(
+			"<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> other\r\n",
+			MarkerCheck::Present,
+		),
 		("a\n>>>>>>> other\n", MarkerCheck::Present),
+		// A lone seven-'=' line is a Markdown or RST heading underline, not a marker, so a
+		// resolved .md or .rst can be staged (Morticia Low 1 on 5904afc).
+		("Title\n=======\n\nText.\n", MarkerCheck::Clear),
+		("a\r\n=======\r\nb\r\n", MarkerCheck::Clear),
 		(
 			"a\n======== heading underline\n<<<<<<<no space\n",
 			MarkerCheck::Clear,
