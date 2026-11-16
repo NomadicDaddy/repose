@@ -16,9 +16,11 @@ All notable changes to repose are recorded here. The format follows
   off, closing still ends repose and no icon is shown.
 - Start minimised to the tray, available while Close to tray is on: repose opens with only its
   icon, no window. It adds no autostart.
-- One repose at a time for each config file. Launching it again hands that launch's `--select`,
-  and a `--view` it was given, to the running repose, which comes to the front. The startup
-  measurements always run on their own.
+- One repose at a time for each config folder. Launching it again hands what that launch asked
+  for (`--select`, a `--view` it was given, `--file` with `--inline`, `--open` and `--lanes`) to
+  the running repose, which comes to the front and acts on it as a fresh start would. If the
+  hand-off can't be written, the launch exits with code 2 and says why. The startup measurements
+  always run on their own.
 
 ### Changed
 

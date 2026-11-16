@@ -23,6 +23,8 @@ mod select;
 mod selection_tests;
 mod settings;
 #[cfg(test)]
+mod single_instance_tests;
+#[cfg(test)]
 mod ui_a11y_tests;
 #[cfg(test)]
 mod ui_action_failure_tests;

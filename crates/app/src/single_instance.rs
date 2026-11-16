@@ -1,9 +1,11 @@
 //! One repose per config folder (close-to-tray clause 5; Phillip #54737 on #54731). The first
 //! process holds an exclusive lock on `repose.lock` beside its config file for as long as it runs.
-//! A later launch with the same config cannot take it, so it writes its --select and --view to
-//! `repose.handoff` there and exits; the running process picks the file up within a quarter of a
-//! second, shows its window, brings it forward and applies them. A run with another `--config`
-//! (a test fixture) is its own instance. Safe std only: `File::try_lock`, no Win32 calls.
+//! A later launch with a config in the same folder cannot take it, so it writes what it was asked
+//! for (--select, a --view it was given, --file with --inline, --open and --lanes) to
+//! `repose.handoff` there and exits 0, or 2 if that write fails; the running process picks the file
+//! up within a quarter of a second, shows its window, brings it forward and applies it as a start-up
+//! would. A run with a config in another folder (a test fixture) is its own instance. Safe std
+//! only: `File::try_lock`, no Win32 calls.
 
 use std::fs::{self, File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
@@ -19,11 +21,16 @@ const LOCK: &str = "repose.lock";
 const HANDOFF: &str = "repose.handoff";
 const POLL: Duration = Duration::from_millis(250);
 
-/// What a second launch asked the running process for.
+/// What a second launch asked the running process for: every flag a start-up acts on, so a launch
+/// does the same whether or not repose is already running (Roger 5Q-5 on 0a3048d).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Handoff {
 	pub select: Option<PathBuf>,
 	pub view: Option<View>,
+	/// `--file` and whether `--inline` came with it.
+	pub file: Option<(String, bool)>,
+	pub open: Option<String>,
+	pub lanes: bool,
 }
 
 /// This process runs the window, holding the lock while it can; or another process holds it.
@@ -78,10 +85,11 @@ impl Running {
 	}
 }
 
-/// main's step before the window opens. A second launch writes its --select, and a --view it was
-/// given (`raw` is the command line), as its hand-off and exits 0 here; the first keeps its
-/// instance to listen with. The measurement runs always run alone, so a gate measuring startup
-/// while the user's repose is open measures a real start.
+/// main's step before the window opens. A second launch writes its hand-off (`raw` is the command
+/// line, for whether --view was given) and exits here: 0 once it is written, 2 with the reason when
+/// it cannot be (Roger 5Q-1 on 0a3048d). The first keeps its instance to listen with. The
+/// measurement runs always run alone, so a gate measuring startup while the user's repose is open
+/// measures a real start.
 pub fn claim(config: &Path, args: &crate::cli::Args, raw: &[String]) -> Option<Instance> {
 	let measuring = args.measure_startup.is_some()
 		|| args.measure_diff.is_some()
@@ -94,8 +102,17 @@ pub fn claim(config: &Path, args: &crate::cli::Args, raw: &[String]) -> Option<I
 			let handoff = Handoff {
 				select: args.select.clone(),
 				view: raw.iter().any(|a| a == "--view").then_some(args.view),
+				file: args.file.clone().map(|f| (f, args.inline)),
+				open: args.open.clone(),
+				lanes: args.lanes,
 			};
-			let _ = hand_off(&dir, &handoff);
+			if let Err(e) = hand_off(&dir, &handoff) {
+				eprintln!(
+					"repose: could not hand off to the running repose in {}: {e}",
+					dir.display()
+				);
+				std::process::exit(2);
+			}
 			std::process::exit(0);
 		}
 		primary => Some(primary),
@@ -121,11 +138,12 @@ pub fn hand_off(dir: &Path, handoff: &Handoff) -> std::io::Result<()> {
 	fs::rename(&staged, dir.join(HANDOFF))
 }
 
-/// Watches for hand-offs in `dir` on a thread, waking a frame for each one.
+/// Watches for hand-offs in `dir` on a thread, waking a frame for each one. A hand-off already
+/// there when it starts is applied, not deleted: a second launch can write it between this
+/// process taking the lock and the window existing (Roger 5Q-1 on 0a3048d).
 pub fn listen(dir: PathBuf, ctx: egui::Context) -> Receiver<Handoff> {
 	let (tx, rx) = channel();
 	let path = dir.join(HANDOFF);
-	let _ = fs::remove_file(&path);
 	std::thread::spawn(move || {
 		loop {
 			std::thread::sleep(POLL);
@@ -142,12 +160,15 @@ pub fn listen(dir: PathBuf, ctx: egui::Context) -> Receiver<Handoff> {
 	rx
 }
 
-/// Shows the window, brings it forward and applies the hand-off: the repository it names when it
-/// is listed (a worktree under its expanded parent, as at start-up), and the pane.
+/// Shows the window, brings it forward and applies the hand-off as a start-up would. A repository
+/// already listed is selected at once (a worktree under its expanded parent); one not listed yet,
+/// during the first scan, waits for that scan's result as a start-up --select does (Roger 5Q-1).
+/// --file and --open take the start-up route too: they are requested, and a scan lands them on
+/// the repository once it is selected (5Q-5). --view and --lanes apply at once.
 pub fn apply(ctx: &egui::Context, state: &mut AppState, handoff: Handoff) {
 	crate::tray::show_window(ctx, state);
-	if let Some(wanted) = handoff.select {
-		let key = path_key(&wanted);
+	if let Some(wanted) = &handoff.select {
+		let key = path_key(wanted);
 		let hit = state.repos.iter().find_map(|r| {
 			if path_key(&r.path) == key {
 				return Some((r.path.clone(), None));
@@ -155,15 +176,32 @@ pub fn apply(ctx: &egui::Context, state: &mut AppState, handoff: Handoff) {
 			let wt = r.worktrees.iter().find(|w| path_key(&w.path) == key)?;
 			Some((wt.path.clone(), Some(r.path.clone())))
 		});
-		if let Some((path, parent)) = hit {
-			if let Some(parent) = parent {
-				state.expanded.insert(parent, true);
+		match hit {
+			Some((path, parent)) => {
+				if let Some(parent) = parent {
+					state.expanded.insert(parent, true);
+				}
+				state.select(path);
 			}
-			state.select(path);
+			None => state.requested_selection = Some(wanted.clone()),
 		}
 	}
 	if let Some(view) = handoff.view {
 		state.view = view;
+	}
+	if handoff.lanes {
+		state.lanes = true;
+	}
+	let wants_open = handoff.file.is_some() || handoff.open.is_some();
+	if wants_open {
+		state.requested_diff = handoff.file;
+		state.requested_file = handoff.open;
+		if state.requested_selection.is_none() {
+			state.requested_selection = handoff.select.or_else(|| state.selected.clone());
+		}
+	}
+	if (wants_open || state.requested_selection.is_some()) && !state.scanning {
+		state.start_scan(ctx);
 	}
 	ctx.request_repaint();
 }
@@ -176,19 +214,39 @@ pub fn encode(handoff: &Handoff) -> String {
 	if let Some(view) = handoff.view {
 		text.push_str(&format!("view={}\n", view_name(view)));
 	}
+	if let Some((file, inline)) = &handoff.file {
+		text.push_str(&format!("file={file}\n"));
+		if *inline {
+			text.push_str("inline=1\n");
+		}
+	}
+	if let Some(open) = &handoff.open {
+		text.push_str(&format!("open={open}\n"));
+	}
+	if handoff.lanes {
+		text.push_str("lanes=1\n");
+	}
 	text
 }
 
 pub fn decode(text: &str) -> Handoff {
 	let mut handoff = Handoff::default();
+	let mut inline = false;
 	for line in text.lines() {
 		match line.split_once('=') {
 			Some(("select", path)) if !path.is_empty() => {
 				handoff.select = Some(PathBuf::from(path))
 			}
 			Some(("view", name)) => handoff.view = crate::cli::view(Some(name)).ok(),
+			Some(("file", path)) if !path.is_empty() => handoff.file = Some((path.into(), false)),
+			Some(("inline", "1")) => inline = true,
+			Some(("open", path)) if !path.is_empty() => handoff.open = Some(path.into()),
+			Some(("lanes", "1")) => handoff.lanes = true,
 			_ => {}
 		}
+	}
+	if let Some((_, i)) = &mut handoff.file {
+		*i = inline;
 	}
 	handoff
 }
@@ -199,50 +257,5 @@ fn view_name(view: View) -> &'static str {
 		View::History => "history",
 		View::Files => "files",
 		View::Branches => "branches",
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn a_handoff_round_trips_and_ignores_what_it_does_not_know() {
-		let h = Handoff {
-			select: Some(PathBuf::from("D:\\applications\\repose")),
-			view: Some(View::History),
-		};
-		assert_eq!(decode(&encode(&h)), h);
-		assert_eq!(
-			decode("view=sideways\nnoise\nselect=\n"),
-			Handoff::default()
-		);
-		assert_eq!(decode(""), Handoff::default());
-	}
-
-	#[test]
-	fn a_second_process_with_the_same_config_is_secondary_and_another_config_is_not() {
-		let root = std::env::temp_dir().join(format!("repose-single-{}", std::process::id()));
-		let _ = fs::remove_dir_all(&root);
-		let first = acquire(&root.join("a").join("config.toml"));
-		assert!(matches!(first, Instance::Primary { .. }));
-		let again = acquire(&root.join("a").join("config.toml"));
-		assert!(
-			matches!(again, Instance::Secondary { .. }),
-			"the lock is held"
-		);
-		let other = acquire(&root.join("b").join("config.toml"));
-		assert!(
-			matches!(other, Instance::Primary { .. }),
-			"another config folder"
-		);
-		drop((first, again, other));
-		let after = acquire(&root.join("a").join("config.toml"));
-		assert!(
-			matches!(after, Instance::Primary { .. }),
-			"released when the holder ends"
-		);
-		drop(after);
-		let _ = fs::remove_dir_all(&root);
 	}
 }
