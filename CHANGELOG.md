@@ -4,6 +4,18 @@ All notable changes to repose are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Development
+
+- The shared gate scripts under `scripts/smokestack/` are at smokestack 0.8.0. The delivery adds a
+  pre-push hook and the aidd-history, force-push and screenshot guards beside the leak guard, and
+  updates the leak guard's self-test.
+- The technical spec and task order describe 1.5.0 as shipped: the light theme beside the dark
+  `look.jpg` palette, the configurable scan depth (default 3, 1 to 8) and skip names, and the
+  four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
+  The app is unchanged.
+
 ## [1.5.0] - 2026-11-12
 
 ### Added

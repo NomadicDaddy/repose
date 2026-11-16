@@ -20,7 +20,7 @@ files, read-only diffs and files with highlighting, and a commit box. Scope sett
 | Refresh            | File-system watcher with debounce, plus Refresh and a backstop timer.  |
 | Actions            | Explorer, VS Code, terminal, copy path, hash and remote URL.           |
 | Platform           | Windows 11 first; nothing that blocks Linux or macOS.                  |
-| Look               | Dark only, the `look.jpg` palette.                                     |
+| Look               | `look.jpg` dark palette, plus a light theme since 1.2.0.               |
 | Toolkit            | eframe/egui, chosen by a measured comparison (ADR-001, accepted).      |
 
 ## Architecture
@@ -122,8 +122,8 @@ exits with its own error.
 
 ### Discovery
 
-Roots from `config.toml` are walked to depth 3 with pruning of `node_modules`, `target`, `dist`,
-`.git` and the config's `exclude` names. A `.git` directory is a repository. A `.git` file is read:
+Roots from `config.toml` are walked to its `depth` (default 3; Settings offers 1 to 8) with pruning
+of `.git` and its `exclude` names (default `node_modules`, `target`, `dist`, `.prevers`). A `.git` directory is a repository. A `.git` file is read:
 `gitdir:` resolving under some `<main>/.git/worktrees/` makes it a worktree of `<main>`; any other
 `gitdir:` makes it a repository. `.gitmodules` in a repository gives a submodule count; submodule
 paths are not rows. `D:\applications.worktrees\<project>\<agent>\<task>` therefore lists under
@@ -151,7 +151,8 @@ A refresh replaces rows by path and keeps the selected path even if its position
 
 ### Theme
 
-Tokens from `look.jpg`, as values the Bolt sketch used for the same look:
+Dark tokens from `look.jpg`, as the Bolt sketch drew them. Since 1.2.0 each token in `tokens.rs`
+also has a light value, and `theme/contrast.rs` holds both themes' text to 4.5:1.
 
 | Token         | Value     | Use                                  |
 | ------------- | --------- | ------------------------------------ |

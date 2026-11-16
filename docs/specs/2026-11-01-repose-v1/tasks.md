@@ -38,5 +38,8 @@ slot under the team's rules; the spec and record edits do not.
 14. **Release readiness.** CHANGELOG, version, release table, design sweep of the planned surfaces
     in `.aidd/screen-map.md`, Roger and Morticia reviews. Nothing is pushed or published.
 
-v1.1 records (`light-theme`, `branch-graph-lanes`, `remote-sync`, `settings-screen`) wait for
-Phillip's go after the first release.
+After the first release (2026-11-16 update): the four records once held for Phillip's go have all
+shipped: `remote-sync` (Fetch on request) in 1.1.0, `light-theme` and `branch-graph-lanes` in
+1.2.0, and `settings-screen` in 1.3.0. Later releases added Activity (1.4.0, 1.5.0), the program
+icon (1.4.0) and the per-user installer (1.5.0). What remains is the v2.0 backlog listed in
+`.aidd/spec.md`; this task order covers v1.0 only.
