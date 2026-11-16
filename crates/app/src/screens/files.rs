@@ -150,15 +150,24 @@ fn folder_body(ui: &mut Ui, folder: &Folder, walk: &Walk<'_>, picked: &mut Picke
 	}
 }
 
+/// The hover text on a submodule's line. repose lists no submodule as a repository (the parent
+/// row only counts them), so the text names the actions that exist instead of a step the list
+/// cannot take (submodule-tooltip-matches-count-only).
+pub(crate) const SUBMODULE_HINT: &str = "A submodule. repose counts submodules on the repository's row and does not open them. To work in it, right-click the repository and use Open folder in Explorer, Open in VS Code or Open a terminal here.";
+
 fn file_row(ui: &mut Ui, file: &TreeEntry, walk: &Walk<'_>, picked: &mut Picked) {
 	ui.horizontal(|ui| {
 		ui.add_space(18.0);
 		if file.submodule {
-			ui.add_enabled(
-				false,
-				egui::Label::new(RichText::new(file.file_name()).size(TEXT_BASE).color(MUTED)),
-			)
-			.on_disabled_hover_text("A submodule: open it as its own repository");
+			let line = ui
+				.add_enabled(
+					false,
+					egui::Label::new(RichText::new(file.file_name()).size(TEXT_BASE).color(MUTED)),
+				)
+				.on_disabled_hover_text(SUBMODULE_HINT);
+			// The name a screen reader reads says what the line is, not only the folder name.
+			let name = format!("{}, submodule", file.file_name());
+			a11y::control(&line, egui::Role::Label, None, &name);
 			ui.label(RichText::new("submodule").size(TEXT_SMALL).color(MUTED));
 			return;
 		}

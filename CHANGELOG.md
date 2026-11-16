@@ -16,6 +16,15 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [1.6.2] - 2026-11-16
+
+### Changed
+
+- A submodule's line in Files no longer suggests opening it as its own repository, which repose
+  can't do: it counts submodules on the repository's row and doesn't list them. Its hover text now
+  says so and points to the repository's right-click actions (Open folder in Explorer, Open in VS
+  Code, Open a terminal here), and a screen reader names the line as a submodule.
+
 ## [1.6.1] - 2026-11-16
 
 ### Added
