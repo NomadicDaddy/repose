@@ -160,10 +160,8 @@ pub struct AppState {
 	pub close_prompt: Option<Vec<String>>,
 	/// The user chose to close without committing; the next close request goes through.
 	pub close_confirmed: bool,
-	/// The window is hidden to the notification area, and Quit from the tray is under way
-	/// (close-to-tray clauses 2 and 4).
-	pub hidden: bool,
-	pub quitting: bool,
+	/// The tray icon is shown, the window is hidden to it, a Quit is under way (close-to-tray).
+	pub tray: crate::tray::TrayState,
 	/// The settings screen's draft while it is open (settings-screen).
 	pub settings: Option<SettingsDraft>,
 	pub writes: WriteQueue,
@@ -236,8 +234,7 @@ impl AppState {
 			fetched: HashMap::new(),
 			close_prompt: None,
 			close_confirmed: false,
-			hidden: false,
-			quitting: false,
+			tray: crate::tray::TrayState::default(),
 			settings: None,
 			writes: WriteQueue::default(),
 			pending_discard: None,

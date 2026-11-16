@@ -3,9 +3,10 @@
 //! any draft has text, and a modal names the repositories with Keep editing (the default, also
 //! Escape and a click outside) or Close without committing.
 //!
-//! With "Close to tray" on, a close (title bar, Alt+F4) hides the window instead and nothing is
-//! lost, so it asks nothing; only Quit from the tray icon closes, through the same question
-//! (close-to-tray clauses 2 and 4).
+//! With "Close to tray" on and its icon shown, a close (title bar, Alt+F4) hides the window
+//! instead and nothing is lost, so it asks nothing; only Quit from the tray icon closes, through
+//! the same question (close-to-tray clauses 2 and 4). If the icon could not be shown, a close is
+//! an ordinary close, since nothing could reopen a hidden window.
 
 use eframe::egui::{self, RichText, ViewportCommand};
 
@@ -14,7 +15,7 @@ use crate::theme::*;
 
 pub fn show(ctx: &egui::Context, state: &mut AppState) {
 	let close_requested = ctx.input(|i| i.viewport().close_requested());
-	if close_requested && state.config.close_to_tray && !state.quitting && !state.close_confirmed {
+	if close_requested && state.tray.shown && !state.tray.quitting && !state.close_confirmed {
 		super::tray_notice::close_to_tray(ctx, state);
 		return;
 	}
@@ -33,7 +34,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			fresh = state.close_prompt.is_none();
 			state.close_prompt = Some(drafts);
 			// Quit from the tray while hidden: the question needs the window (clause 4).
-			if state.hidden {
+			if state.tray.hidden {
 				crate::tray::show_window(ctx, state);
 			}
 		}
@@ -110,7 +111,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 		Some(false) => {
 			// Keep editing also cancels a tray Quit, so the next title-bar close hides again.
 			state.close_prompt = None;
-			state.quitting = false;
+			state.tray.quitting = false;
 		}
 		None => {}
 	}

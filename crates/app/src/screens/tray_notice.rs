@@ -31,7 +31,7 @@ pub fn close_to_tray(ctx: &egui::Context, state: &mut AppState) {
 /// Hides the window to the notification area.
 pub fn hide(ctx: &egui::Context, state: &mut AppState) {
 	ctx.send_viewport_cmd(ViewportCommand::Visible(false));
-	state.hidden = true;
+	state.tray.hidden = true;
 }
 
 /// The notice, while it is open. OK (also Enter, Escape or a click outside) records it and hides.

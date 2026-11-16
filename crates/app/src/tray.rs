@@ -22,18 +22,34 @@ pub enum TrayAction {
 	Quit,
 }
 
+/// The window's side of the tray, kept on AppState so the close guard can read it.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TrayState {
+	/// The icon is in the notification area. Hiding, and starting hidden, depend on this, not on
+	/// the setting alone: with no icon there would be no way back (Morticia Low on 0a3048d).
+	pub shown: bool,
+	/// The window is hidden to the icon.
+	pub hidden: bool,
+	/// Quit from the icon's menu is under way, through the close guard.
+	pub quitting: bool,
+}
+
 /// The tray icon while it is shown, and the channel its events arrive on.
 #[derive(Default)]
 pub struct Tray {
 	icon: Option<TrayIcon>,
 	rx: Option<Receiver<TrayAction>>,
+	/// The icon could not be built; not tried again until the setting is turned off and on.
+	failed: bool,
 }
 
 impl Tray {
 	/// Shows the icon while the setting is on and removes it when it is turned off, then applies
-	/// whatever the icon or its menu asked for since the last frame.
+	/// whatever the icon or its menu asked for since the last frame. If the icon cannot be shown,
+	/// a hidden window (a start minimised to the tray) is shown again, since nothing could reopen
+	/// it, and closes stay ordinary closes.
 	pub fn sync(&mut self, ctx: &egui::Context, state: &mut AppState) {
-		if state.config.close_to_tray && self.icon.is_none() {
+		if state.config.close_to_tray && self.icon.is_none() && !self.failed {
 			let (tx, rx) = channel();
 			forward_events(tx, ctx.clone());
 			match build_icon() {
@@ -41,12 +57,20 @@ impl Tray {
 					self.icon = Some(icon);
 					self.rx = Some(rx);
 				}
-				Err(e) => state.notice = Some(format!("Could not show the tray icon: {e}")),
+				Err(e) => {
+					self.failed = true;
+					state.notice = Some(format!("Could not show the tray icon: {e}"));
+				}
 			}
-		} else if !state.config.close_to_tray && self.icon.is_some() {
+		} else if !state.config.close_to_tray {
 			// Dropping the icon removes it from the notification area (clause 1).
 			self.icon = None;
 			self.rx = None;
+			self.failed = false;
+		}
+		state.tray.shown = self.icon.is_some();
+		if !state.tray.shown && state.tray.hidden {
+			show_window(ctx, state);
 		}
 		let actions: Vec<TrayAction> = self
 			.rx
@@ -65,7 +89,7 @@ pub fn apply(ctx: &egui::Context, state: &mut AppState, action: TrayAction) {
 	match action {
 		TrayAction::Open => show_window(ctx, state),
 		TrayAction::Quit => {
-			state.quitting = true;
+			state.tray.quitting = true;
 			ctx.send_viewport_cmd(ViewportCommand::Close);
 		}
 	}
@@ -74,7 +98,7 @@ pub fn apply(ctx: &egui::Context, state: &mut AppState, action: TrayAction) {
 
 /// Shows a hidden window and brings it to the front.
 pub fn show_window(ctx: &egui::Context, state: &mut AppState) {
-	state.hidden = false;
+	state.tray.hidden = false;
 	ctx.send_viewport_cmd(ViewportCommand::Visible(true));
 	ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
 	ctx.send_viewport_cmd(ViewportCommand::Focus);

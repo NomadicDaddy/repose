@@ -141,6 +141,8 @@ fn tray_state(drafted: bool) -> (egui::Context, AppState) {
 	if drafted {
 		state.commit_messages.insert(path, "half a message".into());
 	}
+	// The harness draws the screens, not App::ui, so it stands in for Tray::sync's report.
+	state.tray.shown = true;
 	(ctx, state)
 }
 
@@ -171,7 +173,7 @@ fn the_first_close_to_tray_shows_the_notice_then_hides() {
 		has(&commands, &ViewportCommand::Visible(false)),
 		"{commands:?}"
 	);
-	assert!(state.hidden && state.config.tray_notice_shown);
+	assert!(state.tray.hidden && state.config.tray_notice_shown);
 	assert!(!has(&commands, &ViewportCommand::Close), "{commands:?}");
 }
 
@@ -189,7 +191,7 @@ fn a_later_close_to_tray_hides_at_once() {
 		has(&commands, &ViewportCommand::Visible(false)),
 		"{commands:?}"
 	);
-	assert!(state.hidden && state.close_prompt.is_none());
+	assert!(state.tray.hidden && state.close_prompt.is_none());
 	assert!(!texts(&shown).iter().any(|t| t == NOTICE_TITLE));
 }
 
@@ -200,8 +202,8 @@ fn a_later_close_to_tray_hides_at_once() {
 fn quit_from_the_tray_asks_about_a_draft_and_otherwise_closes() {
 	let (ctx, mut state) = tray_state(true);
 	state.config.tray_notice_shown = true;
-	state.hidden = true;
-	state.quitting = true;
+	state.tray.hidden = true;
+	state.tray.quitting = true;
 	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
 	assert!(
 		has(&commands, &ViewportCommand::CancelClose),
@@ -211,13 +213,13 @@ fn quit_from_the_tray_asks_about_a_draft_and_otherwise_closes() {
 		has(&commands, &ViewportCommand::Visible(true)),
 		"{commands:?}"
 	);
-	assert!(!state.hidden && state.close_prompt.is_some());
+	assert!(!state.tray.hidden && state.close_prompt.is_some());
 	run(&ctx, &mut state, false, key(Key::Escape));
-	assert!(!state.quitting && state.close_prompt.is_none());
+	assert!(!state.tray.quitting && state.close_prompt.is_none());
 
 	let (ctx, mut state) = tray_state(false);
 	state.config.tray_notice_shown = true;
-	state.quitting = true;
+	state.tray.quitting = true;
 	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
 	assert!(
 		!has(&commands, &ViewportCommand::CancelClose),
@@ -240,5 +242,24 @@ fn with_close_to_tray_off_a_close_ends_the_window() {
 		!has(&commands, &ViewportCommand::Visible(false)),
 		"{commands:?}"
 	);
-	assert!(!state.hidden);
+	assert!(!state.tray.hidden);
+}
+
+/// Morticia Low on 0a3048d: with the setting on but no icon (it could not be shown), a close is
+/// an ordinary close: hiding would leave nothing to reopen the window.
+#[test]
+fn with_the_setting_on_but_no_icon_a_close_ends_the_window() {
+	let (ctx, mut state) = tray_state(false);
+	state.config.tray_notice_shown = true;
+	state.tray.shown = false;
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		!has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(
+		!has(&commands, &ViewportCommand::Visible(false)),
+		"{commands:?}"
+	);
+	assert!(!state.tray.hidden);
 }

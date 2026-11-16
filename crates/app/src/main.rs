@@ -268,7 +268,7 @@ fn main() -> eframe::Result {
 			app.state.lanes = args.lanes;
 			// Pins are saved to the config file this session loaded, `--config` included.
 			app.state.config_path = Some(config_path);
-			app.state.hidden = start_hidden;
+			app.state.tray.hidden = start_hidden;
 			app.single = instance.map(|i| single_instance::run(i, &cc.egui_ctx));
 			if let Some(out) = args.measure_lanes {
 				app.state.lanes = true;
