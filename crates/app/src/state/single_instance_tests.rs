@@ -100,6 +100,37 @@ fn a_handoff_selects_now_or_waits_for_the_scan_and_keeps_every_flag() {
 	);
 }
 
+/// Roger 5Q-1 on 6fb4d15: with Activity shown (a launch without --select), a hand-off naming a
+/// repository the scan has not listed yet must land on that repository, with its pane, when the
+/// scan's result arrives through merge_discovered, not stay behind Activity.
+#[test]
+fn a_deferred_handoff_leaves_activity_when_its_repository_lands() {
+	use repose_core::model::{RepoKind, RepoSummary};
+	let ctx = egui::Context::default();
+	let mut state = listed_state();
+	state.start_on(None);
+	assert!(
+		state.activity.shown,
+		"a launch without --select opens on Activity"
+	);
+	let later = Handoff {
+		select: Some(PathBuf::from("D:\\fx\\arrives")),
+		view: Some(View::History),
+		..Handoff::default()
+	};
+	apply(&ctx, &mut state, later);
+	let arrived = RepoSummary::new(PathBuf::from("D:\\fx\\arrives"), RepoKind::Repository);
+	let listed = RepoSummary::new(PathBuf::from("D:\\fx\\listed"), RepoKind::Repository);
+	state.merge_discovered(vec![listed, arrived]);
+	assert_eq!(state.selected, Some(PathBuf::from("D:\\fx\\arrives")));
+	assert!(!state.activity.shown, "the repository shows, not Activity");
+	assert_eq!(state.view, View::History);
+	assert!(
+		state.requested_selection.is_none(),
+		"the request was consumed"
+	);
+}
+
 #[test]
 fn a_second_process_with_the_same_config_is_secondary_and_another_config_is_not() {
 	let root = std::env::temp_dir().join(format!("repose-single-{}", std::process::id()));

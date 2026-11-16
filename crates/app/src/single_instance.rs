@@ -162,9 +162,10 @@ pub fn listen(dir: PathBuf, ctx: egui::Context) -> Receiver<Handoff> {
 
 /// Shows the window, brings it forward and applies the hand-off as a start-up would. A repository
 /// already listed is selected at once (a worktree under its expanded parent); one not listed yet,
-/// during the first scan, waits for that scan's result as a start-up --select does (Roger 5Q-1).
-/// --file and --open take the start-up route too: they are requested, and a scan lands them on
-/// the repository once it is selected (5Q-5). --view and --lanes apply at once.
+/// during the first scan, waits for that scan's result through `start_on`, as a start-up --select
+/// does, which also leaves Activity so the repository shows when it lands (Roger 5Q-1 on 0a3048d
+/// and 6fb4d15). --file and --open take the start-up route too: they are requested, and a scan
+/// lands them on the repository once it is selected (5Q-5). --view and --lanes apply at once.
 pub fn apply(ctx: &egui::Context, state: &mut AppState, handoff: Handoff) {
 	crate::tray::show_window(ctx, state);
 	if let Some(wanted) = &handoff.select {
@@ -183,7 +184,7 @@ pub fn apply(ctx: &egui::Context, state: &mut AppState, handoff: Handoff) {
 				}
 				state.select(path);
 			}
-			None => state.requested_selection = Some(wanted.clone()),
+			None => state.start_on(Some(wanted.clone())),
 		}
 	}
 	if let Some(view) = handoff.view {
@@ -196,8 +197,10 @@ pub fn apply(ctx: &egui::Context, state: &mut AppState, handoff: Handoff) {
 	if wants_open {
 		state.requested_diff = handoff.file;
 		state.requested_file = handoff.open;
-		if state.requested_selection.is_none() {
-			state.requested_selection = handoff.select.or_else(|| state.selected.clone());
+		if state.requested_selection.is_none()
+			&& let Some(target) = handoff.select.or_else(|| state.selected.clone())
+		{
+			state.start_on(Some(target));
 		}
 	}
 	if (wants_open || state.requested_selection.is_some()) && !state.scanning {
