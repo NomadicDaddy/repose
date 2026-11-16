@@ -41,6 +41,8 @@ mod ui_close_guard_tests;
 #[cfg(test)]
 mod ui_commit_outcome_tests;
 #[cfg(test)]
+mod ui_conflict_stage_tests;
+#[cfg(test)]
 mod ui_discard_a11y_tests;
 #[cfg(test)]
 mod ui_discard_tests;

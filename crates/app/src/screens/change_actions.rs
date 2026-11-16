@@ -4,7 +4,7 @@
 use std::path::Path;
 
 use eframe::egui::{self, Ui, pos2};
-use repose_core::model::{DiscardPlan, FileChange};
+use repose_core::model::{DiscardPlan, FileChange, MarkerCheck};
 
 use super::{Group, GroupCtx};
 use crate::state::{AppState, PendingDiscard, WriteKind};
@@ -12,6 +12,13 @@ use crate::state::{AppState, PendingDiscard, WriteKind};
 /// How far from the row's right edge the actions area starts; the row's text stops short of it
 /// whenever the actions show.
 pub(crate) const ACTIONS_LEFT: f32 = 260.0;
+
+/// Stage's hover text while a conflicted file still holds conflict markers.
+pub(crate) const MARKERS_PRESENT: &str =
+	"Conflict markers remain. Use Open to resolve them in your editor first, then stage it.";
+/// Stage's hover text when repose could not read the conflicted file (binary, missing, locked).
+pub(crate) const MARKERS_UNCHECKED: &str =
+	"repose could not check this file for conflict markers. Stage it only once it is resolved.";
 
 pub(super) fn hover_actions(
 	ui: &mut Ui,
@@ -34,10 +41,25 @@ pub(super) fn hover_actions(
 		Group::Staged => ("Unstage", WriteKind::Unstage(vec![file.path.clone()])),
 		Group::Working | Group::Conflicts => ("Stage", WriteKind::Stage(vec![file.path.clone()])),
 	};
-	if child
-		.add_enabled(g.enabled, egui::Button::new(action).small())
-		.clicked()
-	{
+	// A conflicted file stages only once its markers are gone, or when repose cannot read it, so
+	// a binary conflict can still be resolved (conflict-stage-waits-for-markers, Phillip #53130).
+	let markers = (g.which == Group::Conflicts).then(|| {
+		g.repo
+			.changes
+			.as_ref()
+			.map_or(MarkerCheck::Unchecked, |c| c.marker_check(&file.path))
+	});
+	let stage_allowed = markers != Some(MarkerCheck::Present);
+	let button = child.add_enabled(
+		g.enabled && stage_allowed,
+		egui::Button::new(action).small(),
+	);
+	let button = match markers {
+		Some(MarkerCheck::Present) => button.on_disabled_hover_text(MARKERS_PRESENT),
+		Some(MarkerCheck::Unchecked) => button.on_hover_text(MARKERS_UNCHECKED),
+		_ => button,
+	};
+	if button.clicked() {
 		state.request_write(g.repo.path.clone(), kind, &ctx);
 	}
 	if g.which == Group::Working {

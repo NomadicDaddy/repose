@@ -237,7 +237,18 @@ fn file_row(ui: &mut Ui, state: &mut AppState, g: &GroupCtx<'_>, file: &FileChan
 		Some(from) => format!("{}\nrenamed from {from}", file.path),
 		None => file.path.clone(),
 	};
-	let response = response.on_hover_text(tooltip);
+	// Over the actions the row's path tooltip stays away, so a disabled action's own reason shows
+	// (a disabled button lets the hover through to the row; conflict-stage-waits-for-markers).
+	let over_actions = actions_shown
+		&& ui
+			.ctx()
+			.pointer_hover_pos()
+			.is_some_and(|p| p.x >= rect.right() - ACTIONS_LEFT);
+	let response = if over_actions {
+		response
+	} else {
+		response.on_hover_text(tooltip)
+	};
 	a11y::control(
 		&response,
 		egui::Role::Button,

@@ -1,5 +1,7 @@
 //! The selected repository's working tree, grouped the way the Changes view shows it.
 
+use std::collections::BTreeMap;
+
 use crate::git::parse::{Entry, EntryKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,9 +94,31 @@ pub struct Changes {
 	pub staged: Vec<FileChange>,
 	pub unstaged: Vec<FileChange>,
 	pub untracked: Vec<FileChange>,
+	/// For each conflicted path, whether its working copy still held conflict markers when the
+	/// status was read. Stage waits until they are gone (conflict-stage-waits-for-markers).
+	pub conflict_markers: BTreeMap<String, MarkerCheck>,
+}
+
+/// What the working copy of a conflicted file showed when it was read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarkerCheck {
+	/// A conflict marker line remains, so staging would record it as the resolution.
+	Present,
+	/// No marker line remains.
+	Clear,
+	/// The file could not be read or is binary, so repose cannot tell.
+	Unchecked,
 }
 
 impl Changes {
+	/// The marker check for one conflicted path; a path that was never checked is Unchecked.
+	pub fn marker_check(&self, path: &str) -> MarkerCheck {
+		self.conflict_markers
+			.get(path)
+			.copied()
+			.unwrap_or(MarkerCheck::Unchecked)
+	}
+
 	pub fn from_entries(entries: &[Entry]) -> Changes {
 		let mut c = Changes::default();
 		for e in entries {

@@ -4,6 +4,7 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use super::commands::{GitError, Verb, run};
+use super::markers::check_markers;
 use super::parse::{Porcelain, parse_porcelain_v2};
 use crate::model::{Changes, RepoSummary};
 
@@ -24,7 +25,14 @@ pub fn read_status_into(summary: &mut RepoSummary) {
 				summary.short_hash = Some(h);
 			}
 			summary.status = Some(p.summary());
-			summary.changes = Some(Changes::from_entries(&p.entries));
+			let mut changes = Changes::from_entries(&p.entries);
+			// Read each conflicted working copy now, on every status read (the watcher and the
+			// 60 second backstop), so Stage reflects markers removed in the editor.
+			for file in &changes.conflicts {
+				let check = check_markers(&summary.path.join(&file.path));
+				changes.conflict_markers.insert(file.path.clone(), check);
+			}
+			summary.changes = Some(changes);
 			summary.error = None;
 		}
 		Err(e) => {

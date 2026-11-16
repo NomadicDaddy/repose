@@ -19,7 +19,7 @@ pub fn path_key(path: &Path) -> String {
 }
 
 pub use branch::{Branch, Branches, HeadState};
-pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange};
+pub use changes::{ChangeKind, Changes, DiscardPlan, FileChange, MarkerCheck};
 pub use commit::{Commit, CommitFile, parse_iso, relative};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind};
 pub use tree::TreeEntry;

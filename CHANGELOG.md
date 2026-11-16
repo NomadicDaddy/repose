@@ -6,6 +6,20 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Stage on a file in Merge Changes waits until its conflict markers are gone. While the working
+  copy still holds a `<<<<<<<`, `=======` or `>>>>>>>` line, Stage is disabled and its hover text
+  says to resolve them in your editor first (with Open). Once they are removed, the next refresh
+  enables it and it stages exactly as before. A binary or unreadable file can't be checked, so
+  Stage stays enabled for it, with hover text that says so. Before, Stage recorded the file with
+  its markers as the resolution.
+
+### Fixed
+
+- A disabled action on a change row shows its own reason on hover. The row's path tooltip used to
+  cover it, so the reason a Discard was refused never appeared.
+
 ### Development
 
 - The shared gate scripts under `scripts/smokestack/` are at smokestack 0.8.0. The delivery adds a
