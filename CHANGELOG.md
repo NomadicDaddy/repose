@@ -6,6 +6,18 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Development
+
+- The shared gate scripts under `scripts/smokestack/` are at smokestack 0.8.0. The delivery adds a
+  pre-push hook and the aidd-history, force-push and screenshot guards beside the leak guard, and
+  updates the leak guard's self-test.
+- The technical spec and task order describe 1.5.0 as shipped: the light theme beside the dark
+  `look.jpg` palette, the configurable scan depth (default 3, 1 to 8) and skip names, and the
+  four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
+  The app is unchanged.
+
+## [1.6.1] - 2026-11-16
+
 ### Added
 
 - Close to tray, in Settings under Window, off by default. With it on, closing the window (the
@@ -36,16 +48,6 @@ All notable changes to repose are recorded here. The format follows
 
 - A disabled action on a change row shows its own reason on hover. The row's path tooltip used to
   cover it, so the reason a Discard was refused never appeared.
-
-### Development
-
-- The shared gate scripts under `scripts/smokestack/` are at smokestack 0.8.0. The delivery adds a
-  pre-push hook and the aidd-history, force-push and screenshot guards beside the leak guard, and
-  updates the leak guard's self-test.
-- The technical spec and task order describe 1.5.0 as shipped: the light theme beside the dark
-  `look.jpg` palette, the configurable scan depth (default 3, 1 to 8) and skip names, and the
-  four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
-  The app is unchanged.
 
 ## [1.5.0] - 2026-11-12
 
