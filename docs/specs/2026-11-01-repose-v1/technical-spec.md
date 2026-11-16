@@ -123,8 +123,9 @@ exits with its own error.
 ### Discovery
 
 Roots from `config.toml` are walked to its `depth` (default 3; Settings offers 1 to 8) with pruning
-of `.git` and its `exclude` names (default `node_modules`, `target`, `dist`, `.prevers`). A `.git` directory is a repository. A `.git` file is read:
-`gitdir:` resolving under some `<main>/.git/worktrees/` makes it a worktree of `<main>`; any other
+of `.git` and its `exclude` names (default `node_modules`, `target`, `dist`, `.prevers`).
+A `.git` directory is a repository. A `.git` file is read: `gitdir:` resolving under some
+`<main>/.git/worktrees/` makes it a worktree of `<main>`; any other
 `gitdir:` makes it a repository. `.gitmodules` in a repository gives a submodule count; submodule
 paths are not rows. `D:\applications.worktrees\<project>\<agent>\<task>` therefore lists under
 `D:\applications\<project>` even though it is under a different root. Discovery runs once at
