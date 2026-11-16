@@ -16,6 +16,7 @@ eframe = { workspace = true }
 similar = { workspace = true }
 syntect = { workspace = true }
 two-face = { workspace = true }
+tray-icon = { workspace = true }
 
 [build-dependencies]
 winresource = { workspace = true }

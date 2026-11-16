@@ -36,6 +36,13 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 	if next.theme != before.theme {
 		set(&mut doc, "theme", theme_name(next.theme).into());
 	}
+	if next.close_to_tray != before.close_to_tray {
+		set(&mut doc, "close_to_tray", next.close_to_tray.into());
+	}
+	if next.start_minimised_to_tray != before.start_minimised_to_tray {
+		let value = next.start_minimised_to_tray.into();
+		set(&mut doc, "start_minimised_to_tray", value);
+	}
 	if next.commands != before.commands {
 		let commands = commands_table(&mut doc, path)?;
 		if next.commands.editor != before.commands.editor {
@@ -45,6 +52,18 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 			set(commands, "terminal", next.commands.terminal.as_str().into());
 		}
 	}
+	config::replace(path, &doc.to_string())
+}
+
+/// Records that the one-time close-to-tray notice has been shown (close-to-tray clause 9) by
+/// rewriting `tray_notice_shown` alone, as a pin save rewrites only its key, so the notice never
+/// repeats, across restarts included.
+pub fn save_tray_notice_shown(path: &Path) -> Result<(), ConfigError> {
+	let text = fs::read_to_string(path).map_err(|e| ConfigError::Io(path.to_path_buf(), e))?;
+	let mut doc: DocumentMut = text
+		.parse()
+		.map_err(|e: toml_edit::TomlError| ConfigError::Edit(path.to_path_buf(), e.to_string()))?;
+	set(&mut doc, "tray_notice_shown", true.into());
 	config::replace(path, &doc.to_string())
 }
 

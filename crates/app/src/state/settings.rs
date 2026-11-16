@@ -29,6 +29,9 @@ pub struct SettingsDraft {
 	pub new_exclude: String,
 	pub depth: u32,
 	pub theme: Theme,
+	/// Close to tray, and start minimised to it (close-to-tray clauses 1 and 10).
+	pub close_to_tray: bool,
+	pub start_minimised_to_tray: bool,
 	pub editor: String,
 	pub terminal: String,
 	/// Why the last Save failed, shown above the buttons until the next Save.
@@ -52,6 +55,8 @@ impl SettingsDraft {
 			new_exclude: String::new(),
 			depth: config.depth,
 			theme: config.theme,
+			close_to_tray: config.close_to_tray,
+			start_minimised_to_tray: config.start_minimised_to_tray,
 			editor: config.commands.editor.clone(),
 			terminal: config.commands.terminal.clone(),
 			error: None,
@@ -121,6 +126,9 @@ impl SettingsDraft {
 		next.exclude = self.exclude.iter().map(|e| e.trim().to_string()).collect();
 		next.depth = self.depth;
 		next.theme = self.theme;
+		next.close_to_tray = self.close_to_tray;
+		// Start minimised is offered only while close to tray is on (clause 10).
+		next.start_minimised_to_tray = self.close_to_tray && self.start_minimised_to_tray;
 		next.commands.editor = self.editor.trim().to_string();
 		next.commands.terminal = self.terminal.trim().to_string();
 		next

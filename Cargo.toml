@@ -24,6 +24,9 @@ two-face = { version = "0.4", default-features = false, features = ["syntect-fan
 notify = "8.2"
 # Build-only: compiles assets/icon/repose.ico into the Windows executable (program-icon).
 winresource = "0.1"
+# The notification-area icon and its menu (close-to-tray; Phillip #54732 on #54727). Its menu is
+# muda, re-exported as tray_icon::menu. Both MIT or Apache-2.0, listed in THIRD-PARTY-NOTICES.md.
+tray-icon = "0.26"
 
 [profile.release]
 opt-level = 3

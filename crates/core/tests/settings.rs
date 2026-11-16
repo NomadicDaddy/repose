@@ -158,3 +158,47 @@ fn command_ok_takes_names_and_absolute_paths_only() {
 	);
 	assert!(!config::command_ok("code | more"));
 }
+
+/// close-to-tray clauses 1 and 10: the two options save in place like the other settings, off by
+/// default, and reload as saved; nothing else in the file moves.
+#[test]
+fn the_tray_options_save_in_place_and_reload() {
+	let path = scratch("tray-options", WRITTEN);
+	let before = config::load_or_create(&path).expect("load");
+	assert!(!before.close_to_tray && !before.start_minimised_to_tray);
+	let mut next = before.clone();
+	next.close_to_tray = true;
+	next.start_minimised_to_tray = true;
+	settings::save(&path, &before, &next).expect("save");
+	let text = fs::read_to_string(&path).expect("read back");
+	let touched = ["close_to_tray", "start_minimised_to_tray"];
+	assert_eq!(
+		lines_without(&text, &touched),
+		lines_without(WRITTEN, &touched)
+	);
+	let back = config::load_or_create(&path).expect("reload");
+	assert!(back.close_to_tray && back.start_minimised_to_tray);
+}
+
+/// close-to-tray clause 9: recording the one-time notice rewrites `tray_notice_shown` alone and
+/// reloads as shown, so the notice never repeats across restarts.
+#[test]
+fn the_tray_notice_is_recorded_alone() {
+	let path = scratch("tray-notice", WRITTEN);
+	assert!(
+		!config::load_or_create(&path)
+			.expect("load")
+			.tray_notice_shown
+	);
+	settings::save_tray_notice_shown(&path).expect("save");
+	let text = fs::read_to_string(&path).expect("read back");
+	assert_eq!(
+		lines_without(&text, &["tray_notice_shown"]),
+		lines_without(WRITTEN, &["tray_notice_shown"])
+	);
+	assert!(
+		config::load_or_create(&path)
+			.expect("reload")
+			.tray_notice_shown
+	);
+}

@@ -255,3 +255,35 @@ fn a_save_that_did_not_touch_depth_keeps_it_as_it_was() {
 	assert_eq!(state.config.depth, 12);
 	assert!(!state.scanning, "nothing that a scan reads changed");
 }
+
+/// close-to-tray clauses 1 and 10: both options start off and save through Save; start minimised
+/// is kept only while close to tray is on, since without the icon a window-less start would have
+/// no way back.
+#[test]
+fn the_tray_options_save_and_start_minimised_needs_close_to_tray() {
+	let ctx = egui::Context::default();
+	let (mut state, _root) = state_with_root("tray-options");
+	open(&ctx, &mut state);
+	assert!(
+		state
+			.settings
+			.as_ref()
+			.is_some_and(|d| !d.close_to_tray && !d.start_minimised_to_tray),
+		"both off by default"
+	);
+	if let Some(draft) = state.settings.as_mut() {
+		draft.start_minimised_to_tray = true;
+	}
+	frame(&ctx, &mut state, Vec::new());
+	press(&ctx, &mut state, "Save");
+	assert!(!state.config.close_to_tray && !state.config.start_minimised_to_tray);
+
+	open(&ctx, &mut state);
+	if let Some(draft) = state.settings.as_mut() {
+		draft.close_to_tray = true;
+		draft.start_minimised_to_tray = true;
+	}
+	frame(&ctx, &mut state, Vec::new());
+	press(&ctx, &mut state, "Save");
+	assert!(state.config.close_to_tray && state.config.start_minimised_to_tray);
+}

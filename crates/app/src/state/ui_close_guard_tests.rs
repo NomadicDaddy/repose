@@ -124,3 +124,121 @@ fn with_no_draft_the_close_goes_through() {
 	);
 	assert!(state.close_prompt.is_none());
 }
+
+const NOTICE_TITLE: &str = "Closed to the notification area";
+
+/// A window with one drafted repository and "Close to tray" on.
+fn tray_state(drafted: bool) -> (egui::Context, AppState) {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config {
+		close_to_tray: true,
+		..Config::default()
+	});
+	let row = repo("tray", SystemTime::now());
+	let path = row.path.clone();
+	state.merge_discovered(vec![row]);
+	run(&ctx, &mut state, false, Vec::new());
+	if drafted {
+		state.commit_messages.insert(path, "half a message".into());
+	}
+	(ctx, state)
+}
+
+/// close-to-tray clauses 2 and 9: the first close keeps the window up with the notice; OK records
+/// it and hides; nothing asks about a draft, since hiding loses nothing.
+#[test]
+fn the_first_close_to_tray_shows_the_notice_then_hides() {
+	let (ctx, mut state) = tray_state(true);
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(
+		!has(&commands, &ViewportCommand::Visible(false)),
+		"{commands:?}"
+	);
+	let (shown, _) = run(&ctx, &mut state, false, Vec::new());
+	let all = texts(&shown);
+	assert!(all.iter().any(|t| t == NOTICE_TITLE), "{all:?}");
+	assert!(
+		!all.iter().any(|t| t == TITLE),
+		"no draft question: {all:?}"
+	);
+	let ok = text_at(&shown, "OK").unwrap_or_else(|| panic!("no OK: {all:?}"));
+	let (_, commands) = run(&ctx, &mut state, false, click(ok));
+	assert!(
+		has(&commands, &ViewportCommand::Visible(false)),
+		"{commands:?}"
+	);
+	assert!(state.hidden && state.config.tray_notice_shown);
+	assert!(!has(&commands, &ViewportCommand::Close), "{commands:?}");
+}
+
+/// After the notice, a close hides at once: no notice, no draft question, no close.
+#[test]
+fn a_later_close_to_tray_hides_at_once() {
+	let (ctx, mut state) = tray_state(true);
+	state.config.tray_notice_shown = true;
+	let (shown, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(
+		has(&commands, &ViewportCommand::Visible(false)),
+		"{commands:?}"
+	);
+	assert!(state.hidden && state.close_prompt.is_none());
+	assert!(!texts(&shown).iter().any(|t| t == NOTICE_TITLE));
+}
+
+/// close-to-tray clause 4: Quit from the tray goes through the close guard. With a draft while
+/// hidden, it shows the window and asks; Keep editing (Escape) cancels the Quit, so the next close
+/// hides again. With no draft, it closes.
+#[test]
+fn quit_from_the_tray_asks_about_a_draft_and_otherwise_closes() {
+	let (ctx, mut state) = tray_state(true);
+	state.config.tray_notice_shown = true;
+	state.hidden = true;
+	state.quitting = true;
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(
+		has(&commands, &ViewportCommand::Visible(true)),
+		"{commands:?}"
+	);
+	assert!(!state.hidden && state.close_prompt.is_some());
+	run(&ctx, &mut state, false, key(Key::Escape));
+	assert!(!state.quitting && state.close_prompt.is_none());
+
+	let (ctx, mut state) = tray_state(false);
+	state.config.tray_notice_shown = true;
+	state.quitting = true;
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		!has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+}
+
+/// close-to-tray clause 1: with the option off, a close is a close and no window is hidden.
+#[test]
+fn with_close_to_tray_off_a_close_ends_the_window() {
+	let ctx = egui::Context::default();
+	let mut state = AppState::new(Config::default());
+	assert!(!state.config.close_to_tray);
+	let (_, commands) = run(&ctx, &mut state, true, Vec::new());
+	assert!(
+		!has(&commands, &ViewportCommand::CancelClose),
+		"{commands:?}"
+	);
+	assert!(
+		!has(&commands, &ViewportCommand::Visible(false)),
+		"{commands:?}"
+	);
+	assert!(!state.hidden);
+}

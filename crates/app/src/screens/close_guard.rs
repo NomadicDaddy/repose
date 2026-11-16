@@ -2,6 +2,10 @@
 //! close would lose them (audit-web-design-guidelines-1793709090): the close is cancelled while
 //! any draft has text, and a modal names the repositories with Keep editing (the default, also
 //! Escape and a click outside) or Close without committing.
+//!
+//! With "Close to tray" on, a close (title bar, Alt+F4) hides the window instead and nothing is
+//! lost, so it asks nothing; only Quit from the tray icon closes, through the same question
+//! (close-to-tray clauses 2 and 4).
 
 use eframe::egui::{self, RichText, ViewportCommand};
 
@@ -9,9 +13,14 @@ use crate::state::AppState;
 use crate::theme::*;
 
 pub fn show(ctx: &egui::Context, state: &mut AppState) {
+	let close_requested = ctx.input(|i| i.viewport().close_requested());
+	if close_requested && state.config.close_to_tray && !state.quitting && !state.close_confirmed {
+		super::tray_notice::close_to_tray(ctx, state);
+		return;
+	}
 	// Keep editing takes focus on the frame the question opens, away from the draft behind it.
 	let mut fresh = false;
-	if ctx.input(|i| i.viewport().close_requested()) && !state.close_confirmed {
+	if close_requested && !state.close_confirmed {
 		let mut drafts: Vec<String> = state
 			.commit_messages
 			.iter()
@@ -23,6 +32,10 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			ctx.send_viewport_cmd(ViewportCommand::CancelClose);
 			fresh = state.close_prompt.is_none();
 			state.close_prompt = Some(drafts);
+			// Quit from the tray while hidden: the question needs the window (clause 4).
+			if state.hidden {
+				crate::tray::show_window(ctx, state);
+			}
 		}
 	}
 	let Some(drafts) = state.close_prompt.clone() else {
@@ -94,7 +107,11 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
 			state.close_confirmed = true;
 			ctx.send_viewport_cmd(ViewportCommand::Close);
 		}
-		Some(false) => state.close_prompt = None,
+		Some(false) => {
+			// Keep editing also cancels a tray Quit, so the next title-bar close hides again.
+			state.close_prompt = None;
+			state.quitting = false;
+		}
 		None => {}
 	}
 }

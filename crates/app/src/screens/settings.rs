@@ -124,6 +124,21 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 		ui.radio_value(&mut draft.theme, Theme::Dark, "Dark");
 		ui.radio_value(&mut draft.theme, Theme::Light, "Light");
 	});
+	// close-to-tray clauses 1 and 10: off by default; start minimised only while close to tray
+	// is on, since without the icon a window-less start would have no way back.
+	ui.add_space(10.0);
+	ui.horizontal(|ui| {
+		ui.label(RichText::new("Window").color(TEXT_BRIGHT).strong());
+		ui.checkbox(&mut draft.close_to_tray, "Close to tray").on_hover_text(
+			"Closing the window keeps repose running in the notification area; its icon reopens or quits it.",
+		);
+		let minimised = egui::Checkbox::new(
+			&mut draft.start_minimised_to_tray,
+			"Start minimised to the tray",
+		);
+		ui.add_enabled(draft.close_to_tray, minimised)
+			.on_disabled_hover_text("Turn on Close to tray first.");
+	});
 	heading(
 		ui,
 		"Commands",

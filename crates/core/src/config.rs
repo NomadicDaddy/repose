@@ -13,6 +13,15 @@ pub struct Config {
 	pub depth: u32,
 	/// `system` follows the Windows app theme, and `dark` or `light` overrides it.
 	pub theme: Theme,
+	/// Closing the window hides repose to a notification-area icon instead of ending it
+	/// (close-to-tray). Off by default, so a close ends the process.
+	pub close_to_tray: bool,
+	/// With `close_to_tray` on, a launch opens straight into the notification area with no window
+	/// (close-to-tray clause 10). It adds no autostart.
+	pub start_minimised_to_tray: bool,
+	/// The one-time notice on the first close to tray has been shown (close-to-tray clause 9).
+	/// Saved by `settings::save_tray_notice_shown`, which rewrites only this key.
+	pub tray_notice_shown: bool,
 	pub commands: Commands,
 	/// Repositories drawn first in the list, kept across launches (repository-pinning). Saved by
 	/// `pins::save`, which rewrites only this key.
@@ -66,6 +75,9 @@ impl Default for Config {
 				.collect(),
 			depth: 3,
 			theme: Theme::System,
+			close_to_tray: false,
+			start_minimised_to_tray: false,
+			tray_notice_shown: false,
 			commands: Commands::default(),
 			pinned_repositories: Vec::new(),
 		}
@@ -193,6 +205,9 @@ mod tests {
 			"exclude",
 			"depth",
 			"theme",
+			"close_to_tray",
+			"start_minimised_to_tray",
+			"tray_notice_shown",
 			"pinned_repositories",
 			"[commands]",
 		] {

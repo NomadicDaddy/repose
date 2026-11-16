@@ -266,6 +266,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	confirm::show(&ctx, state);
 	settings::show(&ctx, state);
 	close_guard::show(&ctx, state);
+	super::tray_notice::show(&ctx, state);
 }
 
 pub(crate) fn offset_key() -> egui::Id {

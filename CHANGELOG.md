@@ -6,6 +6,20 @@ All notable changes to repose are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Close to tray, in Settings under Window, off by default. With it on, closing the window (the
+  title bar or Alt+F4) keeps repose running in the notification area, still watching and
+  refreshing your repositories. Click its icon to reopen the window where it was. The icon's menu
+  has Open repose and Quit. Quit asks first if a commit message is unsaved, as closing always
+  has. The first close to tray says once, in repose's own window, where it went. With the option
+  off, closing still ends repose and no icon is shown.
+- Start minimised to the tray, available while Close to tray is on: repose opens with only its
+  icon, no window. It adds no autostart.
+- One repose at a time for each config file. Launching it again hands that launch's `--select`,
+  and a `--view` it was given, to the running repose, which comes to the front. The startup
+  measurements always run on their own.
+
 ### Changed
 
 - Stage on a file in Merge Changes waits until its conflict markers are gone. While the working

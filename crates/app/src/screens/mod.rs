@@ -22,6 +22,7 @@ pub mod repo_list;
 mod row;
 mod settings;
 mod status_line;
+pub(crate) mod tray_notice;
 
 use repose_core::model::ChangeKind;
 

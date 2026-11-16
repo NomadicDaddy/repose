@@ -28,9 +28,11 @@ mod lanes;
 mod measure_lanes;
 mod platform;
 mod screens;
+mod single_instance;
 mod state;
 mod syntax_palette;
 mod theme;
+mod tray;
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -48,6 +50,10 @@ struct App {
 	platform: Box<dyn platform::Platform>,
 	/// Whether Windows' animation setting has been asked for yet; see `ui`.
 	motion_asked: bool,
+	/// The notification-area icon while "Close to tray" is on (close-to-tray).
+	tray: tray::Tray,
+	/// The single-instance lock and the hand-offs a second launch sends (clause 5).
+	single: Option<single_instance::Running>,
 	/// `--measure-lanes`: the frame-time probe, while it runs.
 	lanes_probe: Option<measure_lanes::LanesProbe>,
 }
@@ -70,6 +76,8 @@ impl App {
 			platform: platform::current(),
 			motion_asked: false,
 			lanes_probe: None,
+			tray: tray::Tray::default(),
+			single: None,
 		}
 	}
 }
@@ -93,6 +101,10 @@ impl eframe::App for App {
 		screens::footer::show(root);
 		screens::repo_list::show(root, &mut self.state, self.platform.as_ref());
 		screens::detail::show(root, &mut self.state, self.platform.as_ref());
+		self.tray.sync(&ctx, &mut self.state);
+		if let Some(single) = &self.single {
+			single.drain(&ctx, &mut self.state);
+		}
 		if let Some(out) = &self.measure
 			&& !self.state.repos.is_empty()
 		{
@@ -191,7 +203,7 @@ fn error_window(message: String) -> eframe::Result {
 }
 
 /// The program icon at 256 px (program-icon), from assets/icon/make-icon.sh.
-const ICON_PNG: &[u8] = include_bytes!("../../../assets/icon/repose-256.png");
+pub(crate) const ICON_PNG: &[u8] = include_bytes!("../../../assets/icon/repose-256.png");
 
 /// The window's own icon, for its title bar (program-icon): the mark the executable also carries,
 /// decoded with eframe's PNG loader. A PNG that will not decode leaves the default icon rather
@@ -205,7 +217,8 @@ fn with_icon(viewport: egui::ViewportBuilder) -> egui::ViewportBuilder {
 
 fn main() -> eframe::Result {
 	let started = Instant::now();
-	let args = match cli::parse(&std::env::args().collect::<Vec<_>>()) {
+	let raw: Vec<String> = std::env::args().collect();
+	let args = match cli::parse(&raw) {
 		cli::Parsed::Help => {
 			eprint!("{}", cli::help());
 			std::process::exit(0);
@@ -217,7 +230,7 @@ fn main() -> eframe::Result {
 		}
 		cli::Parsed::Run(args) => args,
 	};
-	let config_path = args.config.unwrap_or_else(config::default_path);
+	let config_path = args.config.clone().unwrap_or_else(config::default_path);
 	let cfg = match config::load_or_create(&config_path) {
 		Ok(c) => c,
 		Err(e) => {
@@ -228,12 +241,17 @@ fn main() -> eframe::Result {
 			std::process::exit(2);
 		}
 	};
+	// A second launch hands off to the running repose and exits (close-to-tray clause 5).
+	let instance = single_instance::claim(&config_path, &args, &raw);
+	// Start minimised to the tray opens with the icon and no window (close-to-tray clause 10).
+	let start_hidden = cfg.close_to_tray && cfg.start_minimised_to_tray;
 	let options = eframe::NativeOptions {
 		viewport: with_icon(
 			egui::ViewportBuilder::default()
 				.with_inner_size([1440.0, 900.0])
 				.with_min_inner_size([960.0, 600.0])
-				.with_title("repose"),
+				.with_title("repose")
+				.with_visible(!start_hidden),
 		),
 		..Default::default()
 	};
@@ -250,6 +268,8 @@ fn main() -> eframe::Result {
 			app.state.lanes = args.lanes;
 			// Pins are saved to the config file this session loaded, `--config` included.
 			app.state.config_path = Some(config_path);
+			app.state.hidden = start_hidden;
+			app.single = instance.map(|i| single_instance::run(i, &cc.egui_ctx));
 			if let Some(out) = args.measure_lanes {
 				app.state.lanes = true;
 				app.lanes_probe = Some(measure_lanes::LanesProbe::new(out, args.select.clone()));
