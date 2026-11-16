@@ -41,6 +41,9 @@ pub struct Tray {
 	rx: Option<Receiver<TrayAction>>,
 	/// The icon could not be built; not tried again until the setting is turned off and on.
 	failed: bool,
+	/// A start minimised to the tray has hidden the window. eframe shows the window after its
+	/// first frame whatever the builder said, so the first frame with the icon hides it again.
+	start_applied: bool,
 }
 
 impl Tray {
@@ -71,7 +74,10 @@ impl Tray {
 		state.tray.shown = self.icon.is_some();
 		if !state.tray.shown && state.tray.hidden {
 			show_window(ctx, state);
+		} else if state.tray.shown && state.tray.hidden && !self.start_applied {
+			ctx.send_viewport_cmd(ViewportCommand::Visible(false));
 		}
+		self.start_applied = true;
 		let actions: Vec<TrayAction> = self
 			.rx
 			.as_ref()
