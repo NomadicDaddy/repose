@@ -29,7 +29,14 @@ fn main() {
 		.map(|d| d.as_secs())
 		.unwrap_or(0);
 	println!("cargo:rustc-env=REPOSE_COMMIT={stamp}");
-	println!("cargo:rustc-env=REPOSE_BUILT_AT={}", utc_stamp(secs));
+	// The footer shows this instant in the viewer's local time, as Summon's does (Phillip #56423).
+	println!("cargo:rustc-env=REPOSE_BUILT_SECS={secs}");
+	println!("cargo:rustc-env=REPOSE_BUILD_ID={}", build_id(&INPUTS));
+	// The build id also covers the manifests, the lockfile and the toolchain pin, so a change to
+	// any of them restamps it; the sources, syntaxes and icon are named below.
+	for input in &INPUTS[5..] {
+		println!("cargo:rerun-if-changed={input}");
+	}
 	// Naming any rerun path turns off cargo's default of rerunning on every source change, so
 	// the crate's own sources are named too: an edit to a tracked file then restamps "+dirty"
 	// and a fresh time instead of keeping the old clean stamp (Morticia Low on c1fb690).
@@ -63,21 +70,47 @@ fn program_icon() {
 	}
 }
 
-/// `YYYY-MM-DD HH:MM UTC` from seconds since the epoch, with no date crate.
-fn utc_stamp(secs: u64) -> String {
-	let days = secs / 86_400;
-	let rem = secs % 86_400;
-	let (h, m) = (rem / 3600, (rem % 3600) / 60);
-	// Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
-	let z = days as i64 + 719_468;
-	let era = z.div_euclid(146_097);
-	let doe = z.rem_euclid(146_097);
-	let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-	let y = yoe + era * 400;
-	let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-	let mp = (5 * doy + 2) / 153;
-	let d = doy - (153 * mp + 2) / 5 + 1;
-	let mo = if mp < 10 { mp + 3 } else { mp - 9 };
-	let y = if mo <= 2 { y + 1 } else { y };
-	format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02} UTC")
+/// What the executable is built from, relative to this crate: its sources, repose-core's, the
+/// vendored syntaxes and the icon (already watched in main), then the manifests, the lockfile and
+/// the toolchain pin.
+const INPUTS: [&str; 10] = [
+	"src",
+	"build.rs",
+	"syntaxes",
+	"../core/src",
+	"../../assets/icon",
+	"Cargo.toml",
+	"../core/Cargo.toml",
+	"../../Cargo.toml",
+	"../../Cargo.lock",
+	"../../rust-toolchain.toml",
+];
+
+/// The footer's `build` id, 10 hex digits as Summon's is: a fingerprint of every input file's path
+/// and bytes in sorted order, so two builds from different content never share one, even at the
+/// same commit. std's hasher needs no dependency; its algorithm may change between Rust releases,
+/// which the toolchain pin holds still.
+fn build_id(inputs: &[&str]) -> String {
+	use std::hash::{DefaultHasher, Hasher};
+	let mut files = Vec::new();
+	for input in inputs {
+		collect(std::path::Path::new(input), &mut files);
+	}
+	files.sort();
+	let mut hasher = DefaultHasher::new();
+	for file in &files {
+		hasher.write(file.to_string_lossy().replace('\\', "/").as_bytes());
+		hasher.write(&std::fs::read(file).unwrap_or_default());
+	}
+	format!("{:016x}", hasher.finish())[..10].to_string()
+}
+
+fn collect(path: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+	if path.is_file() {
+		files.push(path.to_path_buf());
+	} else if let Ok(entries) = std::fs::read_dir(path) {
+		for entry in entries.flatten() {
+			collect(&entry.path(), files);
+		}
+	}
 }

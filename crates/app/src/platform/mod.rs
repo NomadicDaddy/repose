@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 mod motion;
 #[cfg(windows)]
 mod windows;
+mod zone;
+
+pub use zone::Zone;
 
 /// The working-tree file Git names `git_path` (always forward slashes) inside `repo`. On Windows
 /// the slashes become backslashes, so Explorer, the editor and the file system all get one form;
@@ -103,6 +106,19 @@ pub fn utc_offset_minutes() -> Option<i32> {
 	#[cfg(windows)]
 	{
 		windows::utc_offset_minutes()
+	}
+	#[cfg(not(windows))]
+	{
+		None
+	}
+}
+
+/// The local zone the last offset read found, without reading it again (safe every frame), or
+/// None before the first read or where it cannot be read.
+pub fn cached_zone() -> Option<Zone> {
+	#[cfg(windows)]
+	{
+		windows::cached_zone()
 	}
 	#[cfg(not(windows))]
 	{

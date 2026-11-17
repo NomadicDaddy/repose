@@ -180,14 +180,13 @@ fn spawn_detached(
 /// minute. `std` has no local-time API, so this asks `w32tm /tz`, which prints the zone's bias and
 /// daylight adjustment in minutes. When that fails the clock is shown in UTC and says so.
 pub fn utc_offset_minutes() -> Option<i32> {
-	use std::sync::Mutex;
-	use std::time::{Duration, Instant};
-	static CACHE: Mutex<Option<(Instant, Option<i32>)>> = Mutex::new(None);
-	let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
-	if let Some((at, offset)) = *cache
+	use std::time::Duration;
+	// The lock is released before w32tm runs, so the footer's per-frame cached_zone never waits
+	// on the spawn.
+	if let Some((at, zone)) = ZONE.lock().unwrap_or_else(|e| e.into_inner()).as_ref()
 		&& at.elapsed() < Duration::from_secs(60)
 	{
-		return offset;
+		return zone.as_ref().map(|z| z.offset_min);
 	}
 	let mut cmd = Command::new("w32tm");
 	repose_core::git::commands::hide_console(&mut cmd);
@@ -195,50 +194,24 @@ pub fn utc_offset_minutes() -> Option<i32> {
 	let text = out
 		.map(|o| String::from_utf8_lossy(&o.stdout).to_string())
 		.unwrap_or_default();
-	let offset = parse_w32tm(&text);
-	*cache = Some((Instant::now(), offset));
+	let zone = super::zone::parse_w32tm(&text);
+	let offset = zone.as_ref().map(|z| z.offset_min);
+	*ZONE.lock().unwrap_or_else(|e| e.into_inner()) = Some((std::time::Instant::now(), zone));
 	offset
 }
 
-/// `Time zone: Current:TIME_ZONE_ID_STANDARD Bias: 360min (UTC=LocalTime+Bias)` and a
-/// `[Standard Name:... Bias:0min ...]` and `[Daylight Name:... Bias:-60min ...]` pair.
-fn parse_w32tm(text: &str) -> Option<i32> {
-	let current_daylight = text.contains("TIME_ZONE_ID_DAYLIGHT");
-	let mut biases = text.split("Bias:").skip(1).filter_map(|rest| {
-		let num: String = rest
-			.trim_start()
-			.chars()
-			.take_while(|c| c.is_ascii_digit() || *c == '-')
-			.collect();
-		num.parse::<i32>().ok()
-	});
-	let base = biases.next()?;
-	let _standard = biases.next().unwrap_or(0);
-	let daylight = biases.next().unwrap_or(0);
-	let total = if current_daylight {
-		base + daylight
-	} else {
-		base
-	};
-	Some(-total)
+type ZoneCache = Option<(std::time::Instant, Option<super::zone::Zone>)>;
+static ZONE: std::sync::Mutex<ZoneCache> = std::sync::Mutex::new(None);
+
+/// The zone the last `w32tm` read found, without reading it again: safe on the UI thread, and
+/// None until a scan has read it once.
+pub fn cached_zone() -> Option<super::zone::Zone> {
+	let cache = ZONE.lock().unwrap_or_else(|e| e.into_inner());
+	cache.as_ref().and_then(|(_, zone)| zone.clone())
 }
 
 #[cfg(test)]
 mod tests {
-	use super::parse_w32tm;
-
-	#[test]
-	fn central_standard_time() {
-		let text = "Time zone: Current:TIME_ZONE_ID_STANDARD Bias: 360min (UTC=LocalTime+Bias)\n  [Standard Name:\"Central Standard Time\" Bias:0min Date:(M:11 D:1 DoW:0)]\n  [Daylight Name:\"Central Daylight Time\" Bias:-60min Date:(M:3 D:2 DoW:0)]\n";
-		assert_eq!(parse_w32tm(text), Some(-360));
-	}
-
-	#[test]
-	fn central_daylight_time() {
-		let text = "Time zone: Current:TIME_ZONE_ID_DAYLIGHT Bias: 360min (UTC=LocalTime+Bias)\n  [Standard Name:\"Central Standard Time\" Bias:0min Date:(M:11 D:1 DoW:0)]\n  [Daylight Name:\"Central Daylight Time\" Bias:-60min Date:(M:3 D:2 DoW:0)]\n";
-		assert_eq!(parse_w32tm(text), Some(-300));
-	}
-
 	/// Morticia M-1 on 85ec3b0: pwsh with its standard input at NUL ignores -NoExit and exits at
 	/// once, and so did one given CREATE_NEW_CONSOLE by this process (the first version of this
 	/// test proved that). The fallback goes through Start-Process instead; this opens one shell
