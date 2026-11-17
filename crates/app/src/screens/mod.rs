@@ -2,6 +2,7 @@
 
 mod a11y;
 mod activity;
+mod activity_glyphs;
 mod activity_grid;
 pub mod branches;
 pub mod changes;

@@ -43,8 +43,22 @@ pub struct ActivityMsg {
 	result: Result<Activity, String>,
 }
 
+/// Where the loading glyphs are (activity-loading-glyphs): not yet decided, falling while a row
+/// reads, fading from the time the last row arrived, or done for this session.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum GlyphPhase {
+	#[default]
+	Waiting,
+	Falling,
+	Fading(f64),
+	Done,
+}
+
 #[derive(Default)]
 pub struct ActivityState {
+	pub glyphs: GlyphPhase,
+	/// The glyph font was asked for, once, when the glyphs first fell.
+	pub glyph_font_asked: bool,
 	pub shown: bool,
 	pub filter: Option<Tile>,
 	pub reads: HashMap<PathBuf, ActivityRead>,

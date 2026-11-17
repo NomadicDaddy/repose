@@ -3,7 +3,9 @@
 
 use std::sync::Arc;
 
-use eframe::egui::{FontData, FontDefinitions, FontFamily};
+use eframe::egui::{
+	self, FontData, FontDefinitions, FontFamily, FontInsert, FontPriority, InsertFontFamily,
+};
 
 const CANDIDATES: [(&str, &str, bool); 4] = [
 	("segoe-ui", "C:/Windows/Fonts/segoeui.ttf", false),
@@ -11,6 +13,26 @@ const CANDIDATES: [(&str, &str, bool); 4] = [
 	("cascadia-mono", "C:/Windows/Fonts/CascadiaMono.ttf", true),
 	("consolas", "C:/Windows/Fonts/consola.ttf", true),
 ];
+
+/// The family Activity's loading glyphs draw in (activity-loading-glyphs): Yu Gothic Medium, for
+/// its digits and half-width katakana. Not MS Gothic: its embedded bitmaps (EBDT) make egui treat
+/// every glyph as a colour bitmap and paint it white, ignoring the tint (27f450a captures).
+pub const GLYPH_FAMILY: &str = "activity-glyphs";
+const GLYPH_FONT: &str = "C:/Windows/Fonts/YuGothM.ttc";
+
+/// Adds the glyph family. It is read only when Activity first loads, so a launch that never shows
+/// the glyphs never reads the 14 MB font; without the file the glyphs fall back to digits.
+pub fn add_glyph_font(ctx: &egui::Context) {
+	let Ok(bytes) = std::fs::read(GLYPH_FONT) else {
+		return;
+	};
+	let family = InsertFontFamily {
+		family: FontFamily::Name(GLYPH_FAMILY.into()),
+		priority: FontPriority::Highest,
+	};
+	let data = FontData::from_owned(bytes);
+	ctx.add_font(FontInsert::new(GLYPH_FAMILY, data, vec![family]));
+}
 
 pub fn definitions() -> FontDefinitions {
 	let mut defs = FontDefinitions::default();

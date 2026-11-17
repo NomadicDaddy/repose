@@ -14,6 +14,7 @@ use repose_core::git::activity::MAX_WALK;
 use repose_core::model::RepoSummary;
 
 use super::activity::GridRow;
+use super::activity_glyphs::{Glyphs, paint_cell, seed};
 use super::{a11y, count_label, row};
 use crate::state::activity::{DAYS, day_label, step};
 use crate::state::{AppState, View};
@@ -33,7 +34,13 @@ fn name_width(width: f32) -> f32 {
 	(width * 0.3).clamp(160.0, 230.0)
 }
 
-pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i64) {
+pub(super) fn grid(
+	ui: &mut Ui,
+	state: &mut AppState,
+	rows: &[GridRow],
+	today: i64,
+	glyphs: Option<&Glyphs>,
+) {
 	let width = ui.available_width();
 	let name_w = name_width(width);
 	let cell = (width - name_w) / DAYS as f32;
@@ -148,8 +155,9 @@ pub(super) fn grid(ui: &mut Ui, state: &mut AppState, rows: &[GridRow], today: i
 				vec2(cell - 4.0, ROW_HEIGHT - 12.0),
 			);
 			let fill = r.counts.map_or(BG_PANEL.get(), |c| step_colour(step(c[d])));
-			let outline = Stroke::new(1.0, LINE_SOFT.get());
-			painter.rect(cell_rect, RADIUS, fill, outline, StrokeKind::Inside);
+			// A failed row ends on plain boxes; every other row holds its glyphs until all land.
+			let at = (seed(&r.repo.path), i, d);
+			paint_cell(&painter, cell_rect, glyphs.filter(|_| !r.failed), at, fill);
 			spot(ui, cell_rect, (i, Some(d)), Role::Cell);
 		}
 	}
@@ -256,7 +264,7 @@ fn badges(painter: &egui::Painter, repo: &RepoSummary, right: f32, cy: f32) {
 }
 
 /// Five steps from the panel colour to the accent.
-fn step_colour(step: usize) -> egui::Color32 {
+pub(super) fn step_colour(step: usize) -> egui::Color32 {
 	let t = [0.0, 0.25, 0.5, 0.75, 1.0][step.min(4)];
 	BG_PANEL.get().lerp_to_gamma(ACCENT.get(), t)
 }

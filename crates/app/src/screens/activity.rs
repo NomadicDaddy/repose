@@ -9,8 +9,8 @@ use std::cmp::Reverse;
 use eframe::egui::{self, RichText, Role, Sense, Stroke, Ui};
 use repose_core::model::RepoSummary;
 
-use super::a11y;
 use super::activity_grid::{grid, legend, quiet_row};
+use super::{a11y, activity_glyphs};
 use crate::state::AppState;
 use crate::state::activity::{
 	ActivityRead, DAYS, Tile, day_counts, in_tile, local_today, now_secs,
@@ -80,6 +80,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	ui.add_space(12.0);
 	let today = local_today(now, offset);
 	let (mut drawn, quiet) = rows(state, now, today);
+	let glyphs = activity_glyphs::begin(ui, state);
 	// Under the Quiet tile every row is quiet, so nothing folds; otherwise the closing row opens
 	// the quiet repositories into the grid as rows like any other (Roger 5Q-1 on 4051085).
 	let folds = state.activity.filter != Some(Tile::Quiet);
@@ -94,7 +95,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		egui::ScrollArea::vertical()
 			.auto_shrink(false)
 			.show(ui, |ui| {
-				grid(ui, state, &drawn, today);
+				grid(ui, state, &drawn, today, glyphs.as_ref());
 				if folds && quiet_count > 0 {
 					quiet_row(ui, state, quiet_count);
 				}
