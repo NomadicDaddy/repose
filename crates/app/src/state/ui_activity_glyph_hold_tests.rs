@@ -8,11 +8,11 @@ use std::time::Duration;
 
 use eframe::egui;
 
-use super::AppState;
-use super::activity::{ActivityRead, GlyphPhase};
-use super::ui_activity_glyph_tests::{at, cells, font_landed, glyphs, loading};
-use super::ui_activity_tests::{fleet, path_of, read_as};
-use super::ui_harness::texts;
+use super::{at, cells, font_landed, glyphs, loading};
+use crate::state::AppState;
+use crate::state::activity::{ActivityRead, GlyphPhase};
+use crate::state::ui_activity_tests::{fleet, path_of, read_as};
+use crate::state::ui_harness::texts;
 use crate::theme::mark_motion_known;
 
 fn chars(shapes: &[egui::epaint::ClippedShape]) -> Vec<char> {

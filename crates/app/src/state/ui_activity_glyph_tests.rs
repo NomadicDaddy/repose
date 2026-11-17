@@ -216,3 +216,7 @@ fn with_animations_off_the_glyphs_stand_still_and_swap_at_once() {
 	assert_eq!(state.activity.glyphs, GlyphPhase::Done);
 	assert!(glyphs(&end).is_empty(), "boxes at once");
 }
+
+// What holds the glyphs still or holds rows, from the reviews of 23fdba0.
+#[path = "ui_activity_glyph_hold_tests.rs"]
+mod hold;
