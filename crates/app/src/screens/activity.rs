@@ -70,7 +70,6 @@ pub(super) struct GridRow {
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
 	let now = now_secs();
-	let offset = state.utc_offset.unwrap_or(0);
 	let title = RichText::new("Activity across all repositories");
 	ui.label(title.size(TEXT_DETAIL_TITLE).color(TEXT_BRIGHT));
 	let count = format!("{} repositories · Saved refs; no fetch", state.repos.len());
@@ -78,7 +77,11 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	ui.add_space(12.0);
 	tiles(ui, state, now);
 	ui.add_space(12.0);
-	let today = local_today(now, offset);
+	// Days count from the local date only once the offset is known. It is read beside the scan's
+	// walk and lands before the rows; if that read failed, the scan's end settles on UTC, as the
+	// clocks do (remediation-20261116-activity-days-before-the-first-scan).
+	let known = state.utc_offset.is_some() || !state.scanning;
+	let today = known.then(|| local_today(now, state.utc_offset.unwrap_or(0)));
 	let (mut drawn, quiet) = rows(state, now, today);
 	let glyphs = activity_glyphs::begin(ui, state);
 	// Under the Quiet tile every row is quiet, so nothing folds; otherwise the closing row opens
@@ -174,8 +177,9 @@ fn tiles(ui: &mut Ui, state: &mut AppState, now: i64) {
 }
 
 /// The rows to draw, filtered by the tile, newest activity first; and the quiet ones (read, with
-/// no commit in the grid's days) apart, for the folded closing row.
-fn rows(state: &AppState, now: i64, today: i64) -> (Vec<GridRow>, Vec<GridRow>) {
+/// no commit in the grid's days) apart, for the folded closing row. Without a `today` every row
+/// is still counting, as if reading.
+fn rows(state: &AppState, now: i64, today: Option<i64>) -> (Vec<GridRow>, Vec<GridRow>) {
 	let reads = &state.activity.reads;
 	let filter = state.activity.filter;
 	let mut all: Vec<(Option<i64>, GridRow)> = state
@@ -185,7 +189,7 @@ fn rows(state: &AppState, now: i64, today: i64) -> (Vec<GridRow>, Vec<GridRow>) 
 		.map(|r| {
 			let read = reads.get(&r.path);
 			let (newest, counts) = match read {
-				Some(ActivityRead::Read(a)) => (a.newest, Some(day_counts(&a.commits, today))),
+				Some(ActivityRead::Read(a)) => (a.newest, today.map(|t| day_counts(&a.commits, t))),
 				_ => (None, None),
 			};
 			let failed = matches!(read, Some(ActivityRead::Failed(_)));

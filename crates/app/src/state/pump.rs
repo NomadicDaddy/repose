@@ -66,6 +66,7 @@ impl AppState {
 						self.reload_diff_after_status(&path, merged.changed, ctx);
 					}
 				}
+				Msg::Offset(offset) => self.utc_offset = offset,
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
 					self.pass_done(offset, ctx);

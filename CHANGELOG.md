@@ -16,6 +16,16 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [1.8.1] - 2026-11-16
+
+### Fixed
+
+- Activity's days are local from the first frame. Before, until the first scan finished, the grid
+  counted from the UTC date, so in the evening west of UTC it ended on tomorrow and then jumped a
+  column. repose now reads the clock offset alongside its first walk of the roots and has it
+  before any row appears. If that read fails, Activity settles on UTC when the scan ends, as the
+  clocks already do.
+
 ## [1.7.1] - 2026-11-16
 
 ### Changed

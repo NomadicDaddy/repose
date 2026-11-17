@@ -255,3 +255,7 @@ fn a_truncated_read_is_shown_as_a_floor() {
 	let header = find(&nodes, Role::RowHeader, "a, ");
 	assert!(header.name.contains(&note), "{header:?}");
 }
+
+// Local days from the first frame (remediation-20261116-activity-days-before-the-first-scan).
+#[path = "ui_activity_days_tests.rs"]
+mod days;

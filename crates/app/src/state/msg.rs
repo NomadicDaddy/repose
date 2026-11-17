@@ -10,6 +10,8 @@ use super::activity::ActivityMsg;
 use super::{BranchesMsg, DiffMsg, FilesMsg, HistoryMsg, Remote, WriteOutcome};
 
 pub enum Msg {
+	/// The machine's UTC offset, read beside a scan's walk and sent before its rows.
+	Offset(Option<i32>),
 	Discovered(u64, Vec<RepoSummary>),
 	Status(u64, Box<RepoSummary>),
 	/// The scan finished; carries the machine's UTC offset read on the scan thread.

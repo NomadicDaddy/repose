@@ -49,10 +49,15 @@ fn read_all(generation: u64, queue: VecDeque<RepoSummary>, tx: &Sender<Msg>, ctx
 	}
 }
 
-/// Walks the roots, sends the rows, then reads every status through eight workers.
+/// Walks the roots, sends the rows, then reads every status through eight workers. The clock
+/// offset is read beside the walk (about 60 ms against the walk's hundreds) and sent before the
+/// rows, so Activity never counts days from UTC once it has rows to count
+/// (remediation-20261116-activity-days-before-the-first-scan).
 pub fn start(generation: u64, config: Config, tx: Sender<Msg>, ctx: egui::Context) {
 	std::thread::spawn(move || {
+		let offset = std::thread::spawn(crate::platform::utc_offset_minutes);
 		let repos = discover(&config);
+		let _ = tx.send(Msg::Offset(offset.join().unwrap_or(None)));
 		let queue = rows_of(&repos);
 		let _ = tx.send(Msg::Discovered(generation, repos));
 		ctx.request_repaint();
@@ -84,4 +89,31 @@ pub fn refresh_one(generation: u64, mut repo: RepoSummary, tx: Sender<Msg>, ctx:
 		let _ = tx.send(Msg::Status(generation, Box::new(repo)));
 		ctx.request_repaint();
 	});
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::mpsc::channel;
+	use std::time::Duration;
+
+	use eframe::egui;
+	use repose_core::config::Config;
+
+	use super::start;
+	use crate::state::Msg;
+
+	/// remediation-20261116-activity-days-before-the-first-scan clause 1: a scan sends the clock
+	/// offset before its rows, so the offset is in the state before Activity has a row to count.
+	#[test]
+	fn a_scan_sends_the_offset_before_its_rows() {
+		let (tx, rx) = channel();
+		start(1, Config::default(), tx, egui::Context::default());
+		let first = rx.recv_timeout(Duration::from_secs(20));
+		assert!(
+			matches!(first, Ok(Msg::Offset(_))),
+			"the offset comes first"
+		);
+		let second = rx.recv_timeout(Duration::from_secs(20));
+		assert!(matches!(second, Ok(Msg::Discovered(1, _))), "then the rows");
+	}
 }

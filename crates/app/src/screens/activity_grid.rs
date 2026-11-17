@@ -38,7 +38,7 @@ pub(super) fn grid(
 	ui: &mut Ui,
 	state: &mut AppState,
 	rows: &[GridRow],
-	today: i64,
+	today: Option<i64>,
 	glyphs: Option<&Glyphs>,
 ) {
 	let width = ui.available_width();
@@ -52,7 +52,9 @@ pub(super) fn grid(
 	let response = ui.interact(rect, id, Sense::click());
 	let painter = ui.painter_at(rect);
 	let font = FontId::new(TEXT_SMALL, FontFamily::Proportional);
-	for d in 0..DAYS {
+	// No day numbers until the local date is known (every row then counts as reading).
+	let (shown_days, today) = today.map_or((0, 0), |t| (DAYS, t));
+	for d in 0..shown_days {
 		let at = pos2(
 			rect.left() + name_w + cell * (d as f32 + 0.5),
 			rect.top() + 8.0,
