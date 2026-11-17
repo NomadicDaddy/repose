@@ -16,22 +16,31 @@ const CANDIDATES: [(&str, &str, bool); 4] = [
 
 /// The family Activity's loading glyphs draw in (activity-loading-glyphs): Yu Gothic Medium, for
 /// its digits and half-width katakana. Not MS Gothic: its embedded bitmaps (EBDT) make egui treat
-/// every glyph as a colour bitmap and paint it white, ignoring the tint (27f450a captures).
+/// every glyph as a colour bitmap and paint it white, ignoring the tint (the 27f450a captures,
+/// after the override colour had fixed the f1e55af ones).
 pub const GLYPH_FAMILY: &str = "activity-glyphs";
 const GLYPH_FONT: &str = "C:/Windows/Fonts/YuGothM.ttc";
 
 /// Adds the glyph family. It is read only when Activity first loads, so a launch that never shows
-/// the glyphs never reads the 14 MB font; without the file the glyphs fall back to digits.
+/// the glyphs never reads the 14 MB font, and on its own thread, so the first glyph frame does
+/// not wait on the disk (Morticia, note 2 on 23fdba0); until it lands, and without the file, the
+/// glyphs are digits.
 pub fn add_glyph_font(ctx: &egui::Context) {
-	let Ok(bytes) = std::fs::read(GLYPH_FONT) else {
-		return;
-	};
-	let family = InsertFontFamily {
-		family: FontFamily::Name(GLYPH_FAMILY.into()),
-		priority: FontPriority::Highest,
-	};
-	let data = FontData::from_owned(bytes);
-	ctx.add_font(FontInsert::new(GLYPH_FAMILY, data, vec![family]));
+	let ctx = ctx.clone();
+	let _ = std::thread::Builder::new()
+		.name("glyph-font".into())
+		.spawn(move || {
+			let Ok(bytes) = std::fs::read(GLYPH_FONT) else {
+				return;
+			};
+			let family = InsertFontFamily {
+				family: FontFamily::Name(GLYPH_FAMILY.into()),
+				priority: FontPriority::Highest,
+			};
+			let data = FontData::from_owned(bytes);
+			ctx.add_font(FontInsert::new(GLYPH_FAMILY, data, vec![family]));
+			ctx.request_repaint();
+		});
 }
 
 pub fn definitions() -> FontDefinitions {

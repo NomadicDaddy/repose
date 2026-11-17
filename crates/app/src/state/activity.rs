@@ -43,13 +43,13 @@ pub struct ActivityMsg {
 	result: Result<Activity, String>,
 }
 
-/// Where the loading glyphs are (activity-loading-glyphs): not yet decided, falling while a row
-/// reads, fading from the time the last row arrived, or done for this session.
+/// Where the loading glyphs are (activity-loading-glyphs): not yet decided, falling since a time
+/// while a row reads, fading from the time the last row arrived, or done for this session.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum GlyphPhase {
 	#[default]
 	Waiting,
-	Falling,
+	Falling(f64),
 	Fading(f64),
 	Done,
 }

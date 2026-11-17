@@ -31,6 +31,8 @@ mod ui_action_failure_tests;
 #[cfg(test)]
 mod ui_activity_fit_tests;
 #[cfg(test)]
+mod ui_activity_glyph_hold_tests;
+#[cfg(test)]
 mod ui_activity_glyph_tests;
 #[cfg(test)]
 mod ui_activity_grid_tests;

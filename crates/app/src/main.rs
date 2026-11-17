@@ -118,10 +118,11 @@ impl eframe::App for App {
 		}
 		// Windows' animation setting is asked for only once the first rows are drawn, or the first
 		// scan found none, so its pwsh never competes with startup: started from App::new it took
-		// the a3b9a3a gate's startup from about 750 ms to 1074 ms.
+		// the a3b9a3a gate's startup from about 750 ms to 1074 ms. On Activity, whose loading
+		// glyphs wait for it, it is asked for at once (Roger 5Q-2 on 23fdba0).
 		if !self.motion_asked && (!self.state.repos.is_empty() || !self.state.scanning) {
 			self.motion_asked = true;
-			theme::follow_reduced_motion(&ctx);
+			theme::follow_reduced_motion(&ctx, self.state.activity.shown);
 		}
 		if let Some(out) = &self.diff_loaded
 			&& let Some(d) = &self.state.diff

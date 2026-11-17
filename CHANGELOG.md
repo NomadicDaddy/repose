@@ -22,11 +22,12 @@ All notable changes to repose are recorded here. The format follows
 
 - While Activity first reads each repository's history, its day cells show falling glyphs, digits
   and half-width katakana in the accent green, instead of empty boxes. Rows that finish early keep
-  theirs, and once the last row has loaded every glyph fades into its day's box together, in about
-  a third of a second. A failed row shows plain boxes, a later refresh shows none, and with
-  Windows animation effects off the glyphs stand still and the boxes appear at once. The katakana
-  come from Windows' Yu Gothic, which repose reads only when the glyphs first appear; without it
-  the glyphs are digits.
+  theirs, including repositories with no recent commits, and once the last row has loaded every
+  glyph fades into its day's box together, in about a third of a second. A failed row shows plain
+  boxes, and a later refresh shows none. With Windows animation effects off, and until repose has
+  read that setting, the glyphs stand still and the boxes appear at once; after 30 seconds of
+  loading they stand still too. The katakana come from Windows' Yu Gothic, which repose reads in
+  the background when the glyphs first appear; until then, or without it, the glyphs are digits.
 
 ## [1.6.2] - 2026-11-16
 

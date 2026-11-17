@@ -82,8 +82,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 	let (mut drawn, quiet) = rows(state, now, today);
 	let glyphs = activity_glyphs::begin(ui, state);
 	// Under the Quiet tile every row is quiet, so nothing folds; otherwise the closing row opens
-	// the quiet repositories into the grid as rows like any other (Roger 5Q-1 on 4051085).
-	let folds = state.activity.filter != Some(Tile::Quiet);
+	// the quiet repositories into the grid as rows like any other (Roger 5Q-1 on 4051085). While
+	// the glyphs show, a row that read as quiet stays in the grid holding its glyphs until all
+	// fade together, and folds after (Roger 5Q-5 on 23fdba0).
+	let folds = state.activity.filter != Some(Tile::Quiet) && glyphs.is_none();
 	let quiet_count = quiet.len();
 	if !folds || state.activity.quiet_open {
 		drawn.extend(quiet);

@@ -3,8 +3,10 @@
 //! ramp's steps, each on its own 80 to 200 ms cycle, with a brighter head falling down each day's
 //! column. Rows that finish early keep their glyphs; once the last row arrives, all of them
 //! cross-fade into their real fills together over `FADE` seconds, and the grid is then exactly the
-//! plain grid for the rest of the session. With animations off the glyphs stand still and the
-//! swap is instant. Repaints are asked for only while glyphs fall or fade.
+//! plain grid for the rest of the session. With animations off, and until Windows' setting is
+//! known, the glyphs stand still and the swap is instant (Roger 5Q-2 on 23fdba0); after `CAP`
+//! seconds of falling, a read that never reports no longer keeps the grid animating (Morticia,
+//! note 1 on 23fdba0). Repaints are asked for only while glyphs fall or fade.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
@@ -16,7 +18,7 @@ use super::activity_grid::step_colour;
 use crate::state::AppState;
 use crate::state::activity::{ActivityRead, GlyphPhase};
 use crate::theme::fonts::{GLYPH_FAMILY, add_glyph_font};
-use crate::theme::*;
+use crate::theme::{motion_known, *};
 
 /// The cross-fade, in seconds (clause 2: 300 to 400 ms).
 pub(super) const FADE: f64 = 0.35;
@@ -29,9 +31,11 @@ const TAIL: f64 = 4.0;
 const CYCLE: f64 = 14.0;
 /// The repaint interval while the glyphs fall: well under the shortest glyph cycle.
 const TICK: Duration = Duration::from_millis(40);
+/// Seconds of falling after which the glyphs stand still.
+pub(super) const CAP: f64 = 30.0;
 
 /// The next phase, from whether any repository is listed, whether any is still reading, the
-/// frame's time and whether animations are on.
+/// frame's time and whether the glyphs may move.
 pub(super) fn next(
 	phase: GlyphPhase,
 	listed: bool,
@@ -41,9 +45,9 @@ pub(super) fn next(
 ) -> GlyphPhase {
 	match phase {
 		GlyphPhase::Waiting if !listed => GlyphPhase::Waiting,
-		GlyphPhase::Waiting if reading => GlyphPhase::Falling,
-		GlyphPhase::Falling if reading => GlyphPhase::Falling,
-		GlyphPhase::Falling if animate => GlyphPhase::Fading(now),
+		GlyphPhase::Waiting if reading => GlyphPhase::Falling(now),
+		GlyphPhase::Falling(_) if reading => phase,
+		GlyphPhase::Falling(_) if animate => GlyphPhase::Fading(now),
 		GlyphPhase::Fading(from) if animate && now - from < FADE => phase,
 		_ => GlyphPhase::Done,
 	}
@@ -65,17 +69,18 @@ pub(super) fn begin(ui: &Ui, state: &mut AppState) -> Option<Glyphs> {
 		let read = reads.get(&r.path);
 		matches!(read, None | Some(ActivityRead::Loading))
 	});
-	let animate = ui.style().animation_time > 0.0;
+	let ctx = ui.ctx();
 	let now = ui.input(|i| i.time);
+	let capped = matches!(state.activity.glyphs, GlyphPhase::Falling(t) if now - t >= CAP);
+	let animate = motion_known(ctx) && ui.style().animation_time > 0.0 && !capped;
 	let listed = !state.repos.is_empty();
 	let phase = next(state.activity.glyphs, listed, reading, now, animate);
 	state.activity.glyphs = phase;
 	let fade = match phase {
-		GlyphPhase::Falling => 0.0,
+		GlyphPhase::Falling(_) => 0.0,
 		GlyphPhase::Fading(from) => ((now - from) / FADE).clamp(0.0, 1.0) as f32,
 		GlyphPhase::Waiting | GlyphPhase::Done => return None,
 	};
-	let ctx = ui.ctx();
 	if !state.activity.glyph_font_asked {
 		state.activity.glyph_font_asked = true;
 		add_glyph_font(ctx);
@@ -153,8 +158,8 @@ impl Glyphs {
 		let colour = step_colour(lit).gamma_multiply(1.0 - self.fade);
 		let size = (rect.height().min(rect.width() * 1.6) * 0.62).min(16.0);
 		let font = FontId::new(size, self.family.clone());
-		// Laid out once per glyph and size, then tinted: a placeholder colour painted white natively
-		// (f1e55af captures), so the colour is an override, which every renderer applies.
+		// Laid out once per glyph and size, then tinted with an override colour: a placeholder's
+		// fallback colour painted white natively (the f1e55af captures).
 		let galley = painter.layout_no_wrap(glyph.to_string(), font, Color32::PLACEHOLDER);
 		let at = rect.center() - galley.size() / 2.0;
 		painter.galley_with_override_text_color(at, galley, colour);
@@ -175,17 +180,17 @@ mod tests {
 			Waiting,
 			"nothing listed yet"
 		);
-		assert_eq!(next(Waiting, true, true, 0.0, true), Falling);
+		assert_eq!(next(Waiting, true, true, 0.5, true), Falling(0.5));
 		assert_eq!(next(Waiting, true, false, 0.0, true), Done, "already read");
-		assert_eq!(next(Falling, true, true, 1.0, true), Falling);
-		assert_eq!(next(Falling, true, false, 2.0, true), Fading(2.0));
+		assert_eq!(next(Falling(0.5), true, true, 1.0, true), Falling(0.5));
+		assert_eq!(next(Falling(0.5), true, false, 2.0, true), Fading(2.0));
 		assert_eq!(next(Fading(2.0), true, false, 2.2, true), Fading(2.0));
 		assert_eq!(next(Fading(2.0), true, false, 2.0 + FADE, true), Done);
 		assert_eq!(next(Done, true, true, 9.0, true), Done, "a later refresh");
 		assert_eq!(
-			next(Falling, true, false, 2.0, false),
+			next(Falling(0.5), true, false, 2.0, false),
 			Done,
-			"animations off"
+			"animations off or not yet known"
 		);
 	}
 }

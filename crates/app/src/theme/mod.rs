@@ -73,21 +73,41 @@ fn visuals(light: bool) -> egui::Visuals {
 /// the first status and diff reads rather than during them.
 const MOTION_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
-/// Reads the desktop's animation setting once, off the UI thread and `MOTION_DELAY` after the
-/// call, and turns egui's fades and smooth scrolling off when the user has turned animation
-/// effects off. Until the answer lands, and when it cannot be read, egui's defaults stand. There
-/// is no setting of repose's own.
-pub fn follow_reduced_motion(ctx: &egui::Context) {
+/// Reads the desktop's animation setting once, off the UI thread and `MOTION_DELAY` after the call
+/// (`at_once` skips the wait, for Activity's loading glyphs), and turns egui's fades and smooth
+/// scrolling off when the user has turned animation effects off. Until the answer lands, and when
+/// it cannot be read, egui's defaults stand; [`motion_known`] says when it has landed, for motion
+/// that must not start before it. There is no setting of repose's own.
+pub fn follow_reduced_motion(ctx: &egui::Context, at_once: bool) {
 	let ctx = ctx.clone();
 	let _ = std::thread::Builder::new()
 		.name("reduced-motion".into())
 		.spawn(move || {
-			std::thread::sleep(MOTION_DELAY);
+			if !at_once {
+				std::thread::sleep(MOTION_DELAY);
+			}
 			if crate::platform::animations_enabled() == Some(false) {
 				ctx.all_styles_mut(|style| set_motion(style, false));
-				ctx.request_repaint();
 			}
+			mark_motion_known(&ctx);
+			ctx.request_repaint();
 		});
+}
+
+fn motion_known_id() -> egui::Id {
+	egui::Id::NULL.with("repose-motion-known")
+}
+
+/// Whether the animation setting has been read, or failed to read, so the styles now say whether
+/// motion is wanted.
+pub fn motion_known(ctx: &egui::Context) -> bool {
+	ctx.data(|d| d.get_temp::<bool>(motion_known_id()))
+		.unwrap_or(false)
+}
+
+/// Records that the animation setting has been applied to the styles.
+pub fn mark_motion_known(ctx: &egui::Context) {
+	ctx.data_mut(|d| d.insert_temp(motion_known_id(), true));
 }
 
 /// With animations off: no fade (animation_time 0) and scrolling that jumps instead of gliding.

@@ -2,7 +2,8 @@
 //! input's time set: glyphs in the cells while any row reads, rows that finished early holding
 //! theirs, a fade that starts only when the last row lands, the plain grid after it with no more
 //! repaints asked for, a failed row on plain boxes, the "reading" names unchanged, and with
-//! animations off still glyphs and an instant swap.
+//! animations off still glyphs and an instant swap. A test that wants motion marks Windows'
+//! setting as read, as the reduced-motion thread does once it answers.
 
 use std::time::Duration;
 
@@ -14,13 +15,32 @@ use super::activity::{ActivityRead, GlyphPhase};
 use super::ui_a11y_tests::{a11y_frame, find};
 use super::ui_activity_tests::{fleet, path_of, read_as};
 use super::ui_frame::{run, screen_input};
-use crate::theme::{ACCENT, BG_PANEL, LINE_SOFT, set_motion};
+use crate::theme::fonts::GLYPH_FAMILY;
+use crate::theme::{ACCENT, BG_PANEL, LINE_SOFT, mark_motion_known, set_motion};
 
 const DIGITS: &str = "0123456789";
 const KANA: &str = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ";
 
+/// Frames at `time` until the glyph font, read on its own thread, is in (at most 5 s), and one
+/// more to settle, so glyphs compared across frames do not straddle the switch to katakana.
+pub(super) fn font_landed(ctx: &egui::Context, state: &mut AppState, time: f64) {
+	let named = egui::FontFamily::Name(GLYPH_FAMILY.into());
+	for _ in 0..100 {
+		at(ctx, state, time);
+		if ctx.fonts(|f| f.families().contains(&named)) {
+			at(ctx, state, time);
+			return;
+		}
+		std::thread::sleep(Duration::from_millis(50));
+	}
+}
+
 /// One frame at `time`: what it painted, and the repaint delay it asked for.
-fn at(ctx: &egui::Context, state: &mut AppState, time: f64) -> (Vec<ClippedShape>, Duration) {
+pub(super) fn at(
+	ctx: &egui::Context,
+	state: &mut AppState,
+	time: f64,
+) -> (Vec<ClippedShape>, Duration) {
 	let input = egui::RawInput {
 		time: Some(time),
 		..screen_input(Vec::new())
@@ -34,7 +54,7 @@ fn at(ctx: &egui::Context, state: &mut AppState, time: f64) -> (Vec<ClippedShape
 }
 
 /// The day cells as painted: outlined in LINE_SOFT and a grid row's cell height.
-fn cells(shapes: &[ClippedShape]) -> Vec<(Rect, egui::Color32)> {
+pub(super) fn cells(shapes: &[ClippedShape]) -> Vec<(Rect, egui::Color32)> {
 	shapes
 		.iter()
 		.filter_map(|s| match &s.shape {
@@ -48,7 +68,7 @@ fn cells(shapes: &[ClippedShape]) -> Vec<(Rect, egui::Color32)> {
 
 /// The glyphs painted inside day cells: (where, the glyph, the colour it is painted in). The
 /// colour is the shape's override, which renders natively; a placeholder's fallback did not.
-fn glyphs(shapes: &[ClippedShape]) -> Vec<(Pos2, char, Option<egui::Color32>)> {
+pub(super) fn glyphs(shapes: &[ClippedShape]) -> Vec<(Pos2, char, Option<egui::Color32>)> {
 	let cells = cells(shapes);
 	shapes
 		.iter()
@@ -71,7 +91,7 @@ fn glyphs(shapes: &[ClippedShape]) -> Vec<(Pos2, char, Option<egui::Color32>)> {
 }
 
 /// a still reading; b and c already read.
-fn loading() -> AppState {
+pub(super) fn loading() -> AppState {
 	let mut state = fleet();
 	read_as(&mut state, "b", 1, 1);
 	read_as(&mut state, "c", 3, 2);
@@ -87,10 +107,11 @@ fn loading() -> AppState {
 #[test]
 fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 	let ctx = egui::Context::default();
+	mark_motion_known(&ctx);
 	let mut state = loading();
-	at(&ctx, &mut state, 1.0);
+	font_landed(&ctx, &mut state, 1.0);
 	let (shapes, delay) = at(&ctx, &mut state, 1.05);
-	assert_eq!(state.activity.glyphs, GlyphPhase::Falling);
+	assert_eq!(state.activity.glyphs, GlyphPhase::Falling(1.0));
 	let first = glyphs(&shapes);
 	assert_eq!(first.len(), cells(&shapes).len(), "one glyph in every cell");
 	assert_eq!(first.len(), 3 * 30, "b and c hold theirs");
@@ -177,10 +198,10 @@ fn a_failed_row_has_plain_boxes_and_names_are_unchanged() {
 fn with_animations_off_the_glyphs_stand_still_and_swap_at_once() {
 	let ctx = egui::Context::default();
 	ctx.all_styles_mut(|s| set_motion(s, false));
+	mark_motion_known(&ctx);
 	let mut state = loading();
-	at(&ctx, &mut state, 1.0);
+	font_landed(&ctx, &mut state, 1.0);
 	let (one, _) = at(&ctx, &mut state, 1.05);
-	// The frame after the glyph font lands asks for one more pass to settle; after that, nothing.
 	let (two, delay) = at(&ctx, &mut state, 1.9);
 	let still: Vec<char> = glyphs(&one).iter().map(|g| g.1).collect();
 	assert_eq!(still.len(), 3 * 30);
