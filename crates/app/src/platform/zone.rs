@@ -1,7 +1,7 @@
 //! The machine's local zone as `w32tm /tz` reports it: minutes east of UTC and the zone's short
 //! name, so a time can be shown as Summon's footer shows one, `2026-11-14 23:36:58 CST`.
 
-/// Minutes east of UTC, and the current zone's initials when its name could be read.
+/// Minutes east of UTC, and the current zone's abbreviation when it is a well-known one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Zone {
 	pub offset_min: i32,
@@ -37,7 +37,7 @@ pub fn parse_w32tm(text: &str) -> Option<Zone> {
 	};
 	Some(Zone {
 		offset_min: -total,
-		abbrev: zone_name(text, label).and_then(|name| initials(&name)),
+		abbrev: zone_name(text, label).and_then(|name| abbreviation(&name)),
 	})
 }
 
@@ -47,15 +47,26 @@ fn zone_name(text: &str, label: &str) -> Option<String> {
 	Some(rest.split('"').next()?.to_string())
 }
 
-/// Windows names a zone in words; its short form is their initials, `Central Standard Time` to
-/// `CST`. A name with no lettered word gives None, and the caller shows the numeric offset.
-fn initials(name: &str) -> Option<String> {
-	let short: String = name
-		.split_whitespace()
-		.filter_map(|word| word.chars().find(char::is_ascii_alphabetic))
-		.map(|c| c.to_ascii_uppercase())
-		.collect();
-	(!short.is_empty()).then_some(short)
+/// The short name for the zones whose abbreviation is well known, as a browser's en-US time format
+/// gives it: the four main North American zones and Hawaii. Any other zone gives None and the
+/// caller shows its offset, since initials elsewhere mislead (`W. Europe Standard Time` is not
+/// WEST, which names the summer time; Morticia on da0d320).
+fn abbreviation(name: &str) -> Option<String> {
+	const KNOWN: [(&str, &str); 9] = [
+		("Eastern Standard Time", "EST"),
+		("Eastern Daylight Time", "EDT"),
+		("Central Standard Time", "CST"),
+		("Central Daylight Time", "CDT"),
+		("Mountain Standard Time", "MST"),
+		("Mountain Daylight Time", "MDT"),
+		("Pacific Standard Time", "PST"),
+		("Pacific Daylight Time", "PDT"),
+		("Hawaiian Standard Time", "HST"),
+	];
+	KNOWN
+		.iter()
+		.find(|(full, _)| *full == name)
+		.map(|(_, short)| (*short).to_string())
 }
 
 #[cfg(test)]
@@ -93,6 +104,18 @@ mod tests {
 		let read = parse_w32tm(text);
 		assert_eq!(read.as_ref().map(|z| z.offset_min), Some(60));
 		assert_eq!(read.and_then(|z| z.abbrev), None);
+	}
+
+	#[test]
+	fn other_zones_keep_only_the_offset() {
+		let text = "Time zone: Current:TIME_ZONE_ID_STANDARD Bias: -60min (UTC=LocalTime+Bias)\n  [Standard Name:\"W. Europe Standard Time\" Bias:0min Date:(M:10 D:5 DoW:0)]\n  [Daylight Name:\"W. Europe Daylight Time\" Bias:-60min Date:(M:3 D:5 DoW:0)]\n";
+		assert_eq!(
+			parse_w32tm(text),
+			Some(Zone {
+				offset_min: 60,
+				abbrev: None,
+			})
+		);
 	}
 
 	#[test]

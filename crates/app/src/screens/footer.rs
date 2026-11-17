@@ -23,8 +23,8 @@ pub fn build_info(zone: Option<&Zone>) -> String {
 	)
 }
 
-/// `YYYY-MM-DD HH:MM:SS` and the zone: its initials when known, its offset from UTC when only that
-/// is, and UTC itself when nothing is. Every form names the same instant.
+/// `YYYY-MM-DD HH:MM:SS` and the zone: its abbreviation when it has a well-known one, its offset
+/// from UTC otherwise, and UTC itself when no zone was read. Every form names the same instant.
 fn stamp(secs: i64, zone: Option<&Zone>) -> String {
 	let Some(zone) = zone else {
 		return format!("{} UTC", civil(secs));
@@ -94,7 +94,7 @@ mod tests {
 	}
 
 	#[test]
-	fn local_time_with_the_zone_initials() {
+	fn local_time_with_the_zone_abbreviation() {
 		assert_eq!(
 			stamp(BUILT, Some(&zone(-360, Some("CST")))),
 			"2026-11-14 23:36:58 CST"

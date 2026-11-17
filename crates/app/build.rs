@@ -86,10 +86,12 @@ const INPUTS: [&str; 10] = [
 	"../../rust-toolchain.toml",
 ];
 
-/// The footer's `build` id, 10 hex digits as Summon's is: a fingerprint of every input file's path
-/// and bytes in sorted order, so two builds from different content never share one, even at the
-/// same commit. std's hasher needs no dependency; its algorithm may change between Rust releases,
-/// which the toolchain pin holds still.
+/// The footer's `build` id, 10 hex digits as Summon's is: a short fingerprint of every input file's
+/// path and bytes in sorted order, meant to tell builds of different content apart even at the
+/// same commit (40 bits, so not a guarantee; Roger on da0d320). Each path and each file is written
+/// with its length first, so no two layouts hash as one run of bytes. Untracked files under the
+/// input folders count too, as the build may compile them. std's hasher needs no dependency; its
+/// algorithm may change between Rust releases, which the toolchain pin holds still.
 fn build_id(inputs: &[&str]) -> String {
 	use std::hash::{DefaultHasher, Hasher};
 	let mut files = Vec::new();
@@ -99,8 +101,12 @@ fn build_id(inputs: &[&str]) -> String {
 	files.sort();
 	let mut hasher = DefaultHasher::new();
 	for file in &files {
-		hasher.write(file.to_string_lossy().replace('\\', "/").as_bytes());
-		hasher.write(&std::fs::read(file).unwrap_or_default());
+		let name = file.to_string_lossy().replace('\\', "/");
+		let bytes = std::fs::read(file).unwrap_or_default();
+		hasher.write_usize(name.len());
+		hasher.write(name.as_bytes());
+		hasher.write_usize(bytes.len());
+		hasher.write(&bytes);
 	}
 	format!("{:016x}", hasher.finish())[..10].to_string()
 }

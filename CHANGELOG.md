@@ -22,10 +22,11 @@ All notable changes to repose are recorded here. The format follows
 
 - The build line at the bottom of the window now reads like Summon's:
   `repose v1.9.1 cb72b8a · build 3f2a9c01de · 2026-11-17 12:21:04 CST`. The version carries a
-  `v`, and the commit follows it directly. The new build id is a fingerprint of everything the
-  executable is built from, so two builds of different content never share one. The build time
-  now has seconds and is shown in your local zone, named by its initials. Until the first scan has
-  read the zone, or when it can't be read, the time is shown in UTC and says so.
+  `v`, and the commit follows it directly. The new build id is a short fingerprint of everything
+  the executable is built from, meant to tell builds of different content apart even at the same
+  commit. The build time now has seconds and is shown in your local zone: by its abbreviation for
+  the main North American zones and Hawaii, and as an offset such as `UTC+01:00` elsewhere. Until
+  the first scan has read the zone, or when it can't be read, the time is shown in UTC and says so.
 
 ## [1.8.1] - 2026-11-16
 
