@@ -1,8 +1,9 @@
 //! Background discovery and status reads. Results arrive on the state's channel.
 
 use std::collections::VecDeque;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use eframe::egui;
 use repose_core::config::Config;
@@ -49,15 +50,21 @@ fn read_all(generation: u64, queue: VecDeque<RepoSummary>, tx: &Sender<Msg>, ctx
 	}
 }
 
+/// How long the rows wait for the clock offset after the walk: a hung `w32tm` holds back only the
+/// clocks, never the list (Morticia, note 2 on 3e89430).
+const OFFSET_WAIT: Duration = Duration::from_secs(1);
+
 /// Walks the roots, sends the rows, then reads every status through eight workers. The clock
 /// offset is read beside the walk (about 60 ms against the walk's hundreds) and sent before the
 /// rows, so Activity never counts days from UTC once it has rows to count
 /// (remediation-20261116-activity-days-before-the-first-scan).
 pub fn start(generation: u64, config: Config, tx: Sender<Msg>, ctx: egui::Context) {
 	std::thread::spawn(move || {
-		let offset = std::thread::spawn(crate::platform::utc_offset_minutes);
+		let (offset_tx, offset_rx) = channel();
+		std::thread::spawn(move || offset_tx.send(crate::platform::utc_offset_minutes()));
 		let repos = discover(&config);
-		let _ = tx.send(Msg::Offset(offset.join().unwrap_or(None)));
+		let offset = offset_rx.recv_timeout(OFFSET_WAIT).unwrap_or(None);
+		let _ = tx.send(Msg::Offset(generation, offset));
 		let queue = rows_of(&repos);
 		let _ = tx.send(Msg::Discovered(generation, repos));
 		ctx.request_repaint();
@@ -100,7 +107,7 @@ mod tests {
 	use repose_core::config::Config;
 
 	use super::start;
-	use crate::state::Msg;
+	use crate::state::{AppState, Msg};
 
 	/// remediation-20261116-activity-days-before-the-first-scan clause 1: a scan sends the clock
 	/// offset before its rows, so the offset is in the state before Activity has a row to count.
@@ -110,10 +117,34 @@ mod tests {
 		start(1, Config::default(), tx, egui::Context::default());
 		let first = rx.recv_timeout(Duration::from_secs(20));
 		assert!(
-			matches!(first, Ok(Msg::Offset(_))),
+			matches!(first, Ok(Msg::Offset(1, _))),
 			"the offset comes first"
 		);
 		let second = rx.recv_timeout(Duration::from_secs(20));
 		assert!(matches!(second, Ok(Msg::Discovered(1, _))), "then the rows");
+	}
+
+	/// Roger 5Q-1 on 3e89430: an older scan's offset, arriving after a newer scan, is dropped like
+	/// its other messages; and a failed read keeps the offset already known (Morticia, note 1).
+	#[test]
+	fn a_stale_or_failed_offset_never_replaces_a_known_one() {
+		let ctx = egui::Context::default();
+		let mut state = AppState::new(Config::default());
+		state.generation = 2;
+		state.utc_offset = Some(-360);
+		state.scanning = false;
+		let tx = state.sender();
+		let deliver = |state: &mut AppState, msg| {
+			let _ = tx.send(msg);
+			state.pump(&ctx);
+		};
+		deliver(&mut state, Msg::Offset(1, None));
+		assert_eq!(state.utc_offset, Some(-360), "a stale None is dropped");
+		deliver(&mut state, Msg::Offset(1, Some(-480)));
+		assert_eq!(state.utc_offset, Some(-360), "a stale value is dropped");
+		deliver(&mut state, Msg::Offset(2, None));
+		assert_eq!(state.utc_offset, Some(-360), "a failed read keeps it");
+		deliver(&mut state, Msg::Offset(2, Some(-300)));
+		assert_eq!(state.utc_offset, Some(-300), "a current read updates it");
 	}
 }

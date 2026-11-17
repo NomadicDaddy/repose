@@ -66,7 +66,11 @@ impl AppState {
 						self.reload_diff_after_status(&path, merged.changed, ctx);
 					}
 				}
-				Msg::Offset(offset) => self.utc_offset = offset,
+				// Gated like the scan's other messages (Roger 5Q-1 on 3e89430); a failed read keeps
+				// the offset already known.
+				Msg::Offset(g, Some(offset)) if g == self.generation => {
+					self.utc_offset = Some(offset);
+				}
 				Msg::Done(g, offset) if g == self.generation => {
 					self.scanning = false;
 					self.pass_done(offset, ctx);
