@@ -16,6 +16,17 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [1.9.2] - 2026-11-18
+
+### Changed
+
+- Activity's loading glyphs no longer sit in boxes. While history is first read, each glyph
+  stands on its own, with no fill or outline behind it, and the day boxes fade in as the glyphs
+  fade out once the last row has loaded.
+- The falling glyphs now leave dark gaps instead of filling every cell. Each column's bright head
+  and trail still fall; off the trail only about 3 cells in 10 show a dim glyph at a time, and
+  which ones changes every few cycles.
+
 ## [1.9.1] - 2026-11-17
 
 ### Changed
