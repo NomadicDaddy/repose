@@ -1,7 +1,7 @@
-//! Activity's loading glyphs (activity-loading-glyphs). While any row is still reading, every day
-//! cell of a row that has not failed shows one glyph, digits and half-width katakana in the accent
-//! ramp's steps, each on its own 80 to 200 ms cycle, with a brighter head falling down each day's
-//! column. Rows that finish early keep their glyphs; once the last row arrives, all of them
+//! Activity's loading glyphs (activity-loading-glyphs). While any row is still reading, the day
+//! cells of a row that has not failed show glyphs, digits and half-width katakana in the accent
+//! ramp's steps, each on its own 80 to 200 ms cycle, with a brighter head and trail falling down
+//! each day's column; off the trail most cells are dark, a scattered few showing a dim glyph. Rows that finish early keep their glyphs; once the last row arrives, all of them
 //! cross-fade into their real fills together over `FADE` seconds, and the grid is then exactly the
 //! plain grid for the rest of the session. With animations off, and until Windows' setting is
 //! known, the glyphs stand still and the swap is instant (Roger 5Q-2 on 23fdba0); after `CAP`
@@ -29,6 +29,10 @@ const FALL: f64 = 9.0;
 const TAIL: f64 = 4.0;
 /// Rows in one fall, so a column's head comes round again even on a short grid.
 const CYCLE: f64 = 14.0;
+/// The percentage of cells off a column's trail that show a dim glyph at any moment; the rest
+/// stay dark. SCATTER keeps which ones apart from the glyph each one picks.
+const SHOWN: u64 = 30;
+const SCATTER: u64 = 0xD1A6_0057_285A_11CE;
 /// The repaint interval while the glyphs fall: well under the shortest glyph cycle.
 const TICK: Duration = Duration::from_millis(40);
 /// Seconds of falling after which the glyphs stand still.
@@ -157,10 +161,13 @@ impl Glyphs {
 		let lane = (mix(day as u64, 0x5EED) % 1000) as f64 / 1000.0 * CYCLE;
 		let head = (self.time * FALL + lane).rem_euclid(CYCLE);
 		let behind = (head - row as f64).rem_euclid(CYCLE);
+		// Off the trail most cells are dark, so the grid has gaps rather than a glyph in every
+		// cell (Phillip #57285); which ones show changes every few of the cell's cycles.
 		let lit = match behind {
 			b if b < 1.0 => 4,
 			b if b < TAIL => 3,
-			_ => 2,
+			_ if mix(own ^ SCATTER, tick / 3) % 100 < SHOWN => 2,
+			_ => return,
 		};
 		let colour = step_colour(lit).gamma_multiply(1.0 - self.fade);
 		let size = (rect.height().min(rect.width() * 1.6) * 0.62).min(16.0);

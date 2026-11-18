@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use eframe::egui;
 
-use super::{at, cells, font_landed, glyphs, loading};
+use super::{at, cells, font_landed, glyph_rows, glyphs, loading};
 use crate::state::AppState;
 use crate::state::activity::{ActivityRead, GlyphPhase};
 use crate::state::ui_activity_tests::{fleet, path_of, read_as};
@@ -33,7 +33,7 @@ fn a_quiet_row_holds_its_glyphs_until_all_fade_then_folds() {
 	state.activity.shown = true;
 	at(&ctx, &mut state, 1.0);
 	let (shapes, _) = at(&ctx, &mut state, 1.05);
-	assert_eq!(glyphs(&shapes).len(), 3 * 30, "c is a row with glyphs");
+	assert_eq!(glyph_rows(&shapes), 3, "c is a row with glyphs");
 	let painted = texts(&shapes);
 	assert!(
 		!painted.iter().any(|t| t.contains("quiet repositor")),
@@ -43,7 +43,7 @@ fn a_quiet_row_holds_its_glyphs_until_all_fade_then_folds() {
 	read_as(&mut state, "a", 2, 0);
 	at(&ctx, &mut state, 2.0);
 	let (mid, _) = at(&ctx, &mut state, 2.175);
-	assert_eq!(glyphs(&mid).len(), 3 * 30, "c fades with the others");
+	assert_eq!(glyph_rows(&mid), 3, "c fades with the others");
 	at(&ctx, &mut state, 2.5);
 	let (end, _) = at(&ctx, &mut state, 2.6);
 	assert_eq!(state.activity.glyphs, GlyphPhase::Done);
@@ -63,7 +63,7 @@ fn until_the_animation_setting_is_read_the_glyphs_stand_still() {
 	// egui's own short widget animations end within a frame; after that, nothing asks for frames.
 	at(&ctx, &mut state, 1.5);
 	let (two, delay) = at(&ctx, &mut state, 1.9);
-	assert_eq!(chars(&one).len(), 3 * 30);
+	assert_eq!(glyph_rows(&one), 3);
 	assert_eq!(chars(&one), chars(&two), "standing still");
 	assert_eq!(delay, Duration::MAX, "no frames asked for");
 

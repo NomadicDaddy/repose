@@ -94,6 +94,19 @@ pub(super) fn glyphs(shapes: &[ClippedShape]) -> Vec<(Pos2, char, Option<egui::C
 		.collect()
 }
 
+/// How many grid rows have a glyph in at least one of their cells.
+pub(super) fn glyph_rows(shapes: &[ClippedShape]) -> usize {
+	let cells = cells(shapes);
+	let mut tops: Vec<i32> = glyphs(shapes)
+		.iter()
+		.filter_map(|(p, _, _)| cells.iter().find(|(r, _)| r.contains(*p)))
+		.map(|(r, _)| r.top().round() as i32)
+		.collect();
+	tops.sort_unstable();
+	tops.dedup();
+	tops.len()
+}
+
 /// a still reading; b and c already read.
 pub(super) fn loading() -> AppState {
 	let mut state = fleet();
@@ -117,8 +130,15 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 	let (shapes, delay) = at(&ctx, &mut state, 1.05);
 	assert_eq!(state.activity.glyphs, GlyphPhase::Falling(1.0));
 	let first = glyphs(&shapes);
-	assert_eq!(first.len(), cells(&shapes).len(), "one glyph in every cell");
-	assert_eq!(first.len(), 3 * 30, "b and c hold theirs");
+	let all = cells(&shapes).len();
+	assert_eq!(all, 3 * 30);
+	// Gaps, not a glyph in every cell: at least a third of the cells are dark (Phillip #57285).
+	assert!(
+		!first.is_empty() && first.len() <= all * 2 / 3,
+		"{} of {all} cells show a glyph",
+		first.len()
+	);
+	assert_eq!(glyph_rows(&shapes), 3, "b and c hold theirs");
 	assert!(
 		first
 			.iter()
@@ -149,12 +169,12 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 		"falling asks for frames: {delay:?}"
 	);
 	let (later, _) = at(&ctx, &mut state, 1.6);
-	let moved = glyphs(&later)
+	let later = glyphs(&later);
+	let moved = later
 		.iter()
-		.zip(&first)
-		.filter(|(a, b)| a.1 != b.1)
+		.filter(|g| !first.iter().any(|f| f.0 == g.0 && f.1 == g.1))
 		.count();
-	assert!(moved > first.len() / 2, "the glyphs cycle: {moved} changed");
+	assert!(moved > later.len() / 2, "the glyphs cycle: {moved} changed");
 
 	read_as(&mut state, "a", 2, 0);
 	let (_, delay) = at(&ctx, &mut state, 2.0);
@@ -162,7 +182,7 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 	assert_eq!(delay, Duration::ZERO, "the fade asks for every frame");
 	let (mid, _) = at(&ctx, &mut state, 2.175);
 	let half = glyphs(&mid);
-	assert_eq!(half.len(), 3 * 30, "all rows fade together");
+	assert_eq!(glyph_rows(&mid), 3, "all rows fade together");
 	assert!(
 		half.iter()
 			.all(|(_, _, c)| c.is_some_and(|c| c.a() > 0 && c.a() < 255)),
@@ -209,7 +229,7 @@ fn a_failed_row_has_plain_boxes_and_names_are_unchanged() {
 		.insert(b, ActivityRead::Failed("bad".into()));
 	at(&ctx, &mut state, 1.0);
 	let (shapes, _) = at(&ctx, &mut state, 1.05);
-	assert_eq!(glyphs(&shapes).len(), 2 * 30, "only a and c carry glyphs");
+	assert_eq!(glyph_rows(&shapes), 2, "only a and c carry glyphs");
 	let nodes = a11y_frame(&ctx, &mut state);
 	find(&nodes, Role::Cell, "a, reading");
 	find(&nodes, Role::Cell, "b, could not read");
@@ -227,7 +247,7 @@ fn with_animations_off_the_glyphs_stand_still_and_swap_at_once() {
 	let (one, _) = at(&ctx, &mut state, 1.05);
 	let (two, delay) = at(&ctx, &mut state, 1.9);
 	let still: Vec<char> = glyphs(&one).iter().map(|g| g.1).collect();
-	assert_eq!(still.len(), 3 * 30);
+	assert_eq!(glyph_rows(&one), 3);
 	assert_eq!(
 		still,
 		glyphs(&two).iter().map(|g| g.1).collect::<Vec<_>>(),
