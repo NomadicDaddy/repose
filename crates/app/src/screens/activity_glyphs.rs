@@ -121,9 +121,10 @@ fn mix(a: u64, b: u64) -> u64 {
 	z ^ (z >> 31)
 }
 
-/// One day cell at `rect`. Without glyphs it is the plain box in `fill`; with them its fill
-/// cross-fades from the panel colour to `fill` and its glyph fades out. `at` is the row's
-/// repository seed, its place in the grid, and the day's column.
+/// One day cell at `rect`. Without glyphs it is the plain box in `fill`; with them the glyph
+/// stands alone, with no box behind it (Phillip #57200: boxed glyphs read as tiles), and the box,
+/// fill and outline together, fades in as the glyph fades out. `at` is the row's repository seed,
+/// its place in the grid, and the day's column.
 pub(super) fn paint_cell(
 	painter: &Painter,
 	rect: Rect,
@@ -131,9 +132,15 @@ pub(super) fn paint_cell(
 	at: (u64, usize, usize),
 	fill: Color32,
 ) {
-	let shown = glyphs.map_or(fill, |g| BG_PANEL.get().lerp_to_gamma(fill, g.fade));
-	let outline = Stroke::new(1.0, LINE_SOFT.get());
-	painter.rect(rect, RADIUS, shown, outline, StrokeKind::Inside);
+	let shown = glyphs.map_or(1.0, |g| g.fade);
+	let outline = Stroke::new(1.0, LINE_SOFT.get().gamma_multiply(shown));
+	painter.rect(
+		rect,
+		RADIUS,
+		fill.gamma_multiply(shown),
+		outline,
+		StrokeKind::Inside,
+	);
 	if let Some(g) = glyphs {
 		g.glyph(painter, rect, at);
 	}

@@ -53,17 +53,21 @@ pub(super) fn at(
 	(out.shapes, delay)
 }
 
-/// The day cells as painted: outlined in LINE_SOFT and a grid row's cell height.
+/// The day cells as painted, box or not: a 1-point outline at a grid row's cell height.
 pub(super) fn cells(shapes: &[ClippedShape]) -> Vec<(Rect, egui::Color32)> {
-	shapes
-		.iter()
-		.filter_map(|s| match &s.shape {
-			Shape::Rect(r) if r.stroke.color == LINE_SOFT.get() && r.rect.height() == 28.0 => {
-				Some((r.rect, r.fill))
-			}
-			_ => None,
-		})
-		.collect()
+	day_cells(shapes).map(|r| (r.rect, r.fill)).collect()
+}
+
+/// The day cells' outline colours, in LINE_SOFT once they are boxes.
+fn outlines(shapes: &[ClippedShape]) -> Vec<egui::Color32> {
+	day_cells(shapes).map(|r| r.stroke.color).collect()
+}
+
+fn day_cells(shapes: &[ClippedShape]) -> impl Iterator<Item = &egui::epaint::RectShape> {
+	shapes.iter().filter_map(|s| match &s.shape {
+		Shape::Rect(r) if r.stroke.width == 1.0 && r.rect.height() == 28.0 => Some(r),
+		_ => None,
+	})
 }
 
 /// The glyphs painted inside day cells: (where, the glyph, the colour it is painted in). The
@@ -127,9 +131,18 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 		"{:?}",
 		first.iter().map(|g| g.2).collect::<Vec<_>>()
 	);
+	// The glyphs stand alone: no fill and no outline behind them (Phillip #57200).
 	assert!(
-		cells(&shapes).iter().all(|(_, f)| *f == BG_PANEL.get()),
-		"no real fill yet"
+		cells(&shapes)
+			.iter()
+			.all(|(_, f)| *f == egui::Color32::TRANSPARENT),
+		"no box behind the glyphs"
+	);
+	assert!(
+		outlines(&shapes)
+			.iter()
+			.all(|c| *c == egui::Color32::TRANSPARENT),
+		"no outline behind the glyphs"
 	);
 	assert!(
 		delay <= Duration::from_millis(40),
@@ -155,6 +168,12 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 			.all(|(_, _, c)| c.is_some_and(|c| c.a() > 0 && c.a() < 255)),
 		"half faded"
 	);
+	assert!(
+		outlines(&mid)
+			.iter()
+			.all(|c| c.a() > 0 && c.a() < LINE_SOFT.get().a()),
+		"the boxes fade in as the glyphs fade out"
+	);
 
 	at(&ctx, &mut state, 2.4);
 	assert_eq!(state.activity.glyphs, GlyphPhase::Done);
@@ -163,6 +182,10 @@ fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 	assert!(
 		cells(&end).iter().any(|(_, f)| *f != BG_PANEL.get()),
 		"real fills"
+	);
+	assert!(
+		outlines(&end).iter().all(|c| *c == LINE_SOFT.get()),
+		"full boxes"
 	);
 	assert_eq!(delay, Duration::MAX, "no repaint once the fade ends");
 
