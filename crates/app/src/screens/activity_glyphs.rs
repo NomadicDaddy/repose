@@ -1,9 +1,10 @@
 //! Activity's loading glyphs (activity-loading-glyphs). While any row is still reading, the day
 //! cells of a row that has not failed show glyphs, digits and half-width katakana in the accent
 //! ramp's steps, each on its own 80 to 200 ms cycle, with a brighter head and trail falling down
-//! each day's column; off the trail most cells are dark, a scattered few showing a dim glyph. Rows that finish early keep their glyphs; once the last row arrives, all of them
-//! cross-fade into their real fills together over `FADE` seconds, and the grid is then exactly the
-//! plain grid for the rest of the session. With animations off, and until Windows' setting is
+//! each day's column; off the trail most cells are dark, a scattered few showing a dim glyph.
+//! Rows that finish early keep their glyphs; once the last row arrives, all of them cross-fade
+//! into their real fills together over `FADE` seconds, and the grid is then exactly the plain grid
+//! for the rest of the session. With animations off, and until Windows' setting is
 //! known, the glyphs stand still and the swap is instant (Roger 5Q-2 on 23fdba0); after `CAP`
 //! seconds of falling, a read that never reports no longer keeps the grid animating (Morticia,
 //! note 1 on 23fdba0). Repaints are asked for only while glyphs fall or fade.
