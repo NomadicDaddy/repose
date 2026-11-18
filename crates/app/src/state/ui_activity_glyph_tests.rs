@@ -119,8 +119,9 @@ pub(super) fn loading() -> AppState {
 }
 
 /// Clauses 1 to 3 and 5: while a reads, every row carries glyphs, b's and c's included, in some of
-/// its cells, with at least a third of the cells dark; the glyphs change over time; the fade starts when a lands, and after it the cells are
-/// their real fills with no glyph and no repaint asked for.
+/// its cells, with at least a third of the cells dark; the glyphs change over time; the fade starts
+/// when a lands, and after it the cells are their real fills with no glyph and no repaint asked
+/// for.
 #[test]
 fn glyphs_fall_while_a_row_reads_and_fade_once_the_last_lands() {
 	let ctx = egui::Context::default();
