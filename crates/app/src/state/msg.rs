@@ -29,6 +29,8 @@ pub enum Msg {
 	Notice(String),
 	/// One repository's commit activity for the Activity screen.
 	Activity(ActivityMsg),
+	/// gh's answer for a remote URL, from the user's Check visibility.
+	Visibility(String, repose_core::host::github::Visibility),
 }
 
 /// Which pane the right side shows for the selected repository.

@@ -24,6 +24,7 @@ mod row;
 mod settings;
 mod status_line;
 pub(crate) mod tray_notice;
+mod visibility;
 
 use repose_core::model::ChangeKind;
 

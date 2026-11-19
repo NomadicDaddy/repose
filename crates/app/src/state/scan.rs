@@ -1,6 +1,7 @@
 //! Background discovery and status reads. Results arrive on the state's channel.
 
 use std::collections::VecDeque;
+use std::path::Path;
 use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -11,7 +12,32 @@ use repose_core::discovery::discover;
 use repose_core::git::read_status_into;
 use repose_core::model::RepoSummary;
 
-use super::Msg;
+use super::{AppState, Msg, find};
+
+impl AppState {
+	/// Walks the roots on a thread, then reads every status through a pool of eight workers.
+	/// Origins' visibility is kept: only Check visibility reads it again (remote-visibility).
+	pub fn start_scan(&mut self, ctx: &egui::Context) {
+		self.generation += 1;
+		self.scanning = true;
+		self.remotes.clear();
+		self.remote_reads.clear();
+		self.missing_roots = repose_core::config::missing_roots(&self.config);
+		start(
+			self.generation,
+			self.config.clone(),
+			self.tx.clone(),
+			ctx.clone(),
+		);
+	}
+
+	/// Re-reads one repository's status after a write, without rescanning the roots.
+	pub fn refresh_repo(&self, path: &Path, ctx: &egui::Context) {
+		if let Some(repo) = find(&self.repos, path) {
+			refresh_one(self.generation, repo.clone(), self.tx.clone(), ctx.clone());
+		}
+	}
+}
 
 /// Every row, worktrees included, in list order.
 fn rows_of(repos: &[RepoSummary]) -> VecDeque<RepoSummary> {

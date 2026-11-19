@@ -96,14 +96,16 @@ mod ui_settings_tests;
 mod ui_tests;
 #[cfg(test)]
 mod ui_theme_tests;
+#[cfg(test)]
+mod ui_visibility_tests;
+mod visibility;
 mod writes;
 
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::SystemTime;
 
-use eframe::egui;
 use repose_core::config::Config;
 use repose_core::model::RepoSummary;
 
@@ -115,6 +117,7 @@ pub use merge::find;
 pub use msg::{Msg, PendingDiscard, View};
 pub use remote::Remote;
 pub use settings::{MAX_DEPTH, Mark, SettingsDraft};
+pub use visibility::VisibilityState;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
 /// How often every status is re-read even when the watcher reported nothing.
@@ -205,6 +208,8 @@ pub struct AppState {
 	pub(crate) watching: refresh::Watching,
 	/// The Activity screen across every repository (activity-screen).
 	pub activity: activity::ActivityState,
+	/// Origins' visibility, per remote URL, from the user's Check visibility (remote-visibility).
+	pub visibility: VisibilityState,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -259,6 +264,7 @@ impl AppState {
 			remote_reads: HashSet::new(),
 			watching: refresh::Watching::default(),
 			activity: activity::ActivityState::default(),
+			visibility: VisibilityState::default(),
 			generation: 0,
 			tx,
 			rx,
@@ -269,28 +275,6 @@ impl AppState {
 	/// and focus behind it, not raw keys, so a key it answers (Escape) must not act behind it.
 	pub fn modal_open(&self) -> bool {
 		self.pending_discard.is_some() || self.close_prompt.is_some() || self.settings.is_some()
-	}
-
-	/// Walks the roots on a thread, then reads every status through a pool of eight workers.
-	pub fn start_scan(&mut self, ctx: &egui::Context) {
-		self.generation += 1;
-		self.scanning = true;
-		self.remotes.clear();
-		self.remote_reads.clear();
-		self.missing_roots = repose_core::config::missing_roots(&self.config);
-		scan::start(
-			self.generation,
-			self.config.clone(),
-			self.tx.clone(),
-			ctx.clone(),
-		);
-	}
-
-	/// Re-reads one repository's status after a write, without rescanning the roots.
-	pub fn refresh_repo(&self, path: &Path, ctx: &egui::Context) {
-		if let Some(repo) = find(&self.repos, path) {
-			scan::refresh_one(self.generation, repo.clone(), self.tx.clone(), ctx.clone());
-		}
 	}
 
 	/// For work done on a thread that has something to report back (a failed external action).

@@ -2,8 +2,9 @@
 
 repose is a Rust desktop application that shows many Git repositories at once: a repository list
 with branch and state, the selected repository's working-tree changes, its linear commit history,
-read-only diffs and files, and staging and committing. It drives the installed `git` executable. Its one
-Git network operation is Fetch, and only when the user clicks it; otherwise the only thing it sends
+read-only diffs and files, and staging and committing. It drives the installed `git` executable. Its
+Git network operations are Fetch, Pull and Push, each only when the user chooses it, and Check
+visibility asks GitHub the same way through the installed `gh`; otherwise the only thing it sends
 outward is a remote URL handed to the browser when the user asks. This file is the glossary; the blueprint lives in `.aidd/` (local only) and
 in `docs/specs/2026-11-01-repose-v1/`.
 
@@ -68,6 +69,13 @@ button forces a full rescan.
 **External action**
 : A shortcut that leaves the app: Open folder in Explorer, Open in VS Code, Open a terminal here,
 and Copy path, hash or remote URL (which also opens the remote page in the browser).
+
+**Visibility**
+: Whether origin's repository is Public or Private on its host, shown as a line in the repository
+header only after the user chooses Check visibility in the row's menu. Git does not record it, so
+repose asks GitHub through the installed `gh` and keeps the answer, with the time it was read, for
+the session. Any other host, a missing or signed-out `gh`, or a failed read is Unknown, with the
+reason in the tooltip.
 
 **Toolkit decision**
 : The first piece of work, now resolved: two small prototypes, one in a native Rust GUI and one in

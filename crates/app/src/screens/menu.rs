@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use eframe::egui::{self, Key, Popup, Response, RichText, SetOpenCommand, Ui};
 use repose_core::git::remote::{NoPage, https_page, no_page_reason, origin};
 
+use super::visibility;
 use crate::platform::Platform;
 use crate::state::{AppState, WriteKind};
 use crate::theme::*;
@@ -26,6 +27,8 @@ pub(super) enum Action {
 	Remote(PathBuf, WriteKind),
 	/// Pin or unpin the row this path belongs to (repository-pinning); no git runs.
 	TogglePin(PathBuf),
+	/// Ask gh whether origin's URL is public or private (remote-visibility, A1).
+	CheckVisibility(String),
 }
 
 /// Shows the menu on a secondary click anywhere on the row, or on the Menu key when the row is
@@ -119,40 +122,39 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, state: &AppState) -> Option<A
 			}
 		}
 	}
-	match remote.map(|r| r.as_ref().map(|list| origin(list))) {
-		None => {
-			disabled(ui, "Copy remote URL", "Reading the remotes…");
-			disabled(ui, "Open remote page", "Reading the remotes…");
-		}
-		Some(Ok(None)) => {
-			disabled(
-				ui,
-				"Copy remote URL",
-				"This repository has no origin remote",
-			);
-			disabled(
-				ui,
-				"Open remote page",
-				"This repository has no origin remote",
-			);
-		}
-		Some(Err(e)) => {
-			let why = format!("The remotes could not be read: {e}");
-			disabled(ui, "Copy remote URL", &why);
-			disabled(ui, "Open remote page", &why);
-		}
-		Some(Ok(Some(entry))) => {
-			let url = &entry.url;
-			if item(ui, "Copy remote URL") {
-				return Some(Action::Copy(url.clone()));
+	let entry = match remote.map(|r| r.as_ref().map(|list| origin(list))) {
+		Some(Ok(Some(entry))) => entry,
+		other => {
+			let why = match other {
+				Some(Err(e)) => format!("The remotes could not be read: {e}"),
+				Some(Ok(_)) => "This repository has no origin remote".to_string(),
+				None => "Reading the remotes…".to_string(),
+			};
+			for label in ["Copy remote URL", "Open remote page", visibility::CHECK] {
+				disabled(ui, label, &why);
 			}
-			match https_page(url) {
-				Some(page) => {
-					if item(ui, "Open remote page") {
-						return Some(Action::OpenUrl(page));
-					}
-				}
-				None => disabled(ui, "Open remote page", no_page_tooltip(no_page_reason(url))),
+			return None;
+		}
+	};
+	let url = &entry.url;
+	if item(ui, "Copy remote URL") {
+		return Some(Action::Copy(url.clone()));
+	}
+	match https_page(url) {
+		Some(page) => {
+			if item(ui, "Open remote page") {
+				return Some(Action::OpenUrl(page));
+			}
+		}
+		None => disabled(ui, "Open remote page", no_page_tooltip(no_page_reason(url))),
+	}
+	// Enabled for any origin: one that is not on github.com answers Unknown, with why, and runs
+	// nothing (remote-visibility clause 3).
+	match visibility::blocked(state, url) {
+		Some(why) => disabled(ui, visibility::CHECK, why),
+		None => {
+			if item(ui, visibility::CHECK) {
+				return Some(Action::CheckVisibility(url.clone()));
 			}
 		}
 	}
@@ -265,6 +267,10 @@ pub(super) fn perform(
 			Ok(())
 		}
 		Action::TogglePin(path) => state.toggle_pin(&path),
+		Action::CheckVisibility(url) => {
+			state.check_visibility(url, ctx);
+			Ok(())
+		}
 	};
 	state.notice = result.err();
 }

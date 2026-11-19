@@ -197,6 +197,7 @@ pub fn show(root: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 			path_line(ui, &repo.path.display().to_string());
 			state.ensure_remote(&repo.path, &ctx);
 			remotes(ui, state.remotes.get(&repo.path));
+			super::visibility::badge(ui, state, &repo.path);
 			if let Some(n) = &state.notice {
 				ui.label(RichText::new(n.as_str()).size(TEXT_SMALL).color(WARN));
 			}

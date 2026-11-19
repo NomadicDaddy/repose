@@ -84,6 +84,7 @@ impl AppState {
 				Msg::Files(m) => self.merge_files(m),
 				Msg::Remote(g, repo, remote) => self.merge_remote(g, repo, remote),
 				Msg::Activity(m) => self.merge_activity(m),
+				Msg::Visibility(url, answer) => self.merge_visibility(url, answer),
 				_ => {}
 			}
 		}

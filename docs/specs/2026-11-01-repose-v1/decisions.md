@@ -77,3 +77,9 @@ Revised for v1.1 (Phillip #35530 on #35488): Fetch only, on the user's click in 
 menu or the History header, with git's terminal prompt and Git Credential Manager's interactive
 mode both off, so a sign-in request fails with git's message rather than opening anything. Nothing
 fetches on its own. Pull and push are `remote-pull-push`, v2.0.
+
+Revised for v2.0 (Phillip #59749 on #59638): one read that is not git's. Check visibility in a
+repository row's menu asks GitHub whether origin is public or private, through the installed `gh`
+and its own sign-in, with no prompt and no update check. Only github.com remotes are asked; any
+other is Unknown and nothing runs. The answer is kept in memory per remote URL for the session and
+never polled (`remote-visibility`, A1).

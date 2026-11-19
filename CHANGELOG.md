@@ -16,6 +16,19 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [2.0.2] - 2026-11-19
+
+### Added
+
+- Check visibility, in a repository row's menu, asks GitHub whether origin is public or private.
+  The answer shows under the remotes in the repository header as "Visibility: Public",
+  "Private" or "Unknown", with the time it was read in its tooltip. It is kept for the session
+  per remote URL and read again only when you choose Check visibility again. Refresh keeps it.
+- The check uses the installed GitHub CLI (`gh`) and its own sign-in, with no prompt and no
+  update check. repose never reads, stores or shows a token. Only github.com remotes (https or
+  `git@github.com:`) are asked. Any other origin, a missing or signed-out `gh`, a network failure
+  or a repository GitHub can't find shows Unknown, with the reason in the tooltip.
+
 ## [2.0.1] - 2026-11-19
 
 ### Added
