@@ -39,12 +39,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(Key::Enter));
 	let message = draft.clone();
 	button_row(ui, state, &repo.path, staged, message, submit);
-	// A fetch's outcome is shown under the repository header, where every pane can see it.
+	// A fetch's, pull's or push's outcome is shown under the repository header, where every pane
+	// can see it.
 	if let Some(last) = state
 		.writes
 		.last
 		.get(&repo.path)
-		.filter(|l| l.kind != WriteKind::Fetch)
+		.filter(|l| !l.kind.is_remote())
 	{
 		show_outcome(ui, &repo.path, last);
 	}

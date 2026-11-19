@@ -21,8 +21,9 @@ pub(super) enum Action {
 	Terminal(PathBuf),
 	Copy(String),
 	OpenUrl(String),
-	/// The user's Fetch on a repository (A1, Phillip #35530), queued like a write.
-	Fetch(PathBuf),
+	/// The user's Fetch, Pull or Push on a repository (A1, Phillip #35530, #58496), queued like a
+	/// write.
+	Remote(PathBuf, WriteKind),
 	/// Pin or unpin the row this path belongs to (repository-pinning); no git runs.
 	TogglePin(PathBuf),
 }
@@ -105,12 +106,16 @@ pub(super) fn repo_items(ui: &mut Ui, repo: &Path, state: &AppState) -> Option<A
 	if item(ui, "Copy path") {
 		return Some(Action::Copy(repo.display().to_string()));
 	}
-	// Fetch needs a remote to fetch from, and one fetch per repository at a time.
-	match super::fetch::blocked(state, repo) {
-		Some(why) => disabled(ui, "Fetch", &why),
-		None => {
-			if item(ui, "Fetch") {
-				return Some(Action::Fetch(repo.to_path_buf()));
+	// Each needs a remote, one remote action per repository at a time, and Pull and Push an
+	// upstream (fetch::blocked has every reason).
+	for kind in super::fetch::ACTIONS {
+		let label = super::fetch::name(&kind);
+		match super::fetch::blocked(state, repo, &kind) {
+			Some(why) => disabled(ui, label, &why),
+			None => {
+				if item(ui, label) {
+					return Some(Action::Remote(repo.to_path_buf(), kind));
+				}
 			}
 		}
 	}
@@ -255,8 +260,8 @@ pub(super) fn perform(
 			ctx.open_url(egui::OpenUrl::new_tab(url));
 			Ok(())
 		}
-		Action::Fetch(repo) => {
-			state.request_write(repo, WriteKind::Fetch, ctx);
+		Action::Remote(repo, kind) => {
+			state.request_write(repo, kind, ctx);
 			Ok(())
 		}
 		Action::TogglePin(path) => state.toggle_pin(&path),

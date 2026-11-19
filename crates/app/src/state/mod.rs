@@ -81,6 +81,8 @@ mod ui_origin_link_tests;
 #[cfg(test)]
 mod ui_pin_tests;
 #[cfg(test)]
+mod ui_pull_push_tests;
+#[cfg(test)]
 mod ui_repo_list_tests;
 #[cfg(test)]
 mod ui_row_activation_tests;

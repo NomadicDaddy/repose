@@ -8,47 +8,12 @@
 
 mod support;
 
-use std::io::{Read, Write};
-use std::net::TcpListener;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use repose_core::git::remote::fetch;
-use repose_core::git::{Cancel, GitError, read_status};
-use support::{TempRepo, git_in};
-
-/// An upstream with one commit and a clone of it, so the clone's origin/main is set.
-fn upstream_and_clone(label: &str) -> (TempRepo, TempRepo) {
-	let upstream = TempRepo::new(&format!("{label}-upstream"));
-	upstream.write("a.txt", "1\n");
-	upstream.commit_all("one");
-	let clone = TempRepo::new(&format!("{label}-clone"));
-	std::fs::remove_dir_all(clone.path.join(".git")).expect("clear");
-	let src = upstream.path.to_string_lossy().replace('\\', "/");
-	let dst = clone.path.to_string_lossy().to_string();
-	upstream.git(&["clone", "-q", &src, &dst]);
-	(upstream, clone)
-}
-
-/// Sets a Cancel after `limit`, so a fetch that waited on a prompt or a window is killed and the
-/// test fails instead of hanging the gate.
-fn watchdog(limit: Duration) -> (Cancel, Arc<AtomicBool>) {
-	let cancel = Cancel::new();
-	let done = Arc::new(AtomicBool::new(false));
-	let (c, d) = (cancel.clone(), done.clone());
-	std::thread::spawn(move || {
-		let started = Instant::now();
-		while started.elapsed() < limit {
-			if d.load(Ordering::SeqCst) {
-				return;
-			}
-			std::thread::sleep(Duration::from_millis(100));
-		}
-		c.cancel();
-	});
-	(cancel, done)
-}
+use repose_core::git::{GitError, read_status};
+use support::{TempRepo, git_in, sign_in_listener, upstream_and_clone, watchdog};
 
 #[test]
 fn fetch_brings_the_remotes_new_commits_in() {
@@ -94,19 +59,7 @@ fn a_failed_fetch_names_gits_error_and_leaves_the_refs_alone() {
 
 #[test]
 fn a_sign_in_request_fails_without_a_prompt_or_window() {
-	// Every request gets 401 with a Basic challenge: what an https host asking for a sign-in sends.
-	let listener = TcpListener::bind("127.0.0.1:0").expect("bind 127.0.0.1");
-	let port = listener.local_addr().expect("addr").port();
-	std::thread::spawn(move || {
-		for stream in listener.incoming() {
-			let Ok(mut s) = stream else { continue };
-			let mut buf = [0u8; 4096];
-			let _ = s.read(&mut buf);
-			let _ = s.write_all(
-				b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"repose-test\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-			);
-		}
-	});
+	let port = sign_in_listener();
 	let repo = TempRepo::new("fetch-401");
 	repo.write("a.txt", "a\n");
 	repo.commit_all("one");

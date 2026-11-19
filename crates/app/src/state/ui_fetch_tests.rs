@@ -62,7 +62,10 @@ fn the_row_menu_fetch_queues_one_fetch_and_the_row_and_header_show_it() {
 	let open = frame(&ctx, &mut state, Vec::new());
 	let at = text_at(&open, "Fetch").unwrap_or_else(|| panic!("no Fetch item: {:?}", texts(&open)));
 	frame(&ctx, &mut state, click(at));
-	assert!(state.writes.fetching(&path), "the click queued a fetch");
+	assert!(
+		state.writes.remote_write(&path) == Some(&WriteKind::Fetch),
+		"the click queued a fetch"
+	);
 	assert!(
 		matches!(
 			state.writes.running.get(&path).map(|r| &r.kind),
@@ -88,7 +91,10 @@ fn the_history_header_fetch_button_queues_a_fetch_and_is_off_while_one_runs() {
 	let at =
 		text_at(&shown, "Fetch").unwrap_or_else(|| panic!("no Fetch button: {:?}", texts(&shown)));
 	frame(&ctx, &mut state, click(at));
-	assert!(state.writes.fetching(&path), "the button queued a fetch");
+	assert!(
+		state.writes.remote_write(&path) == Some(&WriteKind::Fetch),
+		"the button queued a fetch"
+	);
 	// A second click while it runs does nothing: the button is disabled.
 	frame(&ctx, &mut state, click(at));
 	let queued = state
@@ -229,7 +235,7 @@ fn with_no_remote_fetch_is_disabled_and_says_why() {
 	let at = text_at(&shown, "Fetch").unwrap_or_else(|| panic!("{:?}", texts(&shown)));
 	frame(&ctx, &mut state, click(at));
 	assert!(
-		!state.writes.fetching(&path),
+		state.writes.remote_write(&path).is_none(),
 		"a disabled Fetch queues nothing"
 	);
 	frame(&ctx, &mut state, key(Key::Menu));
@@ -237,7 +243,7 @@ fn with_no_remote_fetch_is_disabled_and_says_why() {
 	let item = text_at(&open, "Fetch").unwrap_or_else(|| panic!("{:?}", texts(&open)));
 	frame(&ctx, &mut state, click(item));
 	assert!(
-		!state.writes.fetching(&path),
+		state.writes.remote_write(&path).is_none(),
 		"the menu's Fetch is disabled too"
 	);
 }

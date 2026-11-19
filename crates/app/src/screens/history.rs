@@ -21,9 +21,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState, platform: &dyn Platform) {
 	let Some(repo) = state.selected_repo().cloned() else {
 		return;
 	};
-	// The History header: Fetch, and what the counts below are read from.
+	// The History header: Fetch, Pull and Push, and what the counts below are read from.
 	ui.horizontal(|ui| {
-		fetch::button(ui, state, &repo.path);
+		fetch::buttons(ui, state, &repo.path);
 		let note = fetch::refs_note(state, &repo.path);
 		ui.label(RichText::new(note).size(TEXT_SMALL).color(MUTED));
 		// Off by default; on draws every ref's lanes and keeps that for the session (clause 2).

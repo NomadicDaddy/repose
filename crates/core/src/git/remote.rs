@@ -1,6 +1,7 @@
 //! The configured remotes: names and URLs from `git remote --verbose` (saved config, no
 //! network), shown in the repository header, and the https page a URL names, for Copy remote URL
-//! and Open remote page. Also the one network action, Fetch, run only when the user asks.
+//! and Open remote page. Also the three network actions, Fetch, Pull and Push, each run only when
+//! the user asks.
 
 use std::path::Path;
 
@@ -26,6 +27,21 @@ pub fn read_remotes(repo: &Path) -> Result<Vec<RemoteEntry>, GitError> {
 /// stops git and anything it started.
 pub fn fetch(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
 	run_cancellable(repo, Verb::Fetch, &[], cancel).map(|_| ())
+}
+
+/// `git pull --ff-only` from the branch's upstream, on the user's Pull only (A1, Phillip #58500).
+/// A diverged branch, a sign-in request or a network failure comes back as the error with git's
+/// own message, and the branch, index and working tree are left as they were: fast-forward only
+/// means no merge or rebase is ever started. Cancel stops git and anything it started.
+pub fn pull(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
+	run_cancellable(repo, Verb::Pull, &[], cancel).map(|_| ())
+}
+
+/// `git push` of the checked-out branch to the upstream it tracks, on the user's Push only (A1,
+/// Phillip #58501). A rejected push, a sign-in request or a network failure comes back as the
+/// error with git's own message; nothing local changes. Cancel stops git and anything it started.
+pub fn push(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
+	run_cancellable(repo, Verb::Push, &[], cancel).map(|_| ())
 }
 
 /// `git remote --verbose` prints `<name>\t<url> (fetch)` and `<name>\t<url> (push)` per remote.

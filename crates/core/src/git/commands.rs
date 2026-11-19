@@ -3,12 +3,11 @@
 
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-/// The verbs repose may run. Fetch is the only one that reaches a remote, and only from the
-/// user's Fetch action (A1, Phillip #35530); no pull, push, clone or ls-remote exists here.
+/// The verbs repose may run. Fetch, Pull and Push are the only ones that reach a remote, each
+/// only from its own user action (A1, Phillip #35530, #58496); no clone or ls-remote exists here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verb {
 	Status,
@@ -34,10 +33,16 @@ pub enum Verb {
 	/// configured remote only, on the user's click. No prompt and no Git Credential Manager window:
 	/// a sign-in request fails with git's message instead (Steward #35492).
 	Fetch,
+	/// `git pull --ff-only`: the upstream's commits on the user's Pull, fast-forward only, so a
+	/// diverged branch is refused before anything changes and no merge is ever left half done.
+	Pull,
+	/// `git push` of the checked-out branch to the upstream it tracks, on the user's Push: never
+	/// forced, no tags, no new remote branch.
+	Push,
 }
 
 impl Verb {
-	pub const ALL: [Verb; 16] = [
+	pub const ALL: [Verb; 18] = [
 		Verb::Status,
 		Verb::RevParse,
 		Verb::Log,
@@ -54,6 +59,8 @@ impl Verb {
 		Verb::RemoteList,
 		Verb::ForEachRef,
 		Verb::Fetch,
+		Verb::Pull,
+		Verb::Push,
 	];
 
 	pub fn args(self) -> &'static [&'static str] {
@@ -83,42 +90,45 @@ impl Verb {
 				"--no-recurse-submodules",
 				"--no-auto-maintenance",
 			],
+			Verb::Pull => &[
+				"pull",
+				"--ff-only",
+				"--no-rebase",
+				"--no-autostash",
+				"--quiet",
+				"--no-recurse-submodules",
+			],
+			Verb::Push => &[
+				"push",
+				"--quiet",
+				"--no-follow-tags",
+				"--no-recurse-submodules",
+			],
 		}
 	}
 
-	/// Writes have no timeout, because a hooked commit can run for minutes. Fetch writes refs and
-	/// can take as long as the network does; the user's Cancel stops it.
+	/// Writes have no timeout, because a hooked commit can run for minutes. Fetch, Pull and Push
+	/// can take as long as the network does; the user's Cancel stops them.
 	pub fn is_write(self) -> bool {
 		matches!(
 			self,
-			Verb::Add | Verb::Restore | Verb::Clean | Verb::Commit | Verb::RmCached | Verb::Fetch
+			Verb::Add
+				| Verb::Restore
+				| Verb::Clean
+				| Verb::Commit
+				| Verb::RmCached
+				| Verb::Fetch
+				| Verb::Pull | Verb::Push
 		)
 	}
 }
 
 pub use super::error::GitError;
 
-/// A handle the user's Cancel sets; a write that was given it stops polling, kills git and the
-/// whole tree git started, and returns `GitError::Cancelled`.
-#[derive(Debug, Clone, Default)]
-pub struct Cancel(Arc<AtomicBool>);
-
-impl Cancel {
-	pub fn new() -> Self {
-		Self::default()
-	}
-
-	pub fn cancel(&self) {
-		self.0.store(true, Ordering::SeqCst);
-	}
-
-	pub fn is_cancelled(&self) -> bool {
-		self.0.load(Ordering::SeqCst)
-	}
-}
-
+pub use super::cancel::Cancel;
 pub const READ_TIMEOUT: Duration = Duration::from_secs(10);
 use super::kill::kill_tree;
+use super::network;
 pub use super::pool::POOL_SIZE;
 use super::pool::Permit;
 use super::tail::{tail, tail_lines};
@@ -160,22 +170,7 @@ pub fn command(repo: &Path, verb: Verb, extra: &[&str]) -> Command {
 			.arg("-c")
 			.arg("log.showSignature=false");
 	}
-	if verb == Verb::Fetch {
-		// GIT_TERMINAL_PROMPT=0 stops git's own prompt but not Git Credential Manager, which can
-		// still open a sign-in window or a browser; GCM_INTERACTIVE and credential.interactive
-		// keep it non-interactive. No askpass program and no ext:: transport either (Morticia
-		// L-2 on c84df39), and OpenSSH may not ask through one even when it has no terminal
-		// (SSH_ASKPASS_REQUIRE=never, Roger M-1). With no console and a null stdin, ssh has no
-		// terminal to prompt on, so a passphrase or host-key question fails instead of waiting.
-		// core.sshCommand and credential helpers are the user's own, as hooks are for a commit.
-		cmd.env("GCM_INTERACTIVE", "never")
-			.env("SSH_ASKPASS_REQUIRE", "never")
-			.env_remove("GIT_ASKPASS")
-			.env_remove("SSH_ASKPASS")
-			.args(["-c", "credential.interactive=false"])
-			.args(["-c", "protocol.ext.allow=never"])
-			.args(["-c", "core.askPass="]);
-	}
+	network::non_interactive(&mut cmd, verb);
 	cmd.args(verb.args()).args(extra);
 	cmd
 }
@@ -221,11 +216,13 @@ pub fn run_cancellable(
 			"git remote takes no extra arguments in repose".into(),
 		));
 	}
-	// Likewise fetch: a URL or refspec after it would reach somewhere the user never chose.
-	if verb == Verb::Fetch && !extra.is_empty() {
-		return Err(GitError::Spawn(
-			"git fetch takes no extra arguments in repose".into(),
-		));
+	// Likewise fetch, pull and push: a URL or refspec after one would reach somewhere the user
+	// never chose, or force what they never asked to.
+	if network::is_network(verb) && !extra.is_empty() {
+		return Err(GitError::Spawn(format!(
+			"git {} takes no extra arguments in repose",
+			verb.args()[0]
+		)));
 	}
 	let _permit = Permit::acquire(verb.is_write());
 	// A Cancel clicked while this request waited for the pool must not start git at all (Roger

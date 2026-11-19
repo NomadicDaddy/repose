@@ -1,4 +1,5 @@
-//! One repository row: name, branch line, badges, a running fetch, and the worktree chevron.
+//! One repository row: name, branch line, badges, a running fetch, pull or push, and the worktree
+//! chevron.
 
 use eframe::egui::{self, FontFamily, FontId, Rect, Sense, StrokeKind, Ui, pos2, vec2};
 use repose_core::model::RepoSummary;
@@ -42,10 +43,14 @@ pub fn draw(
 	// left and are cut with an ellipsis rather than run under the pills or off the panel (seen
 	// on worktree rows with long branch names, 2026-11-01).
 	let mut right = rect.right() - 8.0;
-	// A fetch shows on its row from the click until git exits (remote-sync clause 2).
-	let fetching = state.writes.fetching(&repo.path);
-	if fetching {
-		right = pill(&painter, right, rect.center().y, "fetching…", INFO) - 6.0;
+	// A fetch, pull or push shows on its row from the click until git exits (remote-sync clause 2,
+	// remote-pull-push clause 3).
+	let remote = state
+		.writes
+		.remote_write(&repo.path)
+		.map(|k| k.label().to_lowercase());
+	if let Some(doing) = &remote {
+		right = pill(&painter, right, rect.center().y, &format!("{doing}…"), INFO) - 6.0;
 	}
 	for (text, color) in badges(repo) {
 		right = pill(&painter, right, rect.center().y, &text, color) - 6.0;
@@ -140,11 +145,11 @@ pub fn draw(
 		width,
 	);
 	painter.galley(pos2(x, rect.top() + 26.0), branch, MUTED.get());
-	let tooltip = tooltip_text(repo);
+	let tooltip = a11y::repo_tooltip(repo);
 	let response = response.on_hover_text(tooltip);
 	let mut spoken = a11y::repo_name(repo);
-	if fetching {
-		spoken.push_str(", fetching");
+	if let Some(doing) = &remote {
+		spoken.push_str(&format!(", {doing}"));
 	}
 	if pinned {
 		spoken.push_str(", pinned");
@@ -270,31 +275,4 @@ pub(super) fn pill(
 	);
 	painter.galley(pos2(rect.left() + 6.0, rect.top() + 2.0), galley, color);
 	rect.left()
-}
-
-fn tooltip_text(repo: &RepoSummary) -> String {
-	let mut lines = vec![repo.path.display().to_string()];
-	match &repo.status {
-		Some(s) => {
-			lines.push(format!(
-				"{} staged · {} changed · {} untracked · {} conflicts",
-				s.staged, s.unstaged, s.untracked, s.conflicts
-			));
-			match (&s.upstream, s.ahead, s.behind) {
-				(Some(u), Some(a), Some(b)) => {
-					lines.push(format!("↑{a} ↓{b} from saved refs of {u}"))
-				}
-				(Some(u), None, None) => lines.push(format!("{u} · upstream gone")),
-				_ => lines.push("No upstream".to_string()),
-			}
-		}
-		None => lines.push("Status not read yet".to_string()),
-	}
-	if let Some(e) = &repo.error {
-		lines.push(e.clone());
-	}
-	if repo.submodules > 0 {
-		lines.push(format!("{} submodules", repo.submodules));
-	}
-	lines.join("\n")
 }

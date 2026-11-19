@@ -177,3 +177,31 @@ pub(super) fn loading_label(ui: &mut Ui, text: &str) {
 	let shown = ui.label(RichText::new(text).color(MUTED));
 	live(&shown, text);
 }
+
+/// A repository row's hover text: its path, change counts, upstream, any error and submodules.
+pub(super) fn repo_tooltip(repo: &RepoSummary) -> String {
+	let mut lines = vec![repo.path.display().to_string()];
+	match &repo.status {
+		Some(s) => {
+			lines.push(format!(
+				"{} staged · {} changed · {} untracked · {} conflicts",
+				s.staged, s.unstaged, s.untracked, s.conflicts
+			));
+			match (&s.upstream, s.ahead, s.behind) {
+				(Some(u), Some(a), Some(b)) => {
+					lines.push(format!("↑{a} ↓{b} from saved refs of {u}"))
+				}
+				(Some(u), None, None) => lines.push(format!("{u} · upstream gone")),
+				_ => lines.push("No upstream".to_string()),
+			}
+		}
+		None => lines.push("Status not read yet".to_string()),
+	}
+	if let Some(e) = &repo.error {
+		lines.push(e.clone());
+	}
+	if repo.submodules > 0 {
+		lines.push(format!("{} submodules", repo.submodules));
+	}
+	lines.join("\n")
+}

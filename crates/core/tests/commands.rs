@@ -1,6 +1,6 @@
-//! Assertions A1 and A3: fetch is the only remote verb, and only as the user's Fetch; every spawn
-//! carries the shared environment, and a
-//! commit never passes --no-verify. Plus the pipe-capacity cases Morticia found on cdfc251: output
+//! Assertions A1 and A3: fetch, pull and push are the only remote verbs, each only as its own
+//! user action and none able to prompt; every spawn carries the shared environment, and a commit
+//! never passes --no-verify. Plus the pipe-capacity cases Morticia found on cdfc251: output
 //! larger than the pipe buffer on a read and on a hook must not deadlock, and a spawn reads EOF
 //! from its null stdin.
 #![allow(clippy::expect_used)]
@@ -10,7 +10,7 @@ mod support;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use repose_core::git::{Verb, commands, run};
+use repose_core::git::{Verb, commands, network, run};
 use support::TempRepo;
 
 #[test]
@@ -58,18 +58,41 @@ fn chatty_hook_on_a_write_does_not_deadlock() {
 }
 
 #[test]
-fn fetch_is_the_only_remote_verb() {
+fn fetch_pull_and_push_are_the_only_remote_verbs() {
 	for verb in Verb::ALL {
 		for word in verb.args() {
 			assert!(
-				!["pull", "push", "clone", "ls-remote", "update"].contains(word),
-				"{word} reaches a remote"
+				!["clone", "ls-remote", "update"].contains(word),
+				"{verb:?} runs {word}"
 			);
-			if *word == "fetch" {
-				assert_eq!(verb, Verb::Fetch, "only Verb::Fetch may run git fetch");
+			let own = [
+				("fetch", Verb::Fetch),
+				("pull", Verb::Pull),
+				("push", Verb::Push),
+			];
+			if let Some((_, only)) = own.iter().find(|(w, _)| w == word) {
+				assert_eq!(verb, *only, "only Verb::{only:?} may run git {word}");
 			}
 		}
 	}
+	assert_eq!(network::NETWORK, [Verb::Fetch, Verb::Pull, Verb::Push]);
+	for verb in network::NETWORK {
+		for word in [
+			"--force",
+			"--force-with-lease",
+			"--tags",
+			"--mirror",
+			"--all",
+			"--delete",
+		] {
+			assert!(!verb.args().contains(&word), "{verb:?} runs {word}");
+		}
+	}
+	assert!(
+		Verb::ALL
+			.iter()
+			.all(|v| network::is_network(*v) == network::NETWORK.contains(v))
+	);
 	assert_eq!(
 		Verb::Fetch.args(),
 		[
@@ -79,14 +102,42 @@ fn fetch_is_the_only_remote_verb() {
 			"--no-auto-maintenance"
 		]
 	);
-	assert_eq!(Verb::ALL.len(), 16);
+	assert_eq!(
+		Verb::Pull.args(),
+		[
+			"pull",
+			"--ff-only",
+			"--no-rebase",
+			"--no-autostash",
+			"--quiet",
+			"--no-recurse-submodules"
+		]
+	);
+	assert_eq!(
+		Verb::Push.args(),
+		[
+			"push",
+			"--quiet",
+			"--no-follow-tags",
+			"--no-recurse-submodules"
+		]
+	);
+	assert_eq!(Verb::ALL.len(), 18);
 }
 
-/// Fetch never prompts: git's terminal prompt is off for every verb, and for fetch Git
-/// Credential Manager is made non-interactive too, by environment and by config (Steward #35492).
+/// No remote verb prompts: git's terminal prompt is off for every verb, and for fetch, pull and
+/// push Git Credential Manager is made non-interactive too, by environment and by config (Steward
+/// #35492; the 11-18 review of remote-pull-push, Alice #57618).
 #[test]
-fn fetch_cannot_prompt_for_a_sign_in() {
-	let cmd = commands::command(Path::new("."), Verb::Fetch, &[]);
+fn no_remote_verb_can_prompt_for_a_sign_in() {
+	for verb in network::NETWORK {
+		cannot_prompt(verb);
+	}
+}
+
+fn cannot_prompt(verb: Verb) {
+	let name = verb.args()[0];
+	let cmd = commands::command(Path::new("."), verb, &[]);
 	let env = |name: &str, want: &str| {
 		cmd.get_envs()
 			.any(|(k, v)| k == name && v.is_some_and(|v| v == want))
@@ -102,7 +153,7 @@ fn fetch_cannot_prompt_for_a_sign_in() {
 		.position(|a| a == "credential.interactive=false")
 		.expect("credential.interactive=false is set");
 	assert_eq!(args[at - 1], "-c");
-	let verb_at = args.iter().position(|a| a == "fetch").expect("fetch");
+	let verb_at = args.iter().position(|a| a == name).expect("the verb");
 	assert!(at < verb_at, "the setting comes before the verb: {args:?}");
 	// No program from a repository's config or the environment can be started to ask for one.
 	for setting in ["protocol.ext.allow=never", "core.askPass="] {
@@ -118,17 +169,17 @@ fn fetch_cannot_prompt_for_a_sign_in() {
 	for removed in ["GIT_ASKPASS", "SSH_ASKPASS"] {
 		assert!(
 			cmd.get_envs().any(|(k, v)| k == removed && v.is_none()),
-			"{removed} is removed from the fetch's environment"
+			"{removed} is removed from {name}'s environment"
 		);
 	}
 	assert!(
 		commands::run(
 			&std::env::temp_dir(),
-			Verb::Fetch,
+			verb,
 			&["https://example.invalid/x.git"]
 		)
 		.is_err(),
-		"fetch takes no URL or refspec from a caller"
+		"{name} takes no URL or refspec from a caller"
 	);
 }
 

@@ -2,12 +2,14 @@
 
 pub mod activity;
 pub mod branches;
+mod cancel;
 pub mod commands;
 pub mod diff;
 pub mod error;
 mod kill;
 pub mod log;
 pub mod markers;
+pub mod network;
 pub mod parse;
 pub mod pool;
 pub mod remote;

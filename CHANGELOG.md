@@ -16,6 +16,22 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [2.0.1] - 2026-11-19
+
+### Added
+
+- Pull and Push, on request. They sit beside Fetch in the History header and in a repository
+  row's menu, and run only when clicked. One fetch, pull or push runs per repository at a time,
+  the row shows which one is running, and Cancel stops it.
+- Pull only fast-forwards. A branch with local commits that its upstream doesn't have is refused
+  before anything changes, so a pull never starts a merge or a rebase. Pull is off while tracked
+  files have uncommitted changes. Untracked files alone don't hold it.
+- Push sends only the checked-out branch to the upstream it already tracks. It never forces,
+  never pushes tags, and never creates a remote branch. Pull and Push are both off when the
+  branch has no upstream.
+- A sign-in request, a diverged branch or a rejected push shows git's own message under
+  "Pull failed" or "Push failed". Neither opens a sign-in window or a prompt.
+
 ## [1.9.2] - 2026-11-18
 
 ### Changed

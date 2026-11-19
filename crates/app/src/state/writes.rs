@@ -1,4 +1,4 @@
-//! Stage, unstage, discard, commit and fetch requests. Each repository has at most one write running, so
+//! Stage, unstage, discard, commit, fetch, pull and push requests. Each repository has at most one write running, so
 //! writes never overlap in a repository and a slow hook in one never holds up another; a request
 //! behind a running one in the same repository shows as Waiting.
 
@@ -26,9 +26,19 @@ pub enum WriteKind {
 	/// `git fetch` from the configured remote, on the user's Fetch (A1, Phillip #35530). It runs
 	/// in the same per-repository queue, so it never overlaps a stage or a commit there.
 	Fetch,
+	/// `git pull --ff-only` from the branch's upstream, on the user's Pull (A1, Phillip #58500).
+	Pull,
+	/// `git push` of the checked-out branch to its upstream, on the user's Push (A1, #58501).
+	Push,
 }
 
 impl WriteKind {
+	/// Fetch, Pull and Push: the writes that reach a remote, shown under the repository header
+	/// rather than in the commit box.
+	pub fn is_remote(&self) -> bool {
+		matches!(self, Self::Fetch | Self::Pull | Self::Push)
+	}
+
 	pub fn label(&self) -> &'static str {
 		match self {
 			Self::Stage(_) | Self::StageAll => "Staging",
@@ -36,6 +46,8 @@ impl WriteKind {
 			Self::Discard { .. } => "Discarding",
 			Self::Commit(_) => "Committing",
 			Self::Fetch => "Fetching",
+			Self::Pull => "Pulling",
+			Self::Push => "Pushing",
 		}
 	}
 }
@@ -83,15 +95,18 @@ impl WriteQueue {
 		}
 	}
 
-	/// A fetch for this repository is running or waiting.
-	pub fn fetching(&self, repo: &Path) -> bool {
+	/// The fetch, pull or push running or waiting for this repository: one at a time, so a second
+	/// click cannot queue another behind it.
+	pub fn remote_write(&self, repo: &Path) -> Option<&WriteKind> {
 		self.running
 			.get(repo)
-			.is_some_and(|r| r.kind == WriteKind::Fetch)
-			|| self
-				.waiting
-				.iter()
-				.any(|r| r.repo == repo && r.kind == WriteKind::Fetch)
+			.filter(|r| r.kind.is_remote())
+			.or_else(|| {
+				self.waiting
+					.iter()
+					.find(|r| r.repo == repo && r.kind.is_remote())
+			})
+			.map(|r| &r.kind)
 	}
 
 	pub fn busy_for(&self, repo: &Path) -> Option<&'static str> {
@@ -124,6 +139,8 @@ pub fn perform(request: &WriteRequest) -> WriteOutcome {
 		WriteKind::UnstageAll => write::unstage_all(repo),
 		WriteKind::Discard { tracked, untracked } => write::discard(repo, tracked, untracked),
 		WriteKind::Fetch => remote::fetch(repo, Some(&request.cancel)),
+		WriteKind::Pull => remote::pull(repo, Some(&request.cancel)),
+		WriteKind::Push => remote::push(repo, Some(&request.cancel)),
 		WriteKind::Commit(message) => {
 			match write::commit_cancellable(repo, message, Some(&request.cancel)) {
 				Ok(done) => {
@@ -190,13 +207,13 @@ impl AppState {
 	}
 
 	/// A successful commit clears its repository's draft; a cancelled or failed one keeps it. A
-	/// successful fetch records its time for the "Fetched HH:MM" line; the status re-read below
-	/// brings the new ahead and behind counts.
+	/// successful fetch or pull (which fetches first) records its time for the "Fetched HH:MM"
+	/// line; the status re-read below brings the new ahead and behind counts.
 	pub(super) fn finish_write(&mut self, outcome: WriteOutcome, ctx: &egui::Context) {
 		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Commit(_)) {
 			self.commit_messages.remove(&outcome.repo);
 		}
-		if outcome.error.is_none() && outcome.kind == WriteKind::Fetch {
+		if outcome.error.is_none() && matches!(outcome.kind, WriteKind::Fetch | WriteKind::Pull) {
 			self.fetched
 				.insert(outcome.repo.clone(), std::time::SystemTime::now());
 		}
