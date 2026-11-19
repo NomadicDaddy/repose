@@ -1,14 +1,13 @@
 //! ai-commit-message-suggestions: what a request carries. Every staged file is listed by git's own
 //! name for it, read from real git output (a space before `b/`, a name git quotes, a rename),
 //! whole-file diffs follow up to the 64 KiB cap, and a diff that does not line up with the list is
-//! refused rather than guessed at (Roger 5Q-2 on d3da4dd).
+//! refused rather than guessed at (Roger 5Q-2 on d3da4dd). The list and the diff come from one
+//! git read, so they always describe the same index (Roger 5Q-3 on 987f892).
 #![allow(clippy::expect_used)]
 
 mod support;
 
-use repose_core::git::diff::{
-	read_diff_bytes, staged_diff_for_suggestion, staged_files, staged_labels,
-};
+use repose_core::git::diff::{read_diff_bytes, split_raw, staged_for_suggestion};
 use repose_core::model::DiffSource;
 use repose_core::suggest::{CAP, INSTRUCTION, Staged, request};
 use support::TempRepo;
@@ -75,18 +74,33 @@ fn a_diff_that_does_not_line_up_with_the_list_is_refused() {
 	);
 }
 
+/// Same count, different files: a list and a diff that do not describe the same files are refused
+/// even when they have as many entries, so a note never names a file other than the one left out
+/// (Roger 5Q-3 on 987f892).
 #[test]
-fn name_status_fields_become_labels_with_renames_as_old_and_new() {
-	let out = b"M\0dir b/file.txt\0R087\0old.txt\0new.txt\0A\0\xc3\xa9.txt\0";
+fn a_list_and_diff_of_different_files_are_refused_at_the_same_count() {
+	let diff = format!("{}{}", file_diff("a.txt", 200), file_diff("b.txt", 200));
 	assert_eq!(
-		staged_labels(out),
-		vec!["dir b/file.txt", "old.txt → new.txt", "é.txt"]
+		request(&staged(&["a.txt", "c.txt"], &diff)),
+		Err("git's diff does not match its staged list at c.txt; nothing was sent".to_string())
 	);
-	assert!(staged_labels(b"").is_empty());
+	let renamed = "diff --git a/old.txt b/new.txt\nsimilarity index 100%\n";
+	assert!(request(&staged(&["old.txt → new.txt"], renamed)).is_ok());
+}
+
+#[test]
+fn raw_entries_become_labels_with_renames_as_old_and_new() {
+	let mut out = b":100644 100644 aaa bbb M\0dir b/file.txt\0".to_vec();
+	out.extend(b":100644 100644 ccc ccc R100\0old.txt\0new.txt\0");
+	out.extend(b":000000 100644 000 ddd A\0\xc3\xa9.txt\0\0diff --git a/x b/x\n");
+	let (labels, patch) = split_raw(&out);
+	assert_eq!(labels, vec!["dir b/file.txt", "old.txt → new.txt", "é.txt"]);
+	assert_eq!(patch, b"diff --git a/x b/x\n");
+	assert_eq!(split_raw(b""), (Vec::new(), Vec::new()));
 }
 
 /// Real git output: a path with a space before `b/`, one git would quote (`core.quotePath`), and
-/// a rename. Each is named exactly, and the left-out note names the big file, not a fragment.
+/// a rename, all from one read. Each is named exactly, and the left-out note names the big file.
 #[test]
 fn real_staged_paths_are_named_as_git_names_them() {
 	let repo = TempRepo::new("suggest-paths");
@@ -98,24 +112,16 @@ fn real_staged_paths_are_named_as_git_names_them() {
 	repo.write("é.txt", "accented\n");
 	repo.write("zz big.json", &"x".repeat(CAP + 10));
 	repo.git(&["add", "-A"]);
-	let files = staged_files(&repo.path).expect("staged files");
-	assert_eq!(
-		files,
-		vec![
-			"dir b/file.txt",
-			"old.txt → new.txt",
-			"zz big.json",
-			"é.txt"
-		]
-	);
-	let diff = staged_diff_for_suggestion(&repo.path).expect("staged diff");
-	let built = request(&Staged { files, diff }).expect("the list and the diff line up");
-	for label in [
+	let (files, diff) = staged_for_suggestion(&repo.path).expect("staged read");
+	let labels = [
 		"dir b/file.txt",
 		"old.txt → new.txt",
 		"zz big.json",
 		"é.txt",
-	] {
+	];
+	assert_eq!(files, labels);
+	let built = request(&Staged { files, diff }).expect("the list and the diff line up");
+	for label in labels {
 		assert!(
 			built.text.contains(&format!("- {label}\n")),
 			"{label} is listed"
@@ -149,28 +155,23 @@ fn a_staged_submodule_sends_its_commit_ids_and_never_its_subjects() {
 	let second = support::git_in(&sub, &["rev-parse", "HEAD"])
 		.trim()
 		.to_string();
-	repo.git(&[
-		"update-index",
-		"--add",
-		"--cacheinfo",
-		&format!("160000,{first},s"),
-	]);
+	let entry = |id: &str| format!("160000,{id},s");
+	repo.git(&["update-index", "--add", "--cacheinfo", &entry(&first)]);
 	repo.git(&["commit", "-q", "-m", "base"]);
-	repo.git(&["update-index", "--cacheinfo", &format!("160000,{second},s")]);
+	repo.git(&["update-index", "--cacheinfo", &entry(&second)]);
 	repo.git(&["config", "diff.submodule", "log"]);
 	let plain = read_diff_bytes(&repo.path, &DiffSource::Staged, &[]).expect("plain read");
 	assert!(
 		String::from_utf8_lossy(&plain).contains("SECRET-SUBJECT-TWO"),
 		"the config does add subjects to a plain read"
 	);
-	let diff = staged_diff_for_suggestion(&repo.path).expect("suggestion read");
+	let (files, diff) = staged_for_suggestion(&repo.path).expect("suggestion read");
 	let text = String::from_utf8_lossy(&diff).to_string();
 	assert!(!text.contains("SECRET-SUBJECT-TWO"), "{text}");
 	assert!(
 		text.contains(&format!("+Subproject commit {second}")),
 		"{text}"
 	);
-	let files = staged_files(&repo.path).expect("staged files");
 	assert_eq!(files, vec!["s"]);
 	let built = request(&Staged { files, diff }).expect("one section for one file");
 	assert!(!built.text.contains("SECRET-SUBJECT-TWO"));

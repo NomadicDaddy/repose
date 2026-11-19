@@ -87,46 +87,54 @@ pub fn blob_size(repo: &Path, rev: &str, path: &str) -> Result<Option<u64>, GitE
 		.map_err(|e| GitError::Spawn(format!("cat-file -s gave no size: {e}")))
 }
 
-/// The staged files in `git diff --cached` order, one label each: the path, or `old → new` for a
-/// rename or copy. Read with `--name-status -z` and the same rename detection the diff uses, so
-/// each label lines up with one section of the staged diff and git's quoting never applies.
-pub fn staged_files(repo: &Path) -> Result<Vec<String>, GitError> {
-	let args = [
-		"--cached",
-		"--name-status",
-		"-z",
-		"--no-ext-diff",
-		"--no-textconv",
-		"--find-renames",
-	];
-	Ok(staged_labels(&run(repo, Verb::Diff, &args)?))
-}
-
-/// `--name-status -z` output as labels: a status field, then one path, or two for R and C.
-pub fn staged_labels(out: &[u8]) -> Vec<String> {
-	let text = String::from_utf8_lossy(out);
-	let mut fields = text.split('\0').filter(|f| !f.is_empty());
-	let mut labels = Vec::new();
-	while let Some(status) = fields.next() {
-		let Some(first) = fields.next() else { break };
-		if status.starts_with(['R', 'C']) {
-			let second = fields.next().unwrap_or_default();
-			labels.push(format!("{first} → {second}"));
-		} else {
-			labels.push(first.to_string());
-		}
-	}
-	labels
-}
-
-/// The staged diff a commit-message suggestion sends: `git diff --cached` as the Changes view
-/// reads it, plus `--submodule=short`, so a staged submodule shows only its two commit ids. A
-/// user's `diff.submodule=log` or `diff` would otherwise add that submodule's commit subjects or
-/// content, which A1 says a request never carries, in a section with no `diff --git` header
-/// (Morticia M-1 on d3da4dd).
-pub fn staged_diff_for_suggestion(repo: &Path) -> Result<Vec<u8>, GitError> {
+/// The staged changes a commit-message suggestion sends, read by one `git diff --cached` so the
+/// file list and the diff always describe the same index (Roger 5Q-3 on 987f892): the Changes
+/// view's flags, plus `--submodule=short`, so a staged submodule shows only its two commit ids
+/// whatever `diff.submodule` says (Morticia M-1 on d3da4dd), and `--patch-with-raw -z`, so each
+/// file is first named in git's raw form, never quoted. Returns one label per staged file, the
+/// path or `old → new` for a rename or copy, and the patch.
+pub fn staged_for_suggestion(repo: &Path) -> Result<(Vec<String>, Vec<u8>), GitError> {
 	let mut args = vec!["--cached"];
 	args.extend(COMMON);
-	args.extend(["--submodule=short", "--"]);
-	run(repo, Verb::Diff, &args)
+	args.extend(["--submodule=short", "--patch-with-raw", "-z", "--"]);
+	Ok(split_raw(&run(repo, Verb::Diff, &args)?))
+}
+
+/// `--patch-with-raw -z` output split into its labels and its patch. Each raw entry is
+/// `:<modes> <ids> <status>` and a NUL, then its path and a NUL, with a second path for R and C;
+/// one more NUL ends the list, and the patch follows.
+pub fn split_raw(out: &[u8]) -> (Vec<String>, Vec<u8>) {
+	let mut labels = Vec::new();
+	let mut at = 0;
+	while out.get(at) == Some(&b':') {
+		let Some((meta, next)) = field(out, at) else {
+			break;
+		};
+		let status = meta.rsplit(|&b| b == b' ').next().unwrap_or_default();
+		let Some((first, next)) = field(out, next) else {
+			break;
+		};
+		let first = String::from_utf8_lossy(first).to_string();
+		at = next;
+		if status.first().is_some_and(|s| matches!(s, b'R' | b'C')) {
+			let Some((second, next)) = field(out, at) else {
+				break;
+			};
+			labels.push(format!("{first} → {}", String::from_utf8_lossy(second)));
+			at = next;
+		} else {
+			labels.push(first);
+		}
+	}
+	if out.get(at) == Some(&0) {
+		at += 1;
+	}
+	(labels, out.get(at..).unwrap_or_default().to_vec())
+}
+
+/// The bytes from `from` to the next NUL, and the index after it.
+fn field(out: &[u8], from: usize) -> Option<(&[u8], usize)> {
+	let rest = out.get(from..)?;
+	let end = rest.iter().position(|&b| b == 0)?;
+	Some((&rest[..end], from + end + 1))
 }

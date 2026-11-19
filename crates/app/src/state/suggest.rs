@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use eframe::egui;
 use repose_core::config::SuggestMessages;
 use repose_core::git::Cancel;
-use repose_core::git::diff::{staged_diff_for_suggestion, staged_files};
+use repose_core::git::diff::staged_for_suggestion;
 use repose_core::suggest::{CANCELLED, Staged, Suggestion, suggest};
 
 use super::{AppState, Msg};
@@ -62,10 +62,7 @@ impl AppState {
 		let wake = ctx.clone();
 		let repo = repo.to_path_buf();
 		std::thread::spawn(move || {
-			let staged = staged_files(&repo).and_then(|files| {
-				let diff = staged_diff_for_suggestion(&repo)?;
-				Ok(Staged { files, diff })
-			});
+			let staged = staged_for_suggestion(&repo).map(|(files, diff)| Staged { files, diff });
 			let result = match staged {
 				Ok(staged) => suggest(&staged, &cancel),
 				Err(e) => Err(format!("The staged changes could not be read: {e}")),
