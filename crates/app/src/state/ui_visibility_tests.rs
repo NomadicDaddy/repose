@@ -51,10 +51,15 @@ fn choose_check(ctx: &egui::Context, state: &mut AppState) {
 	frame(ctx, state, click(at));
 }
 
+/// A credential-bearing origin (a token in its userinfo and in its query) is held only by its
+/// display_url, through the message and the cache, and still is after Refresh clears the remotes
+/// (Roger 5Q-3 on db5d258).
 #[test]
-fn check_visibility_shows_unknown_with_why_for_an_origin_not_on_github() {
+fn check_visibility_shows_unknown_for_an_origin_not_on_github_and_keeps_no_credential() {
 	let ctx = egui::Context::default();
-	let (mut state, _) = with_origin("visibility-unknown", Some(URL));
+	let secret_url =
+		"https://user:secret-one@example.invalid/team/thing.git?access_token=secret-two";
+	let (mut state, _) = with_origin("visibility-unknown", Some(secret_url));
 	let before = frame(&ctx, &mut state, Vec::new());
 	assert!(
 		!has(&before, "Visibility"),
@@ -63,7 +68,7 @@ fn check_visibility_shows_unknown_with_why_for_an_origin_not_on_github() {
 	);
 	choose_check(&ctx, &mut state);
 	let started = Instant::now();
-	while !state.visibility.known.contains_key(URL) {
+	while state.visibility.answer(secret_url).is_none() {
 		assert!(
 			started.elapsed() < Duration::from_secs(10),
 			"the check answers"
@@ -72,13 +77,26 @@ fn check_visibility_shows_unknown_with_why_for_an_origin_not_on_github() {
 		state.pump(&ctx);
 	}
 	assert_eq!(
-		state.visibility.known[URL].0,
-		Visibility::Unknown(NOT_GITHUB.to_string()),
-		"not github.com: Unknown, and gh never ran"
+		state.visibility.known.get(URL).map(|(v, _)| v),
+		Some(&Visibility::Unknown(NOT_GITHUB.to_string())),
+		"held by display_url; not github.com, so Unknown and gh never ran"
 	);
 	assert!(state.visibility.checking.is_empty());
 	let after = frame(&ctx, &mut state, Vec::new());
 	assert!(has(&after, "Visibility: Unknown"), "{:?}", texts(&after));
+	state.start_scan(&ctx);
+	let held: Vec<&String> = state
+		.visibility
+		.known
+		.keys()
+		.chain(state.visibility.checking.iter())
+		.collect();
+	assert_eq!(
+		held,
+		[URL],
+		"after Refresh only the credential-free form remains"
+	);
+	assert!(held.iter().all(|k| !k.contains("secret")), "{held:?}");
 }
 
 #[test]

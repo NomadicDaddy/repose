@@ -16,7 +16,7 @@ const CHECKING: &str = "Checking visibility…";
 
 /// Why Check visibility is off for origin's `url` right now, or None when it can run.
 pub(super) fn blocked(state: &AppState, url: &str) -> Option<&'static str> {
-	state.visibility.checking.contains(url).then_some(CHECKING)
+	state.visibility.is_checking(url).then_some(CHECKING)
 }
 
 /// "Visibility: Public", "Private" or "Unknown" for the repository's origin, with the time it was
@@ -29,8 +29,8 @@ pub(super) fn badge(ui: &mut Ui, state: &AppState, repo: &Path) {
 	let Some(url) = origin(list).map(|entry| entry.url.as_str()) else {
 		return;
 	};
-	let checking = state.visibility.checking.contains(url);
-	let Some((answer, at)) = state.visibility.known.get(url) else {
+	let checking = state.visibility.is_checking(url);
+	let Some((answer, at)) = state.visibility.answer(url) else {
 		if checking {
 			a11y::loading_label(ui, CHECKING);
 		}

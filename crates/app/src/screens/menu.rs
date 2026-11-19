@@ -268,7 +268,7 @@ pub(super) fn perform(
 		}
 		Action::TogglePin(path) => state.toggle_pin(&path),
 		Action::CheckVisibility(url) => {
-			state.check_visibility(url, ctx);
+			state.check_visibility(&url, ctx);
 			Ok(())
 		}
 	};
