@@ -74,18 +74,28 @@ fn a_diff_that_does_not_line_up_with_the_list_is_refused() {
 	);
 }
 
-/// Same count, different files: a list and a diff that do not describe the same files are refused
-/// even when they have as many entries, so a note never names a file other than the one left out
-/// (Roger 5Q-3 on 987f892).
+/// A file whose own name holds the rename arrow, under `core.quotePath=false` so git leaves its
+/// header unquoted, is listed and sent like any other (Roger on 2a0b437): nothing reads paths back
+/// out of a label.
 #[test]
-fn a_list_and_diff_of_different_files_are_refused_at_the_same_count() {
-	let diff = format!("{}{}", file_diff("a.txt", 200), file_diff("b.txt", 200));
-	assert_eq!(
-		request(&staged(&["a.txt", "c.txt"], &diff)),
-		Err("git's diff does not match its staged list at c.txt; nothing was sent".to_string())
-	);
-	let renamed = "diff --git a/old.txt b/new.txt\nsimilarity index 100%\n";
-	assert!(request(&staged(&["old.txt → new.txt"], renamed)).is_ok());
+fn a_filename_with_the_rename_arrow_is_sent_like_any_other() {
+	let repo = TempRepo::new("suggest-arrow");
+	repo.git(&["config", "core.quotePath", "false"]);
+	repo.write("base.txt", "base\n");
+	repo.commit_all("base");
+	repo.write("notes → draft.txt", "draft\n");
+	repo.git(&["add", "-A"]);
+	let (files, diff) = staged_for_suggestion(&repo.path).expect("staged read");
+	assert_eq!(files, vec!["notes → draft.txt"]);
+	let header = String::from_utf8_lossy(&diff)
+		.lines()
+		.next()
+		.unwrap_or_default()
+		.to_string();
+	assert_eq!(header, "diff --git a/notes → draft.txt b/notes → draft.txt");
+	let built = request(&Staged { files, diff }).expect("the request is built");
+	assert!(built.text.contains("- notes → draft.txt\n"));
+	assert!(built.text.contains("+draft"));
 }
 
 #[test]

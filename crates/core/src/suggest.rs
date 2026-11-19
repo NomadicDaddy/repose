@@ -78,7 +78,8 @@ pub struct Staged {
 /// order until the next one would take the diffs past `CAP`; a file's diff is never cut part-way,
 /// and the files left out are named in the request and returned. The diff's file sections are
 /// matched to the labels by position; names never come from its headers (Roger 5Q-2 on d3da4dd).
-/// A diff without one section per label, or an unquoted header naming another path, is refused.
+/// Both come from one git read, so they describe the same index (Roger 5Q-3 on 987f892); a diff
+/// without one section per label is refused.
 pub fn request(staged: &Staged) -> Result<Request, String> {
 	let sections = split(&staged.diff);
 	if sections.len() != staged.files.len() {
@@ -91,15 +92,6 @@ pub fn request(staged: &Staged) -> Result<Request, String> {
 	let mut kept = String::new();
 	let mut left_out = Vec::new();
 	for (label, body) in staged.files.iter().zip(&sections) {
-		// An unquoted header must name the label's (new) path, so a list and a diff of different
-		// files never pair up even at the same count (Roger 5Q-3 on 987f892).
-		let header = body.lines().next().unwrap_or_default();
-		let path = label.rsplit(" → ").next().unwrap_or(label);
-		if !header.contains('"') && !header.ends_with(&format!(" b/{path}")) {
-			return Err(format!(
-				"git's diff does not match its staged list at {label}; nothing was sent"
-			));
-		}
 		if left_out.is_empty() && kept.len() + body.len() <= CAP {
 			kept.push_str(body);
 		} else {
