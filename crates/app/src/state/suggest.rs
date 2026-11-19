@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use eframe::egui;
 use repose_core::config::SuggestMessages;
 use repose_core::git::Cancel;
-use repose_core::git::diff::read_diff_bytes;
+use repose_core::git::diff::{read_diff_bytes, staged_files};
 use repose_core::model::DiffSource;
-use repose_core::suggest::{Suggestion, suggest};
+use repose_core::suggest::{CANCELLED, Staged, Suggestion, suggest};
 
 use super::{AppState, Msg};
 
@@ -63,8 +63,12 @@ impl AppState {
 		let wake = ctx.clone();
 		let repo = repo.to_path_buf();
 		std::thread::spawn(move || {
-			let result = match read_diff_bytes(&repo, &DiffSource::Staged, &[]) {
-				Ok(diff) => suggest(&diff, &cancel),
+			let staged = staged_files(&repo).and_then(|files| {
+				let diff = read_diff_bytes(&repo, &DiffSource::Staged, &[])?;
+				Ok(Staged { files, diff })
+			});
+			let result = match staged {
+				Ok(staged) => suggest(&staged, &cancel),
 				Err(e) => Err(format!("The staged changes could not be read: {e}")),
 			};
 			let _ = tx.send(Msg::Suggested(repo, result));
@@ -80,9 +84,18 @@ impl AppState {
 	}
 
 	/// A suggestion came back. It fills an empty message; over the user's own text it waits for
-	/// their answer. A failure leaves the message as it was and says why.
+	/// their answer. A failure leaves the message as it was and says why. After the user's Cancel
+	/// an answer is dropped, however it ended (Roger 5Q-1 on d3da4dd).
 	pub(super) fn merge_suggestion(&mut self, repo: PathBuf, result: Result<Suggestion, String>) {
-		self.suggest.running.remove(&repo);
+		let cancelled = self
+			.suggest
+			.running
+			.remove(&repo)
+			.is_some_and(|c| c.is_cancelled());
+		let result = match result {
+			Ok(_) if cancelled => Err(CANCELLED.to_string()),
+			other => other,
+		};
 		let Suggestion { message, left_out } = match result {
 			Ok(s) => s,
 			Err(why) => {

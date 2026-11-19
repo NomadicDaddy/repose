@@ -66,23 +66,40 @@ pub struct Suggestion {
 	pub left_out: Vec<String>,
 }
 
-/// Builds the request from `git diff --cached` output. Every staged path is listed. Whole-file
-/// diffs follow in git's order until the next one would take the diffs past `CAP`; a file's diff
-/// is never cut part-way, and the paths left out are named in the request and returned.
-pub fn request(diff: &[u8]) -> Request {
-	let files = split(diff);
+/// The staged changes as git names them: one label per staged file, in `git diff --cached` order
+/// (`git::diff::staged_files`), and that diff.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Staged {
+	pub files: Vec<String>,
+	pub diff: Vec<u8>,
+}
+
+/// Builds the request. Every staged file is listed by its label. Whole-file diffs follow in git's
+/// order until the next one would take the diffs past `CAP`; a file's diff is never cut part-way,
+/// and the files left out are named in the request and returned. The diff's file sections are
+/// matched to the labels by position, never by reading paths out of its headers (Roger 5Q-2 on
+/// d3da4dd), so a diff that does not have one section per label is refused.
+pub fn request(staged: &Staged) -> Result<Request, String> {
+	let sections = split(&staged.diff);
+	if sections.len() != staged.files.len() {
+		return Err(format!(
+			"git listed {} staged files but its diff has {}; nothing was sent",
+			staged.files.len(),
+			sections.len()
+		));
+	}
 	let mut kept = String::new();
 	let mut left_out = Vec::new();
-	for (path, body) in &files {
+	for (label, body) in staged.files.iter().zip(&sections) {
 		if left_out.is_empty() && kept.len() + body.len() <= CAP {
 			kept.push_str(body);
 		} else {
-			left_out.push(path.clone());
+			left_out.push(label.clone());
 		}
 	}
 	let mut text = format!("{INSTRUCTION}\n\nStaged files:\n");
-	for (path, _) in &files {
-		text.push_str(&format!("- {path}\n"));
+	for label in &staged.files {
+		text.push_str(&format!("- {label}\n"));
 	}
 	if !left_out.is_empty() {
 		text.push_str(&format!(
@@ -94,27 +111,22 @@ pub fn request(diff: &[u8]) -> Request {
 	}
 	text.push_str("\nDiff:\n");
 	text.push_str(&kept);
-	Request { text, left_out }
+	Ok(Request { text, left_out })
 }
 
-/// The diff cut at each `diff --git ` line, named by the path after ` b/`.
-fn split(diff: &[u8]) -> Vec<(String, String)> {
+/// The diff cut into its file sections, each starting at a `diff --git ` line.
+fn split(diff: &[u8]) -> Vec<String> {
 	let text = String::from_utf8_lossy(diff);
-	let mut files: Vec<(String, String)> = Vec::new();
+	let mut sections: Vec<String> = Vec::new();
 	for line in text.split_inclusive('\n') {
-		if let Some(header) = line.strip_prefix("diff --git ") {
-			let path = header
-				.rsplit_once(" b/")
-				.map_or(header, |(_, b)| b)
-				.trim_end()
-				.to_string();
-			files.push((path, String::new()));
+		if line.starts_with("diff --git ") {
+			sections.push(String::new());
 		}
-		if let Some((_, body)) = files.last_mut() {
+		if let Some(body) = sections.last_mut() {
 			body.push_str(line);
 		}
 	}
-	files
+	sections
 }
 
 /// The one Claude Code call, run in `dir`: the pinned `ARGS`, a piped stdin the request is written
@@ -130,23 +142,35 @@ pub fn command(program: &OsStr, dir: &Path) -> Command {
 	cmd
 }
 
-/// Asks the installed `claude` for a message for `diff`, the staged changes.
-pub fn suggest(diff: &[u8], cancel: &Cancel) -> Result<Suggestion, String> {
-	suggest_with(OsStr::new("claude"), diff, cancel)
+/// Asks the installed `claude` for a message for the staged changes.
+pub fn suggest(staged: &Staged, cancel: &Cancel) -> Result<Suggestion, String> {
+	suggest_with(OsStr::new("claude"), staged, cancel)
 }
 
-/// `suggest` through `program` in place of `claude`, so the tests can stand one in.
-pub fn suggest_with(program: &OsStr, diff: &[u8], cancel: &Cancel) -> Result<Suggestion, String> {
-	if diff.iter().all(u8::is_ascii_whitespace) {
+/// `suggest` through `program` in place of `claude`, so the tests can stand one in. A Cancel set
+/// before it starts sends nothing, and one set while it runs wins over an answer that arrives at
+/// the same time (Roger 5Q-1 on d3da4dd).
+pub fn suggest_with(
+	program: &OsStr,
+	staged: &Staged,
+	cancel: &Cancel,
+) -> Result<Suggestion, String> {
+	if staged.files.is_empty() {
 		return Err(NOTHING_STAGED.to_string());
 	}
-	let Request { text, left_out } = request(diff);
+	let Request { text, left_out } = request(staged)?;
+	if cancel.is_cancelled() {
+		return Err(CANCELLED.to_string());
+	}
 	let dir = EmptyDir::new().map_err(|e| format!("No empty folder for the request: {e}"))?;
 	let mut child = match command(program, &dir.0).spawn() {
 		Ok(child) => child,
 		Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(NO_CLI.to_string()),
 		Err(e) => return Err(format!("Claude Code could not start: {e}")),
 	};
+	if cancel.is_cancelled() {
+		return Err(stop(&mut child, CANCELLED.to_string()));
+	}
 	let stdout = drain(child.stdout.take());
 	let stderr = drain(child.stderr.take());
 	let writer = child.stdin.take().map(|mut stdin| {
@@ -170,22 +194,30 @@ pub fn suggest_with(program: &OsStr, diff: &[u8], cancel: &Cancel) -> Result<Sug
 fn wait(child: &mut Child, cancel: &Cancel) -> Result<Option<i32>, String> {
 	let started = Instant::now();
 	loop {
+		// Cancel is looked at before the exit, so an answer that lands after it is dropped.
+		if cancel.is_cancelled() {
+			return Err(stop(child, CANCELLED.to_string()));
+		}
 		match child.try_wait() {
 			Ok(Some(status)) => return Ok(status.code()),
-			Ok(None) if cancel.is_cancelled() => {
-				kill_tree(child);
-				return Err(CANCELLED.to_string());
-			}
 			Ok(None) if started.elapsed() > TIMEOUT => {
-				kill_tree(child);
-				return Err(format!(
-					"Claude Code did not answer within {} s",
-					TIMEOUT.as_secs()
-				));
+				let why = format!("Claude Code did not answer within {} s", TIMEOUT.as_secs());
+				return Err(stop(child, why));
 			}
 			Ok(None) => std::thread::sleep(Duration::from_millis(20)),
 			Err(e) => return Err(format!("Claude Code could not be waited on: {e}")),
 		}
+	}
+}
+
+/// Stops the CLI and everything it started, and says why; or, when it was still running and the
+/// tree kill failed, that it may still be running (Roger 5Q-1 on d3da4dd). A CLI that had already
+/// exited needs no kill, and taskkill's failure to find it is not reported as one.
+fn stop(child: &mut Child, why: String) -> String {
+	if matches!(child.try_wait(), Ok(Some(_))) || kill_tree(child) {
+		why
+	} else {
+		format!("{why}, but Claude Code could not be stopped and may still be running")
 	}
 }
 

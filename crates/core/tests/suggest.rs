@@ -1,6 +1,7 @@
 //! ai-commit-message-suggestions: the Claude Code call A1 pins, the request it is given, and what
-//! its answers mean. No test runs the real Claude Code, so the gate never sends anything; a .cmd
-//! stand-in passed by path records what it was given.
+//! its answers mean (the request itself is in suggest_request.rs). No test runs the real Claude
+//! Code, so the gate never sends anything; a .cmd stand-in passed by path records what it was
+//! given.
 #![allow(clippy::expect_used)]
 
 use std::ffi::OsStr;
@@ -9,19 +10,21 @@ use std::time::{Duration, Instant};
 
 use repose_core::git::Cancel;
 use repose_core::suggest::{
-	ARGS, CANCELLED, CAP, INSTRUCTION, NO_CLI, NOTHING_STAGED, answer, command, request,
-	suggest_with,
+	ARGS, CANCELLED, INSTRUCTION, NO_CLI, NOTHING_STAGED, Staged, answer, command, suggest_with,
 };
 
-/// A staged diff of one file whose body is `size` bytes of added lines.
-fn file_diff(path: &str, size: usize) -> String {
+/// One staged file whose diff body is `size` bytes of added lines.
+fn one(path: &str, size: usize) -> Staged {
 	let mut text = format!(
 		"diff --git a/{path} b/{path}\nindex 1111111..2222222 100644\n--- a/{path}\n+++ b/{path}\n@@ -0,0 +1 @@\n"
 	);
 	while text.len() < size {
 		text.push_str("+a staged line\n");
 	}
-	text
+	Staged {
+		files: vec![path.to_string()],
+		diff: text.into_bytes(),
+	}
 }
 
 #[test]
@@ -51,41 +54,6 @@ fn the_claude_call_has_no_tools_no_mcp_no_hooks_and_no_saved_session() {
 		0,
 		"no setting is passed in the environment"
 	);
-}
-
-#[test]
-fn a_request_lists_every_staged_path_and_whole_diffs_up_to_the_cap() {
-	let small = file_diff("src/a.rs", 2_000);
-	let big = file_diff("assets/big.json", CAP);
-	let after = file_diff("src/b.rs", 1_000);
-	let diff = format!("{small}{big}{after}");
-	let built = request(diff.as_bytes());
-	assert!(built.text.starts_with(INSTRUCTION));
-	for path in ["src/a.rs", "assets/big.json", "src/b.rs"] {
-		assert!(
-			built.text.contains(&format!("- {path}\n")),
-			"{path} is listed"
-		);
-	}
-	// The big file does not fit, and nothing after it is sent either, so git's order is kept.
-	assert_eq!(built.left_out, vec!["assets/big.json", "src/b.rs"]);
-	assert!(
-		built.text.contains(&small),
-		"a diff that fits is sent whole"
-	);
-	assert!(
-		!built.text.contains("+++ b/assets/big.json"),
-		"a left-out diff is not cut part-way"
-	);
-	assert!(!built.text.contains("+++ b/src/b.rs"));
-	assert!(
-		built
-			.text
-			.contains("left out to stay under 64 KiB: assets/big.json, src/b.rs")
-	);
-	let whole = request(small.as_bytes());
-	assert!(whole.left_out.is_empty());
-	assert!(!whole.text.contains("left out"));
 }
 
 #[test]
@@ -161,8 +129,8 @@ fn a_stand_in_gets_the_exact_call_in_an_empty_folder_and_its_answer_comes_back()
 		 more >\"%~dp0stdin.txt\"\n\
 		 echo Add the suggest row\n",
 	);
-	let diff = file_diff("src/a.rs", 300);
-	let got = suggest_with(ok.as_os_str(), diff.as_bytes(), &Cancel::new()).expect("an answer");
+	let diff = one("src/a.rs", 300);
+	let got = suggest_with(ok.as_os_str(), &diff, &Cancel::new()).expect("an answer");
 	assert_eq!(got.message, "Add the suggest row");
 	assert!(got.left_out.is_empty());
 	assert_eq!(
@@ -191,33 +159,40 @@ fn a_stand_in_gets_the_exact_call_in_an_empty_folder_and_its_answer_comes_back()
 		"@echo off\nmore >nul\n>&2 echo Not logged in. Please run /login\nexit /b 1\n",
 	);
 	assert_eq!(
-		suggest_with(failing.as_os_str(), diff.as_bytes(), &Cancel::new()),
+		suggest_with(failing.as_os_str(), &diff, &Cancel::new()),
 		Err("Claude Code: Not logged in. Please run /login".to_string())
 	);
 }
 
 #[test]
-fn nothing_staged_runs_nothing_and_a_missing_cli_says_so() {
+fn nothing_staged_or_cancelled_first_runs_nothing_and_a_missing_cli_says_so() {
 	let dir = StandIns::new("claude-none");
 	let never = dir.script(
 		"claude-never.cmd",
 		"@echo off\n>\"%~dp0ran.txt\" echo ran\n",
 	);
+	let empty = Staged {
+		files: Vec::new(),
+		diff: Vec::new(),
+	};
 	assert_eq!(
-		suggest_with(never.as_os_str(), b"  \n", &Cancel::new()),
+		suggest_with(never.as_os_str(), &empty, &Cancel::new()),
 		Err(NOTHING_STAGED.to_string())
+	);
+	// A Cancel set while the staged changes were read sends nothing (Roger 5Q-1 on d3da4dd).
+	let cancelled = Cancel::new();
+	cancelled.cancel();
+	assert_eq!(
+		suggest_with(never.as_os_str(), &one("a", 100), &cancelled),
+		Err(CANCELLED.to_string())
 	);
 	assert!(
 		!dir.0.join("ran.txt").exists(),
-		"nothing ran for an empty diff"
+		"nothing ran for an empty list or after Cancel"
 	);
 	let absent = dir.0.join("no-such-claude.exe");
 	assert_eq!(
-		suggest_with(
-			absent.as_os_str(),
-			file_diff("a", 100).as_bytes(),
-			&Cancel::new()
-		),
+		suggest_with(absent.as_os_str(), &one("a", 100), &Cancel::new()),
 		Err(NO_CLI.to_string())
 	);
 }
@@ -237,7 +212,7 @@ fn cancel_stops_the_cli_and_says_so() {
 	});
 	let started = Instant::now();
 	assert_eq!(
-		suggest_with(slow.as_os_str(), file_diff("a", 100).as_bytes(), &cancel),
+		suggest_with(slow.as_os_str(), &one("a", 100), &cancel),
 		Err(CANCELLED.to_string())
 	);
 	assert!(

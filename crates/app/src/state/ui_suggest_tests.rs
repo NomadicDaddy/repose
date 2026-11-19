@@ -11,7 +11,7 @@ use eframe::egui;
 use repose_core::config::{Config, SuggestMessages};
 use repose_core::git::Cancel;
 use repose_core::model::{ChangeKind, FileChange};
-use repose_core::suggest::Suggestion;
+use repose_core::suggest::{CANCELLED, Suggestion};
 
 use super::AppState;
 use super::ui_harness::{click, frame, repo, text_at, texts};
@@ -186,4 +186,26 @@ fn while_it_runs_the_box_shows_it_is_busy_and_cancel_stops_it() {
 	);
 	frame(&ctx, &mut state, click(at(&busy, "Cancel suggestion")));
 	assert!(cancel.is_cancelled());
+}
+
+/// An answer that lands after the user's Cancel is dropped, however it ended, and the box says
+/// the suggestion was cancelled (Roger 5Q-1 on d3da4dd).
+#[test]
+fn an_answer_after_cancel_never_fills_the_box() {
+	let (ctx, mut state, path) = with_staged(SuggestMessages::Claude, 1);
+	let cancel = Cancel::new();
+	state.suggest.running.insert(path.clone(), cancel.clone());
+	state.cancel_suggestion(&path);
+	state.merge_suggestion(path.clone(), answer("late", &[]));
+	assert_eq!(
+		state
+			.commit_messages
+			.get(&path)
+			.map(String::as_str)
+			.unwrap_or(""),
+		""
+	);
+	assert!(state.suggest.pending.is_empty() && !state.suggest.is_running(&path));
+	let texts = shown(&ctx, &mut state);
+	assert!(texts.iter().any(|t| t == CANCELLED), "{texts:?}");
 }

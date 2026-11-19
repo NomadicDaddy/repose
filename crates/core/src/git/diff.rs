@@ -86,3 +86,35 @@ pub fn blob_size(repo: &Path, rev: &str, path: &str) -> Result<Option<u64>, GitE
 		.map(Some)
 		.map_err(|e| GitError::Spawn(format!("cat-file -s gave no size: {e}")))
 }
+
+/// The staged files in `git diff --cached` order, one label each: the path, or `old → new` for a
+/// rename or copy. Read with `--name-status -z` and the same rename detection the diff uses, so
+/// each label lines up with one section of the staged diff and git's quoting never applies.
+pub fn staged_files(repo: &Path) -> Result<Vec<String>, GitError> {
+	let args = [
+		"--cached",
+		"--name-status",
+		"-z",
+		"--no-ext-diff",
+		"--no-textconv",
+		"--find-renames",
+	];
+	Ok(staged_labels(&run(repo, Verb::Diff, &args)?))
+}
+
+/// `--name-status -z` output as labels: a status field, then one path, or two for R and C.
+pub fn staged_labels(out: &[u8]) -> Vec<String> {
+	let text = String::from_utf8_lossy(out);
+	let mut fields = text.split('\0').filter(|f| !f.is_empty());
+	let mut labels = Vec::new();
+	while let Some(status) = fields.next() {
+		let Some(first) = fields.next() else { break };
+		if status.starts_with(['R', 'C']) {
+			let second = fields.next().unwrap_or_default();
+			labels.push(format!("{first} → {second}"));
+		} else {
+			labels.push(first.to_string());
+		}
+	}
+	labels
+}
