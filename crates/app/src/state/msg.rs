@@ -29,7 +29,7 @@ pub enum Msg {
 	Notice(String),
 	/// One repository's commit activity for the Activity screen.
 	Activity(ActivityMsg),
-	/// gh's answer for a remote, named by its credential-free display_url, from Check visibility.
+	/// gh's answer for a remote, named by its credential-free remote_key, from Check visibility.
 	Visibility(String, repose_core::host::github::Visibility),
 }
 

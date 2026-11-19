@@ -6,7 +6,7 @@
 use std::ffi::OsStr;
 
 use repose_core::host::github::{
-	NO_GH, NOT_GITHUB, Visibility, answer, check_with, command, repository,
+	NO_GH, NOT_GITHUB, UNSAFE_NAME, Visibility, answer, ask_with, check_with, command, repository,
 };
 
 #[test]
@@ -139,6 +139,19 @@ fn a_remote_that_is_not_github_runs_nothing_and_a_missing_gh_says_so() {
 		check_with(missing, "git@github.com:team/thing.git"),
 		Visibility::Unknown(NO_GH.to_string())
 	);
+	// ask refuses an unsafe name itself, so nothing unchecked reaches gh even past repository.
+	for (owner, repo) in [
+		("-team", "thing"),
+		("team", "--jq"),
+		("..", "thing"),
+		("team", "a/b"),
+	] {
+		assert_eq!(
+			ask_with(missing, owner, repo),
+			Visibility::Unknown(UNSAFE_NAME.to_string()),
+			"{owner}/{repo}"
+		);
+	}
 }
 
 /// A stand-in gh (a .cmd script) records the arguments and the three settings it was given, and

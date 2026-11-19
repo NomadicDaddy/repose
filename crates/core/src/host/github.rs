@@ -21,7 +21,8 @@ pub const NOT_GITHUB: &str =
 	"Only github.com remotes in https or git@github.com: form can be checked";
 /// The reason shown when `gh` cannot be found.
 pub const NO_GH: &str = "GitHub CLI (gh) is not installed or not on PATH";
-const UNSAFE_NAME: &str =
+/// The reason shown when the owner or repository name is not one repose passes to gh.
+pub const UNSAFE_NAME: &str =
 	"The origin's owner or repository name has characters repose will not pass to gh";
 
 /// What the host says, or why it could not be told.
@@ -97,19 +98,28 @@ pub fn command(program: &OsStr, owner: &str, repo: &str) -> Command {
 	cmd
 }
 
-/// Asks the installed `gh` about the remote at `url`. A URL that is not a github.com remote is
-/// Unknown with nothing run.
-pub fn check(url: &str) -> Visibility {
-	check_with(OsStr::new("gh"), url)
+/// Asks the installed `gh` about `owner/repo`, names `repository` gave for the raw origin URL. The
+/// caller validates the URL it was given, not a cleaned copy (Roger 5Q-3 on b551265); a name that
+/// is not safe is refused here too, so nothing unchecked can reach gh.
+pub fn ask(owner: &str, repo: &str) -> Visibility {
+	ask_with(OsStr::new("gh"), owner, repo)
 }
 
-/// `check` through `program` in place of `gh`, so the tests can stand one in.
+/// `repository` then `ask` through `program` in place of `gh`, so the tests can stand one in. A
+/// URL that is not a github.com remote is Unknown with nothing run.
 pub fn check_with(program: &OsStr, url: &str) -> Visibility {
-	let (owner, repo) = match repository(url) {
-		Ok(names) => names,
-		Err(why) => return Visibility::Unknown(why.to_string()),
-	};
-	let mut child = match command(program, &owner, &repo).spawn() {
+	match repository(url) {
+		Ok((owner, repo)) => ask_with(program, &owner, &repo),
+		Err(why) => Visibility::Unknown(why.to_string()),
+	}
+}
+
+/// `ask` through `program` in place of `gh`.
+pub fn ask_with(program: &OsStr, owner: &str, repo: &str) -> Visibility {
+	if !safe_name(owner) || !safe_name(repo) {
+		return Visibility::Unknown(UNSAFE_NAME.to_string());
+	}
+	let mut child = match command(program, owner, repo).spawn() {
 		Ok(child) => child,
 		Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 			return Visibility::Unknown(NO_GH.to_string());
