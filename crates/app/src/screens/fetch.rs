@@ -190,7 +190,6 @@ mod tests {
 			upstream: upstream.then(|| "origin/main".to_string()),
 			ahead: upstream.then_some(0),
 			behind: upstream.then_some(0),
-			..StatusSummary::default()
 		});
 		let path = row.path.clone();
 		state.repos = vec![row];
