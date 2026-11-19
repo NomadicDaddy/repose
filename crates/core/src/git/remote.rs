@@ -37,7 +37,7 @@ pub fn pull(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
 	run_cancellable(repo, Verb::Pull, &[], cancel).map(|_| ())
 }
 
-pub use super::push::push;
+pub use super::push::{PushPlan, plan as plan_push, push, send as send_push};
 
 /// `git remote --verbose` prints `<name>\t<url> (fetch)` and `<name>\t<url> (push)` per remote.
 /// A remote whose push URL equals its fetch URL keeps `push_url` None; a push-only line (a

@@ -82,52 +82,42 @@ fn a_diverged_pull_is_refused_and_changes_nothing() {
 	);
 }
 
-/// Pull takes no argument; Push only the lease, remote and HEAD:refs/heads/<branch> that
-/// push::push reads from the branch's config, in that order. Nothing else reaches git.
+/// Pull takes no argument; Push only the lease, remote and <commit>:refs/heads/<branch> that
+/// push::plan reads from the branch's refs and config, in that order. Nothing else reaches git.
 #[test]
 fn pull_and_push_refuse_every_other_argument() {
 	let (_upstream, clone) = upstream_and_clone("no-extra");
 	let sha = "0123456789abcdef0123456789abcdef01234567";
-	let lease = format!("--force-with-lease=refs/heads/main:{sha}");
-	let other_lease = format!("--force-with-lease=refs/heads/other:{sha}");
+	let good = |b: &str| format!("--force-with-lease=refs/heads/{b}:{sha}");
+	let to_main = format!("{sha}:refs/heads/main");
+	let (lease, other_lease, to_main) = (good("main"), good("other"), to_main.as_str());
 	let lease = lease.as_str();
+	let bad_hex = format!("--force-with-lease=refs/heads/main:zz{}", &sha[2..]);
+	let forced = format!("+{to_main}");
+	let to_tag = format!("{sha}:refs/tags/v1");
 	for (verb, extra) in [
 		(Verb::Pull, &["--rebase"][..]),
 		(Verb::Pull, &["origin", "other"][..]),
 		(Verb::Push, &[][..]),
 		(Verb::Push, &["--force"][..]),
 		(Verb::Push, &["--tags"][..]),
-		(Verb::Push, &["origin", "HEAD:refs/heads/main"][..]),
-		(
-			Verb::Push,
-			&["--force", "origin", "HEAD:refs/heads/main"][..],
-		),
-		(
-			Verb::Push,
-			&["--force-with-lease", "origin", "HEAD:refs/heads/main"][..],
-		),
-		(
-			Verb::Push,
-			&[other_lease.as_str(), "origin", "HEAD:refs/heads/main"][..],
-		),
-		(
-			Verb::Push,
-			&[
-				"--force-with-lease=refs/heads/main:zz",
-				"origin",
-				"HEAD:refs/heads/main",
-			][..],
-		),
-		(Verb::Push, &[lease, "--mirror", "HEAD:refs/heads/main"][..]),
-		(Verb::Push, &[lease, "origin", "+HEAD:refs/heads/main"][..]),
+		(Verb::Push, &["origin", to_main][..]),
+		(Verb::Push, &["--force", "origin", to_main][..]),
+		(Verb::Push, &["--force-with-lease", "origin", to_main][..]),
+		(Verb::Push, &[other_lease.as_str(), "origin", to_main][..]),
+		(Verb::Push, &[bad_hex.as_str(), "origin", to_main][..]),
+		// HEAD, read again by git, is never the source: only the commit plan checked.
+		(Verb::Push, &[lease, "origin", "HEAD:refs/heads/main"][..]),
+		(Verb::Push, &[lease, "--mirror", to_main][..]),
+		(Verb::Push, &[lease, "origin", forced.as_str()][..]),
 		(
 			Verb::Push,
 			&[lease, "origin", "refs/heads/*:refs/heads/*"][..],
 		),
-		(Verb::Push, &[lease, "origin", "HEAD:refs/tags/v1"][..]),
+		(Verb::Push, &[lease, "origin", to_tag.as_str()][..]),
 		(
 			Verb::Push,
-			&[lease, "origin", "HEAD:refs/heads/main", "HEAD:refs/heads/x"][..],
+			&[lease, "origin", to_main, "HEAD:refs/heads/x"][..],
 		),
 	] {
 		assert!(

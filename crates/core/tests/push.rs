@@ -10,7 +10,7 @@ mod support;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use repose_core::git::remote::push;
+use repose_core::git::remote::{plan_push, push, send_push};
 use repose_core::git::{GitError, read_status};
 use support::{TempRepo, upstream_and_clone, watchdog};
 
@@ -226,4 +226,29 @@ fn push_never_recreates_a_deleted_branch_or_overwrites_a_moved_one() {
 		matches!(push_now(&clone), Err(GitError::Spawn(_))),
 		"behind: nothing sent"
 	);
+}
+
+/// The commit sent is the one plan checked, not HEAD read again: a checkout or commit between the
+/// two cannot change what goes, so the lease never carries a non-fast-forward (Roger 5Q-4 on
+/// c50d643).
+#[test]
+fn push_sends_the_planned_commit_even_if_the_branch_moves_before_sending() {
+	let (upstream, clone) = upstream_and_clone("push-pinned");
+	accepts_pushes(&upstream);
+	clone.write("b.txt", "2\n");
+	clone.commit_all("planned");
+	let plan = plan_push(&clone.path).expect("a plan");
+	assert_eq!(plan.source(), clone.git(&["rev-parse", "HEAD"]).trim());
+	// Another tool rewrites the branch between plan and send.
+	clone.git(&["reset", "-q", "--hard", "HEAD~1"]);
+	clone.write("c.txt", "3\n");
+	clone.commit_all("not planned");
+	let moved = clone.git(&["rev-parse", "HEAD"]);
+	let (cancel, done) = watchdog(Duration::from_secs(60));
+	let result = send_push(&clone.path, &plan, Some(&cancel));
+	done.store(true, Ordering::SeqCst);
+	assert!(result.is_ok(), "push failed: {result:?}");
+	let sent = upstream.git(&["rev-parse", "main"]);
+	assert_eq!(sent.trim(), plan.source(), "the planned commit went");
+	assert_ne!(sent, moved, "not the commit HEAD moved to");
 }
