@@ -159,8 +159,7 @@ pub struct AppState {
 	pub utc_offset: Option<i32>,
 	/// One draft per repository, so a message follows its repository and not the selection.
 	pub commit_messages: HashMap<PathBuf, String>,
-	/// When each repository's last Fetch succeeded, for its "Fetched HH:MM" line. Kept across
-	/// Refresh: the refs it brought stay fetched.
+	/// Each repository's last good Fetch or Pull, for its "Fetched HH:MM"; kept across Refresh.
 	pub fetched: HashMap<PathBuf, std::time::SystemTime>,
 	/// The repositories whose unsaved draft held up a window close, while the question is open.
 	pub close_prompt: Option<Vec<String>>,
@@ -174,8 +173,7 @@ pub struct AppState {
 	pub pending_discard: Option<PendingDiscard>,
 	pub view: View,
 	pub history: HashMap<PathBuf, HistoryState>,
-	/// History draws branch lanes over every ref (branch-graph-lanes); off at start, kept for the
-	/// session.
+	/// History's lanes over every ref (branch-graph-lanes): off at start, kept for the session.
 	pub lanes: bool,
 	/// The Branches tab per repository, read when the tab first shows it.
 	pub branches: HashMap<PathBuf, BranchesState>,
