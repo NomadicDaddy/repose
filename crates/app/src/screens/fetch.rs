@@ -27,7 +27,9 @@ fn hover(kind: &WriteKind) -> &'static str {
 	match kind {
 		WriteKind::Pull => "Pull the upstream's commits; fast-forward only, so nothing is merged",
 		WriteKind::Push => "Push this branch to its upstream; never forced, and no tags",
-		_ => "Fetch from the remote; only Fetch, Pull, Push and Check visibility reach the network",
+		_ => {
+			"Fetch from the remote; only Fetch, Pull, Push, Check visibility and Suggest message reach the network"
+		}
 	}
 }
 

@@ -22,6 +22,9 @@ pub struct Config {
 	/// The one-time notice on the first close to tray has been shown (close-to-tray clause 9).
 	/// Saved by `settings::save_tray_notice_shown`, which rewrites only this key.
 	pub tray_notice_shown: bool,
+	/// Who writes a suggested commit message (ai-commit-message-suggestions): `off`, the default,
+	/// shows no Suggest message control and runs nothing; `claude` asks the installed Claude Code.
+	pub suggest_messages: SuggestMessages,
 	pub commands: Commands,
 	/// Repositories drawn first in the list, kept across launches (repository-pinning). Saved by
 	/// `pins::save`, which rewrites only this key.
@@ -37,6 +40,15 @@ pub enum Theme {
 	System,
 	Dark,
 	Light,
+}
+
+/// The provider a commit-message suggestion asks (A1, Phillip #59768 and #59782). Off by default.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SuggestMessages {
+	#[default]
+	Off,
+	Claude,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -79,6 +91,7 @@ impl Default for Config {
 			start_minimised_to_tray: false,
 			tray_notice_shown: false,
 			commands: Commands::default(),
+			suggest_messages: SuggestMessages::Off,
 			pinned_repositories: Vec::new(),
 		}
 	}

@@ -6,7 +6,7 @@ mod cancel;
 pub mod commands;
 pub mod diff;
 pub mod error;
-mod kill;
+pub(crate) mod kill;
 pub mod log;
 pub mod markers;
 pub mod network;

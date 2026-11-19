@@ -83,3 +83,10 @@ repository row's menu asks GitHub whether origin is public or private, through t
 and its own sign-in, with no prompt and no update check. Only github.com remotes are asked; any
 other is Unknown and nothing runs. The answer is kept in memory per remote URL for the session and
 never polled (`remote-visibility`, A1).
+
+Revised again for v2.0 (Phillip #59768, #59769, #59774 and #59782 on #59780): one outbound request
+that is not a remote's. Suggest message in the commit box, offered only while Settings has Message
+suggestions on, sends the staged diff (up to 64 KiB of whole-file diffs, with every staged path
+listed) to the installed Claude Code on stdin. It runs in an empty temporary folder with no tools,
+no MCP servers, no hooks and no saved session, under its own sign-in. Nothing else sends it
+(`ai-commit-message-suggestions`, A1).

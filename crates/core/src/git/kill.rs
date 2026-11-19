@@ -8,7 +8,7 @@ use super::commands::hide_console;
 /// children running on; on Windows `taskkill /T` takes the tree, and the child is reaped after.
 /// Returns whether the tree kill itself succeeded; git is reaped either way, and a false answer
 /// is reported to the user rather than claimed as stopped (Roger 5Q-2 on a31e63b).
-pub(super) fn kill_tree(child: &mut std::process::Child) -> bool {
+pub(crate) fn kill_tree(child: &mut std::process::Child) -> bool {
 	#[cfg(windows)]
 	let tree_killed = {
 		let mut kill = Command::new("taskkill");

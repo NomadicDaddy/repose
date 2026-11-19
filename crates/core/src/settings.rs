@@ -1,5 +1,5 @@
-//! The settings screen's save (settings-screen clause 3): the roots, excludes, depth, theme and
-//! commands written back into config.toml in place. Only a key whose value changed is rewritten:
+//! The settings screen's save (settings-screen clause 3): the roots, excludes, depth, theme, tray
+//! options, suggestion provider and commands written back into config.toml in place. Only a key whose value changed is rewritten:
 //! it keeps the comment lines above it, but its value is written fresh, so a comment after the
 //! old value on the same line is dropped (it described that value) and a changed list is written
 //! on one line. Every other key, comment and line stays as it was. `pinned_repositories` and any
@@ -10,7 +10,7 @@ use std::path::Path;
 
 use toml_edit::{DocumentMut, Item, Table, Value};
 
-use crate::config::{self, Config, ConfigError, Theme};
+use crate::config::{self, Config, ConfigError, SuggestMessages, Theme};
 use crate::pins::path_array;
 
 /// Writes the settings of `next` that differ from `before` into the config file at `path`. The
@@ -42,6 +42,10 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 	if next.start_minimised_to_tray != before.start_minimised_to_tray {
 		let value = next.start_minimised_to_tray.into();
 		set(&mut doc, "start_minimised_to_tray", value);
+	}
+	if next.suggest_messages != before.suggest_messages {
+		let name = suggest_name(next.suggest_messages);
+		set(&mut doc, "suggest_messages", name.into());
 	}
 	if next.commands != before.commands {
 		let commands = commands_table(&mut doc, path)?;
@@ -80,6 +84,14 @@ fn theme_name(theme: Theme) -> &'static str {
 		Theme::System => "system",
 		Theme::Dark => "dark",
 		Theme::Light => "light",
+	}
+}
+
+/// The value config.toml spells a suggestion provider with, as serde reads it back.
+fn suggest_name(provider: SuggestMessages) -> &'static str {
+	match provider {
+		SuggestMessages::Off => "off",
+		SuggestMessages::Claude => "claude",
 	}
 }
 

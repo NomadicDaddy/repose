@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use repose_core::config::{self, Config, ConfigError, Theme};
+use repose_core::config::{self, Config, ConfigError, SuggestMessages, Theme};
 use repose_core::settings;
 
 const WRITTEN: &str = r#"# My roots, chosen by hand.
@@ -178,6 +178,40 @@ fn the_tray_options_save_in_place_and_reload() {
 	);
 	let back = config::load_or_create(&path).expect("reload");
 	assert!(back.close_to_tray && back.start_minimised_to_tray);
+}
+
+/// ai-commit-message-suggestions clause 2: off by default and when the file never names it; Claude
+/// Code saves in place like the other settings and reloads; an unknown provider is a parse error.
+#[test]
+fn the_suggestion_provider_is_off_by_default_and_saves_in_place() {
+	assert_eq!(Config::default().suggest_messages, SuggestMessages::Off);
+	let path = scratch("suggest-provider", WRITTEN);
+	let before = config::load_or_create(&path).expect("load");
+	assert_eq!(
+		before.suggest_messages,
+		SuggestMessages::Off,
+		"unset means off"
+	);
+	let mut next = before.clone();
+	next.suggest_messages = SuggestMessages::Claude;
+	settings::save(&path, &before, &next).expect("save");
+	let text = fs::read_to_string(&path).expect("read back");
+	assert!(text.contains("suggest_messages = \"claude\""), "{text}");
+	assert_eq!(
+		lines_without(&text, &["suggest_messages"]),
+		lines_without(WRITTEN, &["suggest_messages"])
+	);
+	let back = config::load_or_create(&path).expect("reload");
+	assert_eq!(back.suggest_messages, SuggestMessages::Claude);
+	let odd = scratch(
+		"suggest-odd",
+		"suggest_messages = \"codex\"
+",
+	);
+	assert!(matches!(
+		config::load_or_create(&odd),
+		Err(ConfigError::Parse(..))
+	));
 }
 
 /// close-to-tray clause 9: recording the one-time notice rewrites `tray_notice_shown` alone and

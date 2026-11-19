@@ -1,15 +1,15 @@
 //! The settings screen (settings-screen): a modal over the window, opened by Settings in the
-//! repository list header, for the roots, the folder names to skip, the scan depth, the theme
-//! and the editor and terminal commands, pre-filled from the config in use. A new root that does
-//! not exist, a folder name with a slash or a command that is not a program name or absolute path
-//! is marked under its box and keeps Save disabled until fixed; a saved root that is missing now
+//! repository list header, for the roots, the folder names to skip, the scan depth, the theme,
+//! the tray options, message suggestions and the editor and terminal commands, pre-filled from the
+//! config in use. A new root that does not exist, a folder name with a slash or a command that is
+//! not a program name or absolute path is marked under its box and keeps Save disabled until fixed; a saved root that is missing now
 //! is only noted, since the load tolerates an unplugged drive. Text typed in a New box but never
 //! added also holds Save. Save writes config.toml and applies the settings at once; Cancel and
 //! Escape drop the edits. A click outside does nothing, so a stray click never throws away a
 //! half-made change.
 
 use eframe::egui::{self, Key, RichText, Ui};
-use repose_core::config::Theme;
+use repose_core::config::{SuggestMessages, Theme};
 
 use crate::state::{AppState, MAX_DEPTH, Mark, SettingsDraft};
 use crate::theme::*;
@@ -139,6 +139,23 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 		ui.add_enabled(draft.close_to_tray, minimised)
 			.on_disabled_hover_text("Turn on Close to tray first.");
 	});
+	// ai-commit-message-suggestions clause 2: off by default; Claude Code adds Suggest message to
+	// the commit box, and only that button sends anything (A1).
+	ui.add_space(10.0);
+	ui.horizontal(|ui| {
+		ui.label(
+			RichText::new("Message suggestions")
+				.color(TEXT_BRIGHT)
+				.strong(),
+		);
+		ui.radio_value(&mut draft.suggest_messages, SuggestMessages::Off, "Off");
+		ui.radio_value(
+			&mut draft.suggest_messages,
+			SuggestMessages::Claude,
+			"Claude Code",
+		)
+		.on_hover_text(SUGGEST_HELP);
+	});
 	heading(
 		ui,
 		"Commands",
@@ -147,6 +164,9 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 	command(ui, "Editor", &mut draft.editor);
 	command(ui, "Terminal", &mut draft.terminal);
 }
+
+/// What choosing Claude Code means, on its hover.
+const SUGGEST_HELP: &str = "Suggest message in the commit box sends the staged diff to the installed Claude Code (claude on the PATH), which sends it to Anthropic under its own sign-in. Nothing is sent until you press it.";
 
 /// A section title and the one line that says what it is for.
 fn heading(ui: &mut Ui, title: &str, help: &str) {

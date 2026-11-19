@@ -85,6 +85,7 @@ impl AppState {
 				Msg::Remote(g, repo, remote) => self.merge_remote(g, repo, remote),
 				Msg::Activity(m) => self.merge_activity(m),
 				Msg::Visibility(url, answer) => self.merge_visibility(url, answer),
+				Msg::Suggested(repo, result) => self.merge_suggestion(repo, result),
 				_ => {}
 			}
 		}

@@ -77,6 +77,12 @@ repose asks GitHub through the installed `gh` and keeps the answer, with the tim
 the session. Any other host, a missing or signed-out `gh`, or a failed read is Unknown, with the
 reason in the tooltip.
 
+**Suggestion**
+: A commit message written by the installed Claude Code for the staged changes, asked for only
+by Suggest message in the commit box while Settings has Message suggestions on. It fills an empty
+message, or waits for the user to agree before replacing theirs, and is never committed by
+anything but the user's Commit.
+
 **Toolkit decision**
 : The first piece of work, now resolved: two small prototypes, one in a native Rust GUI and one in
 Tauri, were measured and screenshotted, and Phillip chose eframe/egui. ADR-001 in

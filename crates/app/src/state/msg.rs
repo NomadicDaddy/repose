@@ -31,6 +31,8 @@ pub enum Msg {
 	Activity(ActivityMsg),
 	/// gh's answer for a remote, named by its credential-free remote_key, from Check visibility.
 	Visibility(String, repose_core::host::github::Visibility),
+	/// Suggest message's answer for a repository, or why there is none.
+	Suggested(PathBuf, Result<repose_core::suggest::Suggestion, String>),
 }
 
 /// Which pane the right side shows for the selected repository.

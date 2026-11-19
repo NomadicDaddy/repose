@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
-use repose_core::config::{self, Config, Theme};
+use repose_core::config::{self, Config, SuggestMessages, Theme};
 
 use super::AppState;
 
@@ -32,6 +32,8 @@ pub struct SettingsDraft {
 	/// Close to tray, and start minimised to it (close-to-tray clauses 1 and 10).
 	pub close_to_tray: bool,
 	pub start_minimised_to_tray: bool,
+	/// Who writes a suggested commit message; Off shows no control (ai-commit-message-suggestions).
+	pub suggest_messages: SuggestMessages,
 	pub editor: String,
 	pub terminal: String,
 	/// Why the last Save failed, shown above the buttons until the next Save.
@@ -57,6 +59,7 @@ impl SettingsDraft {
 			theme: config.theme,
 			close_to_tray: config.close_to_tray,
 			start_minimised_to_tray: config.start_minimised_to_tray,
+			suggest_messages: config.suggest_messages,
 			editor: config.commands.editor.clone(),
 			terminal: config.commands.terminal.clone(),
 			error: None,
@@ -129,6 +132,7 @@ impl SettingsDraft {
 		next.close_to_tray = self.close_to_tray;
 		// Start minimised is offered only while close to tray is on (clause 10).
 		next.start_minimised_to_tray = self.close_to_tray && self.start_minimised_to_tray;
+		next.suggest_messages = self.suggest_messages;
 		next.commands.editor = self.editor.trim().to_string();
 		next.commands.terminal = self.terminal.trim().to_string();
 		next

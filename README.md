@@ -77,7 +77,8 @@ changed; the GitHub releases are the published ones. The specification is in
   defaults on first run), within its configured depth (3 folders by default) and skipping its
   exclude folders. Submodules are counted on their parent rather than listed as rows.
 - Settings, beside Refresh in the repository list, edits the roots, the folder names to skip, the
-  scan depth, the theme and the editor and terminal commands, and saves them to the config file
+  scan depth, the theme, the tray options, message suggestions and the editor and terminal
+  commands, and saves them to the config file
   in use. Only the settings you changed are rewritten. Other keys, pins and the lines you didn't
   change stay as they are, and a changed setting keeps the comment lines above it. A changed
   setting's value is written fresh, though: a comment after it on the same line is dropped, and a
@@ -100,9 +101,16 @@ changed; the GitHub releases are the published ones. The specification is in
   comments stay as they are. A pinned repository that isn't found stays saved, and returns pinned
   when it is.
 - Ahead and behind counts come from the refs already on disk. repose reaches the network only
-  when you click Fetch, in a repository row's menu or the History header. That fetch never asks
-  for a sign-in. If the remote wants one, it fails under "Fetch failed" with git's message, and
-  you sign in from a terminal. After a fetch, that repository's line says "Fetched HH:MM".
+  when you click Fetch, Pull or Push, choose Check visibility, or press Suggest message. None of
+  them asks for a sign-in. If a remote wants one, the fetch fails under "Fetch failed" with git's
+  message, and you sign in from a terminal. After a fetch, that repository's line says "Fetched
+  HH:MM".
+- Suggest message is off until you choose Claude Code under Message suggestions in Settings
+  (`suggest_messages = "claude"`). It needs Claude Code (`claude`) installed and signed in, which
+  repose doesn't install or bundle. Pressing it sends the staged changes, and nothing else, to
+  Claude Code, which runs with no tools in an empty folder. Over 64 KiB, the larger files' diffs
+  are left out and named under the box. The suggestion fills an empty message, or asks before
+  replacing yours, and nothing is committed until you press Commit.
 
 ## Command-line flags
 

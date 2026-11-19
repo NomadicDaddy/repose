@@ -16,6 +16,21 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [2.0.3] - 2026-11-19
+
+### Added
+
+- Suggest message, in the commit box, asks the installed Claude Code for a commit message for
+  the staged changes. It is off until you choose Claude Code under Message suggestions in
+  Settings, and it sends nothing until you press it. Only the staged diff is sent, with every
+  staged path listed; over 64 KiB the larger files' diffs are left out and named under the box.
+- Claude Code runs in an empty temporary folder with no tools, MCP servers, hooks, plugins or
+  saved session, under its own sign-in. repose never reads, stores or shows a key and doesn't
+  bundle Claude Code. A missing or signed-out `claude`, a timeout or an error shows its reason
+  under the box, and Cancel stops a suggestion that is running.
+- A suggestion fills an empty message at once. Over a message you typed, it asks whether to
+  replace yours. Nothing is committed until you press Commit.
+
 ## [2.0.2] - 2026-11-19
 
 ### Added

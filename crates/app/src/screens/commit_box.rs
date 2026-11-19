@@ -1,4 +1,5 @@
-//! The commit box: a message, Commit on Ctrl+Enter or the button, and the last write's outcome.
+//! The commit box: a message, Commit on Ctrl+Enter or the button, Suggest message when Settings
+//! has it on, and the last write's outcome.
 
 use std::path::Path;
 
@@ -39,6 +40,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 		response.has_focus() && ui.input(|i| i.modifiers.command && i.key_pressed(Key::Enter));
 	let message = draft.clone();
 	button_row(ui, state, &repo.path, staged, message, submit);
+	// After Commit, so the box's tab order is unchanged (ai-commit-message-suggestions clause 7).
+	super::suggest::show(ui, state, &repo.path, staged);
 	// A fetch's, pull's or push's outcome is shown under the repository header, where every pane
 	// can see it.
 	if let Some(last) = state

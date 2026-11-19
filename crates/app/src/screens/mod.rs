@@ -23,6 +23,7 @@ pub mod repo_list;
 mod row;
 mod settings;
 mod status_line;
+mod suggest;
 pub(crate) mod tray_notice;
 mod visibility;
 

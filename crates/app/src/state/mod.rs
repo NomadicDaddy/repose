@@ -24,6 +24,7 @@ mod selection_tests;
 mod settings;
 #[cfg(test)]
 mod single_instance_tests;
+mod suggest;
 #[cfg(test)]
 mod ui_a11y_tests;
 #[cfg(test)]
@@ -93,6 +94,8 @@ mod ui_row_focus_tests;
 #[cfg(test)]
 mod ui_settings_tests;
 #[cfg(test)]
+mod ui_suggest_tests;
+#[cfg(test)]
 mod ui_tests;
 #[cfg(test)]
 mod ui_theme_tests;
@@ -117,6 +120,7 @@ pub use merge::find;
 pub use msg::{Msg, PendingDiscard, View};
 pub use remote::Remote;
 pub use settings::{MAX_DEPTH, Mark, SettingsDraft};
+pub use suggest::{SuggestNote, SuggestState};
 pub use visibility::VisibilityState;
 pub use writes::{WriteKind, WriteOutcome, WriteQueue};
 
@@ -210,6 +214,8 @@ pub struct AppState {
 	pub activity: activity::ActivityState,
 	/// Origins' visibility, per remote URL, from the user's Check visibility (remote-visibility).
 	pub visibility: VisibilityState,
+	/// Suggest message's runs, answers and notes per repository (ai-commit-message-suggestions).
+	pub suggest: SuggestState,
 	generation: u64,
 	tx: Sender<Msg>,
 	rx: Receiver<Msg>,
@@ -265,6 +271,7 @@ impl AppState {
 			watching: refresh::Watching::default(),
 			activity: activity::ActivityState::default(),
 			visibility: VisibilityState::default(),
+			suggest: SuggestState::default(),
 			generation: 0,
 			tx,
 			rx,
