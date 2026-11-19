@@ -6,7 +6,9 @@
 
 mod support;
 
-use repose_core::git::diff::{read_diff_bytes, staged_files, staged_labels};
+use repose_core::git::diff::{
+	read_diff_bytes, staged_diff_for_suggestion, staged_files, staged_labels,
+};
 use repose_core::model::DiffSource;
 use repose_core::suggest::{CAP, INSTRUCTION, Staged, request};
 use support::TempRepo;
@@ -106,7 +108,7 @@ fn real_staged_paths_are_named_as_git_names_them() {
 			"é.txt"
 		]
 	);
-	let diff = read_diff_bytes(&repo.path, &DiffSource::Staged, &[]).expect("staged diff");
+	let diff = staged_diff_for_suggestion(&repo.path).expect("staged diff");
 	let built = request(&Staged { files, diff }).expect("the list and the diff line up");
 	for label in [
 		"dir b/file.txt",
@@ -124,4 +126,52 @@ fn real_staged_paths_are_named_as_git_names_them() {
 		built.text.contains("+after"),
 		"the first file's diff is sent"
 	);
+}
+
+/// A staged submodule under a user's `diff.submodule=log` sends only its two commit ids, never
+/// the submodule's commit subjects, and its section still lines up with the list (Morticia M-1 on
+/// d3da4dd). The plain staged read shows the subjects, so the test can see what it guards.
+#[test]
+fn a_staged_submodule_sends_its_commit_ids_and_never_its_subjects() {
+	let repo = TempRepo::new("suggest-submodule");
+	let sub = repo.path.join("s");
+	std::fs::create_dir_all(&sub).expect("submodule dir");
+	support::git_in(&sub, &["init", "-q", "-b", "main"]);
+	support::set_identity(&sub);
+	std::fs::write(sub.join("a.txt"), "one\n").expect("write");
+	support::git_in(&sub, &["add", "-A"]);
+	support::git_in(&sub, &["commit", "-q", "-m", "first"]);
+	let first = support::git_in(&sub, &["rev-parse", "HEAD"])
+		.trim()
+		.to_string();
+	std::fs::write(sub.join("a.txt"), "two\n").expect("write");
+	support::git_in(&sub, &["commit", "-q", "-am", "SECRET-SUBJECT-TWO"]);
+	let second = support::git_in(&sub, &["rev-parse", "HEAD"])
+		.trim()
+		.to_string();
+	repo.git(&[
+		"update-index",
+		"--add",
+		"--cacheinfo",
+		&format!("160000,{first},s"),
+	]);
+	repo.git(&["commit", "-q", "-m", "base"]);
+	repo.git(&["update-index", "--cacheinfo", &format!("160000,{second},s")]);
+	repo.git(&["config", "diff.submodule", "log"]);
+	let plain = read_diff_bytes(&repo.path, &DiffSource::Staged, &[]).expect("plain read");
+	assert!(
+		String::from_utf8_lossy(&plain).contains("SECRET-SUBJECT-TWO"),
+		"the config does add subjects to a plain read"
+	);
+	let diff = staged_diff_for_suggestion(&repo.path).expect("suggestion read");
+	let text = String::from_utf8_lossy(&diff).to_string();
+	assert!(!text.contains("SECRET-SUBJECT-TWO"), "{text}");
+	assert!(
+		text.contains(&format!("+Subproject commit {second}")),
+		"{text}"
+	);
+	let files = staged_files(&repo.path).expect("staged files");
+	assert_eq!(files, vec!["s"]);
+	let built = request(&Staged { files, diff }).expect("one section for one file");
+	assert!(!built.text.contains("SECRET-SUBJECT-TWO"));
 }

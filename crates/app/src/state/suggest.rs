@@ -10,8 +10,7 @@ use std::path::{Path, PathBuf};
 use eframe::egui;
 use repose_core::config::SuggestMessages;
 use repose_core::git::Cancel;
-use repose_core::git::diff::{read_diff_bytes, staged_files};
-use repose_core::model::DiffSource;
+use repose_core::git::diff::{staged_diff_for_suggestion, staged_files};
 use repose_core::suggest::{CANCELLED, Staged, Suggestion, suggest};
 
 use super::{AppState, Msg};
@@ -64,7 +63,7 @@ impl AppState {
 		let repo = repo.to_path_buf();
 		std::thread::spawn(move || {
 			let staged = staged_files(&repo).and_then(|files| {
-				let diff = read_diff_bytes(&repo, &DiffSource::Staged, &[])?;
+				let diff = staged_diff_for_suggestion(&repo)?;
 				Ok(Staged { files, diff })
 			});
 			let result = match staged {

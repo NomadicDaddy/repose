@@ -118,3 +118,15 @@ pub fn staged_labels(out: &[u8]) -> Vec<String> {
 	}
 	labels
 }
+
+/// The staged diff a commit-message suggestion sends: `git diff --cached` as the Changes view
+/// reads it, plus `--submodule=short`, so a staged submodule shows only its two commit ids. A
+/// user's `diff.submodule=log` or `diff` would otherwise add that submodule's commit subjects or
+/// content, which A1 says a request never carries, in a section with no `diff --git` header
+/// (Morticia M-1 on d3da4dd).
+pub fn staged_diff_for_suggestion(repo: &Path) -> Result<Vec<u8>, GitError> {
+	let mut args = vec!["--cached"];
+	args.extend(COMMON);
+	args.extend(["--submodule=short", "--"]);
+	run(repo, Verb::Diff, &args)
+}
