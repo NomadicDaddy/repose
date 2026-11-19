@@ -175,3 +175,24 @@ fn a_failed_pull_or_push_shows_gits_message_under_its_own_heading_only() {
 		);
 	}
 }
+
+/// A Pull stopped by Cancel during its fast-forward checkout can leave index.lock: the outcome
+/// names it as the commit box does, and repose leaves it (Morticia L on f61983d).
+#[test]
+fn a_cancelled_pull_that_left_a_lock_names_it() {
+	let ctx = egui::Context::default();
+	let (mut state, path) = with_branch("pull-lock", true, 0);
+	let lock = path.join(".git").join("index.lock");
+	let mut outcome = failed(&path, WriteKind::Pull, "git was stopped by Cancel");
+	outcome.cancelled = true;
+	outcome.leftover_lock = Some(lock.clone());
+	state.finish_write(outcome, &ctx);
+	let shapes = frame(&ctx, &mut state, Vec::new());
+	assert!(has(&shapes, "Pull cancelled"), "{:?}", texts(&shapes));
+	let named = format!("A lock file remains at {}", lock.display());
+	assert!(
+		has(&shapes, &named),
+		"the lock is named: {:?}",
+		texts(&shapes)
+	);
+}

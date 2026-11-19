@@ -31,19 +31,31 @@ pub(super) fn non_interactive(cmd: &mut Command, verb: Verb) {
 		.args(["-c", "credential.interactive=false"])
 		.args(["-c", "protocol.ext.allow=never"])
 		.args(["-c", "core.askPass="]);
-	match verb {
-		// git pull has no --no-auto-maintenance, so the same two settings come as config. A
-		// submodule is never updated by the merge's checkout either.
-		Verb::Pull => {
-			cmd.args(["-c", "maintenance.auto=false"])
-				.args(["-c", "gc.auto=0"])
-				.args(["-c", "submodule.recurse=false"]);
+	// git pull has no --no-auto-maintenance, so the same two settings come as config. A submodule
+	// is never updated by the merge's checkout either.
+	if verb == Verb::Pull {
+		cmd.args(["-c", "maintenance.auto=false"])
+			.args(["-c", "gc.auto=0"])
+			.args(["-c", "submodule.recurse=false"]);
+	}
+}
+
+/// The arguments a remote verb takes: none for Fetch and Pull. Push takes exactly two, the
+/// checked-out branch's upstream remote and `HEAD:<its merge ref>`, which `remote::push` reads
+/// from the branch's own config just before it runs. With an explicit remote and refspec git
+/// ignores remote.<name>.push, branch.<name>.pushRemote, remote.pushDefault and push.default, and
+/// refuses remote.<name>.mirror, so only that branch can go (Roger 5Q-1, Morticia M on f61983d).
+/// An option, a force (+), a wildcard or a second refspec is refused here.
+pub(super) fn extra_allowed(verb: Verb, extra: &[&str]) -> bool {
+	match (verb, extra) {
+		(Verb::Push, [remote, refspec]) => {
+			let branch = refspec.strip_prefix("HEAD:refs/heads/");
+			!remote.is_empty()
+				&& !remote.starts_with('-')
+				&& branch.is_some_and(|b| !b.is_empty() && !b.contains([':', '*', '+']))
 		}
-		// The checked-out branch to the upstream it tracks and nothing else, whatever
-		// push.default says; push.followTags cannot add tags (--no-follow-tags in its args).
-		Verb::Push => {
-			cmd.args(["-c", "push.default=upstream"]);
-		}
-		_ => {}
+		// A bare push would follow the repository's push config, which is what this prevents.
+		(Verb::Push, _) => false,
+		_ => extra.is_empty(),
 	}
 }

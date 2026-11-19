@@ -37,11 +37,38 @@ pub fn pull(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
 	run_cancellable(repo, Verb::Pull, &[], cancel).map(|_| ())
 }
 
-/// `git push` of the checked-out branch to the upstream it tracks, on the user's Push only (A1,
-/// Phillip #58501). A rejected push, a sign-in request or a network failure comes back as the
-/// error with git's own message; nothing local changes. Cancel stops git and anything it started.
+/// `git push <upstream remote> HEAD:<upstream merge ref>`: the checked-out branch to the upstream
+/// it tracks, on the user's Push only (A1, Phillip #58501). The explicit remote and refspec keep
+/// remote.<name>.push, pushRemote, pushDefault and mirror from sending anything else. A rejected
+/// push, a sign-in request or a network failure comes back as the error with git's own message;
+/// nothing local changes. Cancel stops git and anything it started.
 pub fn push(repo: &Path, cancel: Option<&Cancel>) -> Result<(), GitError> {
-	run_cancellable(repo, Verb::Push, &[], cancel).map(|_| ())
+	let (remote, merge) = upstream_of_head(repo)?;
+	let refspec = format!("HEAD:{merge}");
+	run_cancellable(repo, Verb::Push, &[&remote, &refspec], cancel).map(|_| ())
+}
+
+/// The checked-out branch's upstream remote and merge ref (branch.<name>.remote and .merge), as
+/// git resolves them. A detached HEAD, no upstream, or a merge ref outside refs/heads is an error,
+/// never a guess.
+fn upstream_of_head(repo: &Path) -> Result<(String, String), GitError> {
+	let refused = |why: &str| GitError::Spawn(why.to_string());
+	let head = run(repo, Verb::SymbolicRef, &["HEAD"])
+		.map_err(|_| refused("Push needs a checked-out branch"))?;
+	let head = String::from_utf8_lossy(&head).trim().to_string();
+	let format = "--format=%(upstream:remotename)%00%(upstream:remoteref)";
+	let out = run(repo, Verb::ForEachRef, &[format, &head])?;
+	let out = String::from_utf8_lossy(&out);
+	let mut lines = out.lines();
+	let (Some(line), None) = (lines.next(), lines.next()) else {
+		return Err(refused("This branch has no upstream"));
+	};
+	match line.split_once('\0') {
+		Some((remote, merge)) if !remote.is_empty() && merge.starts_with("refs/heads/") => {
+			Ok((remote.to_string(), merge.to_string()))
+		}
+		_ => Err(refused("This branch has no upstream")),
+	}
 }
 
 /// `git remote --verbose` prints `<name>\t<url> (fetch)` and `<name>\t<url> (push)` per remote.

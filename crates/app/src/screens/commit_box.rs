@@ -138,7 +138,13 @@ fn show_outcome(ui: &mut Ui, repo: &Path, last: &WriteOutcome) {
 					.family(egui::FontFamily::Monospace),
 			);
 		});
-	if let Some(lock) = &last.leftover_lock {
+	lock_note(ui, last.leftover_lock.as_deref());
+}
+
+/// A lock git left after a failed or cancelled write (a commit, or a pull stopped mid-checkout),
+/// named by its path; repose never removes it.
+pub(super) fn lock_note(ui: &mut Ui, lock: Option<&Path>) {
+	if let Some(lock) = lock {
 		ui.label(
 			RichText::new(format!(
 				"A lock file remains at {}. repose does not remove it; check nothing else is using the repository, then delete it yourself.",

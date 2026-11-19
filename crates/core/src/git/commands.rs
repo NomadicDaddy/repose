@@ -36,8 +36,8 @@ pub enum Verb {
 	/// `git pull --ff-only`: the upstream's commits on the user's Pull, fast-forward only, so a
 	/// diverged branch is refused before anything changes and no merge is ever left half done.
 	Pull,
-	/// `git push` of the checked-out branch to the upstream it tracks, on the user's Push: never
-	/// forced, no tags, no new remote branch.
+	/// `git push <upstream remote> HEAD:<upstream merge ref>`, the checked-out branch to the
+	/// upstream it tracks, on the user's Push: never forced, no tags, no other branch.
 	Push,
 }
 
@@ -217,10 +217,10 @@ pub fn run_cancellable(
 		));
 	}
 	// Likewise fetch, pull and push: a URL or refspec after one would reach somewhere the user
-	// never chose, or force what they never asked to.
-	if network::is_network(verb) && !extra.is_empty() {
+	// never chose, or force what they never asked to. Push takes only its upstream's two.
+	if network::is_network(verb) && !network::extra_allowed(verb, extra) {
 		return Err(GitError::Spawn(format!(
-			"git {} takes no extra arguments in repose",
+			"git {} refuses those arguments in repose",
 			verb.args()[0]
 		)));
 	}

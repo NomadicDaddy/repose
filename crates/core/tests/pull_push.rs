@@ -127,9 +127,10 @@ fn a_rejected_push_names_gits_error_and_changes_nothing_local() {
 	);
 }
 
-#[test]
-fn push_sends_only_the_checked_out_branch_and_no_tags() {
-	let (upstream, clone) = upstream_and_clone("push-only-current");
+/// A clone checked out on main with new work on main and on a tracked `other` branch, and an
+/// annotated tag; the upstream takes pushes. Returns both and the upstream's `other` before.
+fn two_branches_and_a_tag(label: &str) -> (TempRepo, TempRepo, String) {
+	let (upstream, clone) = upstream_and_clone(label);
 	accepts_pushes(&upstream);
 	upstream.git(&["branch", "other"]);
 	clone.git(&["fetch", "-q"]);
@@ -141,33 +142,128 @@ fn push_sends_only_the_checked_out_branch_and_no_tags() {
 	clone.write("m.txt", "m\n");
 	clone.commit_all("main work");
 	clone.git(&["tag", "-a", "v9", "-m", "a tag"]);
-	// Each of these would otherwise send more than the user's one branch.
-	clone.git(&["config", "push.default", "matching"]);
-	clone.git(&["config", "push.followTags", "true"]);
 	let other = upstream.git(&["rev-parse", "other"]);
-	let result = push_now(&clone);
-	assert!(result.is_ok(), "push failed: {result:?}");
-	assert_eq!(
-		upstream.git(&["rev-parse", "main"]),
-		clone.git(&["rev-parse", "main"])
+	(upstream, clone, other)
+}
+
+/// Each key would otherwise send more than the user's one branch, or force it (Roger 5Q-1 and
+/// Morticia M on f61983d): the explicit remote and HEAD refspec override every one.
+#[test]
+fn push_sends_only_the_checked_out_branch_whatever_the_config_says() {
+	for (key, value) in [
+		("push.default", "matching"),
+		("push.followTags", "true"),
+		("remote.origin.push", "refs/heads/*:refs/heads/*"),
+		("remote.origin.push", "+refs/heads/other:refs/heads/other"),
+	] {
+		let (upstream, clone, other) = two_branches_and_a_tag("push-only-current");
+		clone.git(&["config", key, value]);
+		let result = push_now(&clone);
+		assert!(result.is_ok(), "{key}={value}: push failed: {result:?}");
+		assert_eq!(
+			upstream.git(&["rev-parse", "main"]),
+			clone.git(&["rev-parse", "main"]),
+			"{key}={value}: main went"
+		);
+		assert_eq!(
+			upstream.git(&["rev-parse", "other"]),
+			other,
+			"{key}={value}: other stayed"
+		);
+		assert_eq!(
+			upstream.git(&["tag", "--list"]),
+			"",
+			"{key}={value}: no tag went"
+		);
+	}
+}
+
+/// A push remote is not the upstream: the branch goes where it tracks, never to another remote.
+#[test]
+fn push_goes_to_the_upstream_remote_not_a_push_remote() {
+	for key in ["branch.main.pushRemote", "remote.pushDefault"] {
+		let (upstream, clone, _) = two_branches_and_a_tag("push-remote");
+		let elsewhere = TempRepo::new("push-elsewhere");
+		accepts_pushes(&elsewhere);
+		let path = elsewhere.path.to_string_lossy().replace('\\', "/");
+		clone.git(&["remote", "add", "elsewhere", &path]);
+		clone.git(&["config", key, "elsewhere"]);
+		let result = push_now(&clone);
+		assert!(result.is_ok(), "{key}: push failed: {result:?}");
+		assert_eq!(
+			upstream.git(&["rev-parse", "main"]),
+			clone.git(&["rev-parse", "main"]),
+			"{key}: the upstream got the branch"
+		);
+		assert_eq!(
+			elsewhere.git(&["for-each-ref"]),
+			"",
+			"{key}: nothing went elsewhere"
+		);
+	}
+}
+
+/// A mirror remote would delete what the clone lacks; with a refspec git refuses instead.
+#[test]
+fn a_mirror_remote_is_refused_and_nothing_is_deleted() {
+	let (upstream, clone, other) = two_branches_and_a_tag("push-mirror");
+	upstream.git(&["branch", "only-there"]);
+	clone.git(&["config", "remote.origin.mirror", "true"]);
+	let main = upstream.git(&["rev-parse", "main"]);
+	match push_now(&clone) {
+		Err(GitError::Failed { stderr_tail, .. }) => assert!(
+			stderr_tail.contains("mirror"),
+			"git's own refusal is the message: {stderr_tail:?}"
+		),
+		other => panic!("a mirror push must be refused, got {other:?}"),
+	}
+	assert!(
+		!upstream.git(&["branch", "--list", "only-there"]).is_empty(),
+		"nothing deleted"
 	);
+	assert_eq!(upstream.git(&["rev-parse", "main"]), main, "main unchanged");
 	assert_eq!(
 		upstream.git(&["rev-parse", "other"]),
 		other,
-		"other stayed put"
+		"other unchanged"
 	);
-	assert_eq!(upstream.git(&["tag", "--list"]), "", "no tag was pushed");
 }
 
 #[test]
-fn pull_and_push_take_no_arguments_from_a_caller() {
+fn a_detached_head_or_a_branch_with_no_upstream_is_not_pushed() {
+	let (_upstream, clone) = upstream_and_clone("push-no-branch");
+	clone.git(&["switch", "-q", "--detach"]);
+	assert!(
+		matches!(push_now(&clone), Err(GitError::Spawn(_))),
+		"detached HEAD"
+	);
+	clone.git(&["switch", "-q", "-c", "local-only"]);
+	assert!(
+		matches!(push_now(&clone), Err(GitError::Spawn(_))),
+		"no upstream"
+	);
+}
+
+/// Pull takes no argument; Push only its upstream's remote and HEAD:refs/heads/<branch>, which
+/// remote::push reads from the branch's config. Nothing else reaches git.
+#[test]
+fn pull_and_push_refuse_every_other_argument() {
 	let (_upstream, clone) = upstream_and_clone("no-extra");
 	for (verb, extra) in [
 		(Verb::Pull, &["--rebase"][..]),
 		(Verb::Pull, &["origin", "other"][..]),
+		(Verb::Push, &[][..]),
 		(Verb::Push, &["--force"][..]),
 		(Verb::Push, &["--tags"][..]),
-		(Verb::Push, &["origin", "HEAD:refs/heads/new"][..]),
+		(Verb::Push, &["origin"][..]),
+		(Verb::Push, &["--mirror", "HEAD:refs/heads/main"][..]),
+		(Verb::Push, &["origin", "+HEAD:refs/heads/main"][..]),
+		(Verb::Push, &["origin", "refs/heads/*:refs/heads/*"][..]),
+		(Verb::Push, &["origin", "HEAD:refs/tags/v1"][..]),
+		(
+			Verb::Push,
+			&["origin", "HEAD:refs/heads/main", "HEAD:refs/heads/x"][..],
+		),
 	] {
 		assert!(
 			matches!(run(&clone.path, verb, extra), Err(GitError::Spawn(_))),

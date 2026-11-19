@@ -81,6 +81,11 @@ pub(super) fn blocked(state: &AppState, repo: &Path, kind: &WriteKind) -> Option
 	if status.upstream.is_none() {
 		return Some("This branch has no upstream".into());
 	}
+	// No saved counts with an upstream set means its remote branch is gone: Push would create it
+	// again, and Phillip's Push never creates a remote branch (#58525).
+	if status.ahead.is_none() {
+		return Some("This branch's upstream is gone from the remote".into());
+	}
 	if *kind == WriteKind::Pull && status.staged + status.unstaged + status.conflicts > 0 {
 		return Some("This branch has uncommitted changes to tracked files".into());
 	}
@@ -156,6 +161,9 @@ pub(super) fn outcome(ui: &mut Ui, state: &AppState, repo: &Path) {
 					.family(FontFamily::Monospace),
 			);
 		});
+	// A Cancel during a pull's fast-forward checkout can leave index.lock and a partly updated
+	// tree (Morticia L on f61983d); the lock is named as the commit box names one.
+	super::commit_box::lock_note(ui, last.leftover_lock.as_deref());
 }
 
 #[cfg(test)]
@@ -176,6 +184,8 @@ mod tests {
 			conflicts,
 			untracked: 4,
 			upstream: upstream.then(|| "origin/main".to_string()),
+			ahead: upstream.then_some(0),
+			behind: upstream.then_some(0),
 			..StatusSummary::default()
 		});
 		let path = row.path.clone();
@@ -217,5 +227,16 @@ mod tests {
 			);
 		}
 		assert_eq!(blocked(&none, &path, &WriteKind::Fetch), None);
+		// An upstream whose remote branch is gone has no saved counts: Push would recreate it.
+		let mut gone = state_with(true, 0, 0, 0);
+		if let Some(s) = gone.repos[0].status.as_mut() {
+			(s.ahead, s.behind) = (None, None);
+		}
+		for kind in [WriteKind::Pull, WriteKind::Push] {
+			assert_eq!(
+				blocked(&gone, &path, &kind).as_deref(),
+				Some("This branch's upstream is gone from the remote")
+			);
+		}
 	}
 }
