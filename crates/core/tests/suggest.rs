@@ -22,7 +22,7 @@ fn one(path: &str, size: usize) -> Staged {
 		text.push_str("+a staged line\n");
 	}
 	Staged {
-		files: vec![path.to_string()],
+		files: vec![(path.to_string(), 1)],
 		diff: text.into_bytes(),
 	}
 }

@@ -25,9 +25,71 @@ fn file_diff(path: &str, size: usize) -> String {
 
 fn staged(files: &[&str], diff: &str) -> Staged {
 	Staged {
-		files: files.iter().map(|f| f.to_string()).collect(),
+		files: files.iter().map(|f| (f.to_string(), 1)).collect(),
 		diff: diff.as_bytes().to_vec(),
 	}
+}
+
+/// The labels alone, without their section counts.
+fn names(files: &[(String, usize)]) -> Vec<&str> {
+	files.iter().map(|(label, _)| label.as_str()).collect()
+}
+
+/// A type change's two sections count as one file under the cap: kept together or left out
+/// together, and named once (Roger and Morticia on 8e62019).
+#[test]
+fn a_type_change_is_two_sections_kept_or_left_out_together() {
+	let small = file_diff("a.txt", 200);
+	let gone = file_diff("t", CAP / 2);
+	let added = file_diff("t", CAP / 2);
+	let after = file_diff("z.txt", 200);
+	let files = vec![
+		("a.txt".to_string(), 1),
+		("t".to_string(), 2),
+		("z.txt".to_string(), 1),
+	];
+	let diff = format!("{small}{gone}{added}{after}").into_bytes();
+	let built = request(&Staged { files, diff }).expect("four sections for three files");
+	assert_eq!(built.left_out, vec!["t", "z.txt"]);
+	assert!(built.text.contains(&small) && !built.text.contains("+++ b/t\n"));
+	let fits = vec![("t".to_string(), 2)];
+	let both = format!("{}{}", file_diff("t", 300), file_diff("t", 300)).into_bytes();
+	let built = request(&Staged {
+		files: fits,
+		diff: both,
+	})
+	.expect("two sections for one file");
+	assert!(built.left_out.is_empty());
+	assert_eq!(built.text.matches("diff --git a/t b/t").count(), 2);
+	assert_eq!(built.text.matches("- t\n").count(), 1);
+}
+
+/// Real type changes through the one read: a gitlink replaced by a file, and a file replaced by a
+/// symlink, each one raw T entry and two patch sections. The request is built, not refused.
+#[test]
+fn real_type_changes_are_sent_whole() {
+	let repo = TempRepo::new("suggest-type-change");
+	repo.write("t", "a plain file\n");
+	repo.commit_all("base");
+	let id = repo.git(&["rev-parse", "HEAD"]).trim().to_string();
+	repo.git(&[
+		"update-index",
+		"--add",
+		"--cacheinfo",
+		&format!("160000,{id},gl"),
+	]);
+	repo.git(&["commit", "-q", "-m", "a gitlink"]);
+	let blob = repo.git_with_input(&["hash-object", "-w", "--stdin"], "target\n");
+	let blob = blob.trim();
+	repo.git(&["update-index", "--cacheinfo", &format!("100644,{blob},gl")]);
+	repo.git(&["update-index", "--cacheinfo", &format!("120000,{blob},t")]);
+	let (files, diff) = staged_for_suggestion(&repo.path).expect("staged read");
+	assert_eq!(files, vec![("gl".to_string(), 2), ("t".to_string(), 2)]);
+	let built = request(&Staged { files, diff }).expect("a type change is not refused");
+	assert!(built.left_out.is_empty());
+	assert!(built.text.contains("- gl\n") && built.text.contains("- t\n"));
+	assert_eq!(built.text.matches("diff --git a/gl b/gl").count(), 2);
+	assert_eq!(built.text.matches("diff --git a/t b/t").count(), 2);
 }
 
 #[test]
@@ -70,7 +132,10 @@ fn a_diff_that_does_not_line_up_with_the_list_is_refused() {
 	let one = file_diff("a.txt", 200);
 	assert_eq!(
 		request(&staged(&["a.txt", "b.txt"], &one)),
-		Err("git listed 2 staged files but its diff has 1; nothing was sent".to_string())
+		Err(
+			"git's staged list needs 2 diff sections but its diff has 1; nothing was sent"
+				.to_string()
+		)
 	);
 }
 
@@ -86,7 +151,7 @@ fn a_filename_with_the_rename_arrow_is_sent_like_any_other() {
 	repo.write("notes → draft.txt", "draft\n");
 	repo.git(&["add", "-A"]);
 	let (files, diff) = staged_for_suggestion(&repo.path).expect("staged read");
-	assert_eq!(files, vec!["notes → draft.txt"]);
+	assert_eq!(names(&files), vec!["notes → draft.txt"]);
 	let header = String::from_utf8_lossy(&diff)
 		.lines()
 		.next()
@@ -104,7 +169,10 @@ fn raw_entries_become_labels_with_renames_as_old_and_new() {
 	out.extend(b":100644 100644 ccc ccc R100\0old.txt\0new.txt\0");
 	out.extend(b":000000 100644 000 ddd A\0\xc3\xa9.txt\0\0diff --git a/x b/x\n");
 	let (labels, patch) = split_raw(&out);
-	assert_eq!(labels, vec!["dir b/file.txt", "old.txt → new.txt", "é.txt"]);
+	assert_eq!(
+		names(&labels),
+		vec!["dir b/file.txt", "old.txt → new.txt", "é.txt"]
+	);
 	assert_eq!(patch, b"diff --git a/x b/x\n");
 	assert_eq!(split_raw(b""), (Vec::new(), Vec::new()));
 }
@@ -129,7 +197,7 @@ fn real_staged_paths_are_named_as_git_names_them() {
 		"zz big.json",
 		"é.txt",
 	];
-	assert_eq!(files, labels);
+	assert_eq!(names(&files), labels);
 	let built = request(&Staged { files, diff }).expect("the list and the diff line up");
 	for label in labels {
 		assert!(
@@ -182,7 +250,7 @@ fn a_staged_submodule_sends_its_commit_ids_and_never_its_subjects() {
 		text.contains(&format!("+Subproject commit {second}")),
 		"{text}"
 	);
-	assert_eq!(files, vec!["s"]);
+	assert_eq!(files, vec![("s".to_string(), 1)]);
 	let built = request(&Staged { files, diff }).expect("one section for one file");
 	assert!(!built.text.contains("SECRET-SUBJECT-TWO"));
 }

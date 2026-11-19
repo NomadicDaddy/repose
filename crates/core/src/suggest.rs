@@ -66,40 +66,43 @@ pub struct Suggestion {
 	pub left_out: Vec<String>,
 }
 
-/// The staged changes as git names them: one label per staged file, in `git diff --cached` order,
-/// and that diff, both from one read (`git::diff::staged_for_suggestion`).
+/// The staged changes as git names them, in `git diff --cached` order, and that diff, both from
+/// one read (`git::diff::staged_for_suggestion`). Each file is its label and how many diff
+/// sections git prints for it: two for a type change, which it shows as a delete then an add.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Staged {
-	pub files: Vec<String>,
+	pub files: Vec<crate::git::diff::StagedEntry>,
 	pub diff: Vec<u8>,
 }
 
 /// Builds the request. Every staged file is listed by its label. Whole-file diffs follow in git's
-/// order until the next one would take the diffs past `CAP`; a file's diff is never cut part-way,
-/// and the files left out are named in the request and returned. The diff's file sections are
-/// matched to the labels by position; names never come from its headers (Roger 5Q-2 on d3da4dd).
-/// Both come from one git read, so they describe the same index (Roger 5Q-3 on 987f892); a diff
-/// without one section per label is refused.
+/// order until the next one would take the diffs past `CAP`; a file's diff (both sections of a
+/// type change) is never cut part-way, and the files left out are named in the request and
+/// returned. Sections are matched to files by position; names never come from headers (Roger 5Q-2
+/// on d3da4dd). One git read keeps them consistent (Roger 5Q-3 on 987f892); a diff whose section
+/// count is not what the list says is refused.
 pub fn request(staged: &Staged) -> Result<Request, String> {
 	let sections = split(&staged.diff);
-	if sections.len() != staged.files.len() {
+	let expected: usize = staged.files.iter().map(|(_, n)| n).sum();
+	if sections.len() != expected {
 		return Err(format!(
-			"git listed {} staged files but its diff has {}; nothing was sent",
-			staged.files.len(),
+			"git's staged list needs {expected} diff sections but its diff has {}; nothing was sent",
 			sections.len()
 		));
 	}
 	let mut kept = String::new();
 	let mut left_out = Vec::new();
-	for (label, body) in staged.files.iter().zip(&sections) {
+	let mut parts = sections.into_iter();
+	for (label, count) in &staged.files {
+		let body: String = parts.by_ref().take(*count).collect();
 		if left_out.is_empty() && kept.len() + body.len() <= CAP {
-			kept.push_str(body);
+			kept.push_str(&body);
 		} else {
 			left_out.push(label.clone());
 		}
 	}
 	let mut text = format!("{INSTRUCTION}\n\nStaged files:\n");
-	for label in &staged.files {
+	for (label, _) in &staged.files {
 		text.push_str(&format!("- {label}\n"));
 	}
 	if !left_out.is_empty() {

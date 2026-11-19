@@ -87,13 +87,16 @@ pub fn blob_size(repo: &Path, rev: &str, path: &str) -> Result<Option<u64>, GitE
 		.map_err(|e| GitError::Spawn(format!("cat-file -s gave no size: {e}")))
 }
 
+/// A staged file's label and how many patch sections git prints for it.
+pub type StagedEntry = (String, usize);
+
 /// The staged changes a commit-message suggestion sends, read by one `git diff --cached` so the
 /// file list and the diff always describe the same index (Roger 5Q-3 on 987f892): the Changes
 /// view's flags, plus `--submodule=short`, so a staged submodule shows only its two commit ids
 /// whatever `diff.submodule` says (Morticia M-1 on d3da4dd), and `--patch-with-raw -z`, so each
 /// file is first named in git's raw form, never quoted. Returns one label per staged file, the
-/// path or `old → new` for a rename or copy, and the patch.
-pub fn staged_for_suggestion(repo: &Path) -> Result<(Vec<String>, Vec<u8>), GitError> {
+/// path or `old → new` for a rename or copy, with its section count (`split_raw`), and the patch.
+pub fn staged_for_suggestion(repo: &Path) -> Result<(Vec<StagedEntry>, Vec<u8>), GitError> {
 	let mut args = vec!["--cached"];
 	args.extend(COMMON);
 	args.extend(["--submodule=short", "--patch-with-raw", "-z", "--"]);
@@ -102,8 +105,10 @@ pub fn staged_for_suggestion(repo: &Path) -> Result<(Vec<String>, Vec<u8>), GitE
 
 /// `--patch-with-raw -z` output split into its labels and its patch. Each raw entry is
 /// `:<modes> <ids> <status>` and a NUL, then its path and a NUL, with a second path for R and C;
-/// one more NUL ends the list, and the patch follows.
-pub fn split_raw(out: &[u8]) -> (Vec<String>, Vec<u8>) {
+/// one more NUL ends the list, and the patch follows. Each label carries how many patch sections
+/// git prints for it: two for a type change (T), a delete then an add, and one otherwise (Roger
+/// and Morticia on 8e62019).
+pub fn split_raw(out: &[u8]) -> (Vec<StagedEntry>, Vec<u8>) {
 	let mut labels = Vec::new();
 	let mut at = 0;
 	while out.get(at) == Some(&b':') {
@@ -120,10 +125,10 @@ pub fn split_raw(out: &[u8]) -> (Vec<String>, Vec<u8>) {
 			let Some((second, next)) = field(out, at) else {
 				break;
 			};
-			labels.push(format!("{first} → {}", String::from_utf8_lossy(second)));
+			labels.push((format!("{first} → {}", String::from_utf8_lossy(second)), 1));
 			at = next;
 		} else {
-			labels.push(first);
+			labels.push((first, if status == b"T" { 2 } else { 1 }));
 		}
 	}
 	if out.get(at) == Some(&0) {
