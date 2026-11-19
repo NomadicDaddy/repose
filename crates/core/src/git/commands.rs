@@ -34,10 +34,11 @@ pub enum Verb {
 	/// a sign-in request fails with git's message instead (Steward #35492).
 	Fetch,
 	/// `git pull --ff-only`: the upstream's commits on the user's Pull, fast-forward only, so a
-	/// diverged branch is refused before anything changes and no merge is ever left half done.
+	/// diverged branch is refused with the branch, index and tree as they were (its fetch can
+	/// still move remote-tracking refs) and no merge is ever left half done.
 	Pull,
-	/// `git push <upstream remote> HEAD:<upstream merge ref>`, the checked-out branch to the
-	/// upstream it tracks, on the user's Push: never forced, no tags, no other branch.
+	/// `git push`, given only the lease, remote and refspec `push::push` builds: the checked-out
+	/// branch to its upstream as a fast-forward, never forced, no tags, no other branch.
 	Push,
 }
 

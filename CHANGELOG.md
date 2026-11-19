@@ -29,8 +29,11 @@ All notable changes to repose are recorded here. The format follows
   files have uncommitted changes. Untracked files alone don't hold it.
 - Push sends only the checked-out branch to the upstream it already tracks, named explicitly, so
   a configured push refspec, push remote or mirror setting can't send anything else. It never
-  forces, never pushes tags, and never creates a remote branch. Pull and Push are both off when
-  the branch has no upstream, or when its upstream branch is gone from the remote.
+  forces, never pushes tags, and never creates a remote branch. The server takes it only while
+  its branch still holds the commit repose last fetched, so a branch deleted or moved on the
+  server since then is refused, not recreated or overwritten. Pull and Push are both off when
+  the branch has no upstream, or when its upstream branch is gone from the remote, and Push is
+  off while the branch is behind its upstream.
 - A sign-in request, a diverged branch or a rejected push shows git's own message under
   "Pull failed" or "Push failed". Neither opens a sign-in window or a prompt. If Cancel stops a
   pull mid-checkout and git leaves its lock file, the message names it, as a failed commit does.

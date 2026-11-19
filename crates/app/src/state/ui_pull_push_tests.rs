@@ -24,7 +24,7 @@ fn with_branch(name: &str, upstream: bool, tracked: usize) -> (AppState, PathBuf
 		status.untracked = 2;
 		status.upstream = upstream.then(|| "origin/main".to_string());
 		status.ahead = upstream.then_some(1);
-		status.behind = upstream.then_some(1);
+		status.behind = upstream.then_some(0);
 	}
 	let path = row.path.clone();
 	state.requested_selection = Some(path.clone());

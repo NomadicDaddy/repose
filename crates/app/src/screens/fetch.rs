@@ -86,6 +86,10 @@ pub(super) fn blocked(state: &AppState, repo: &Path, kind: &WriteKind) -> Option
 	if status.ahead.is_none() {
 		return Some("This branch's upstream is gone from the remote".into());
 	}
+	// Push is only ever a fast-forward of what the upstream holds (push::push checks it too).
+	if *kind == WriteKind::Push && status.behind.is_some_and(|b| b > 0) {
+		return Some("This branch is behind its upstream; Pull first".into());
+	}
 	if *kind == WriteKind::Pull && status.staged + status.unstaged + status.conflicts > 0 {
 		return Some("This branch has uncommitted changes to tracked files".into());
 	}
@@ -238,5 +242,15 @@ mod tests {
 				Some("This branch's upstream is gone from the remote")
 			);
 		}
+		// Behind its upstream: Pull can catch up, Push would not be a fast-forward.
+		let mut behind = state_with(true, 0, 0, 0);
+		if let Some(s) = behind.repos[0].status.as_mut() {
+			s.behind = Some(2);
+		}
+		assert_eq!(blocked(&behind, &path, &WriteKind::Pull), None);
+		assert_eq!(
+			blocked(&behind, &path, &WriteKind::Push).as_deref(),
+			Some("This branch is behind its upstream; Pull first")
+		);
 	}
 }

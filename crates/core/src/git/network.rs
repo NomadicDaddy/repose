@@ -40,19 +40,30 @@ pub(super) fn non_interactive(cmd: &mut Command, verb: Verb) {
 	}
 }
 
-/// The arguments a remote verb takes: none for Fetch and Pull. Push takes exactly two, the
-/// checked-out branch's upstream remote and `HEAD:<its merge ref>`, which `remote::push` reads
-/// from the branch's own config just before it runs. With an explicit remote and refspec git
-/// ignores remote.<name>.push, branch.<name>.pushRemote, remote.pushDefault and push.default, and
-/// refuses remote.<name>.mirror, so only that branch can go (Roger 5Q-1, Morticia M on f61983d).
-/// An option, a force (+), a wildcard or a second refspec is refused here.
+/// The arguments a remote verb takes: none for Fetch and Pull. Push takes exactly three, which
+/// `push::push` reads from the branch's own config just before it runs: a lease on its merge ref
+/// at the commit last seen there, its upstream remote, and `HEAD:<the same merge ref>`. With an
+/// explicit remote and refspec git ignores remote.<name>.push, branch.<name>.pushRemote,
+/// remote.pushDefault and push.default, and refuses remote.<name>.mirror, so only that branch can
+/// go (Roger 5Q-1, Morticia M on f61983d); the lease keeps a deleted or moved server branch as it
+/// is (Roger 5Q-3). Any other option, a force (+), a wildcard or a second refspec is refused here.
 pub(super) fn extra_allowed(verb: Verb, extra: &[&str]) -> bool {
 	match (verb, extra) {
-		(Verb::Push, [remote, refspec]) => {
-			let branch = refspec.strip_prefix("HEAD:refs/heads/");
+		(Verb::Push, [lease, remote, refspec]) => {
+			let Some(branch) = refspec.strip_prefix("HEAD:refs/heads/") else {
+				return false;
+			};
+			let seen = lease
+				.strip_prefix("--force-with-lease=refs/heads/")
+				.and_then(|l| l.strip_prefix(branch))
+				.and_then(|l| l.strip_prefix(':'));
 			!remote.is_empty()
 				&& !remote.starts_with('-')
-				&& branch.is_some_and(|b| !b.is_empty() && !b.contains([':', '*', '+']))
+				&& !branch.is_empty()
+				&& !branch.contains([':', '*', '+'])
+				&& seen.is_some_and(|s| {
+					matches!(s.len(), 40 | 64) && s.bytes().all(|c| c.is_ascii_hexdigit())
+				})
 		}
 		// A bare push would follow the repository's push config, which is what this prevents.
 		(Verb::Push, _) => false,
