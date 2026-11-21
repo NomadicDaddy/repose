@@ -27,6 +27,7 @@ fn staged(files: &[&str], diff: &str) -> Staged {
 	Staged {
 		files: files.iter().map(|f| (f.to_string(), 1)).collect(),
 		diff: diff.as_bytes().to_vec(),
+		..Default::default()
 	}
 }
 
@@ -49,7 +50,12 @@ fn a_type_change_is_two_sections_kept_or_left_out_together() {
 		("z.txt".to_string(), 1),
 	];
 	let diff = format!("{small}{gone}{added}{after}").into_bytes();
-	let built = request(&Staged { files, diff }).expect("four sections for three files");
+	let built = request(&Staged {
+		files,
+		diff,
+		..Default::default()
+	})
+	.expect("four sections for three files");
 	assert_eq!(built.left_out, vec!["t", "z.txt"]);
 	assert!(built.text.contains(&small) && !built.text.contains("+++ b/t\n"));
 	let fits = vec![("t".to_string(), 2)];
@@ -57,6 +63,7 @@ fn a_type_change_is_two_sections_kept_or_left_out_together() {
 	let built = request(&Staged {
 		files: fits,
 		diff: both,
+		..Default::default()
 	})
 	.expect("two sections for one file");
 	assert!(built.left_out.is_empty());
@@ -85,7 +92,12 @@ fn real_type_changes_are_sent_whole() {
 	repo.git(&["update-index", "--cacheinfo", &format!("120000,{blob},t")]);
 	let (files, diff) = staged_for_suggestion(&repo.path).expect("staged read");
 	assert_eq!(files, vec![("gl".to_string(), 2), ("t".to_string(), 2)]);
-	let built = request(&Staged { files, diff }).expect("a type change is not refused");
+	let built = request(&Staged {
+		files,
+		diff,
+		..Default::default()
+	})
+	.expect("a type change is not refused");
 	assert!(built.left_out.is_empty());
 	assert!(built.text.contains("- gl\n") && built.text.contains("- t\n"));
 	assert_eq!(built.text.matches("diff --git a/gl b/gl").count(), 2);
@@ -158,7 +170,12 @@ fn a_filename_with_the_rename_arrow_is_sent_like_any_other() {
 		.unwrap_or_default()
 		.to_string();
 	assert_eq!(header, "diff --git a/notes → draft.txt b/notes → draft.txt");
-	let built = request(&Staged { files, diff }).expect("the request is built");
+	let built = request(&Staged {
+		files,
+		diff,
+		..Default::default()
+	})
+	.expect("the request is built");
 	assert!(built.text.contains("- notes → draft.txt\n"));
 	assert!(built.text.contains("+draft"));
 }
@@ -198,7 +215,12 @@ fn real_staged_paths_are_named_as_git_names_them() {
 		"é.txt",
 	];
 	assert_eq!(names(&files), labels);
-	let built = request(&Staged { files, diff }).expect("the list and the diff line up");
+	let built = request(&Staged {
+		files,
+		diff,
+		..Default::default()
+	})
+	.expect("the list and the diff line up");
 	for label in labels {
 		assert!(
 			built.text.contains(&format!("- {label}\n")),
@@ -251,6 +273,11 @@ fn a_staged_submodule_sends_its_commit_ids_and_never_its_subjects() {
 		"{text}"
 	);
 	assert_eq!(files, vec![("s".to_string(), 1)]);
-	let built = request(&Staged { files, diff }).expect("one section for one file");
+	let built = request(&Staged {
+		files,
+		diff,
+		..Default::default()
+	})
+	.expect("one section for one file");
 	assert!(!built.text.contains("SECRET-SUBJECT-TWO"));
 }

@@ -96,6 +96,25 @@ pub fn read_outgoing(repo: &Path, upstream: &str) -> Result<HashSet<String>, Git
 		.collect())
 }
 
+/// How many commit subjects a suggestion's style hints carry (A1, Phillip #61712 on #61648).
+pub const STYLE_HINTS: usize = 10;
+
+/// The subject lines of the last `STYLE_HINTS` commits reachable from HEAD, newest first, for a
+/// suggestion's style hints (ai-commit-message-style-hints). `%s` is the subject line only: no
+/// body, author, date, hash or trailer. `--ignore-missing` makes a repository with no commits
+/// read as no subjects rather than an error. Read-only; no network.
+pub fn recent_subjects(repo: &Path) -> Result<Vec<String>, GitError> {
+	let max = format!("--max-count={STYLE_HINTS}");
+	let args = ["-z", "--format=%s", &max, "--ignore-missing", "HEAD", "--"];
+	let bytes = run(repo, Verb::Log, &args)?;
+	Ok(String::from_utf8_lossy(&bytes)
+		.split('\0')
+		.map(|s| s.trim_end_matches('\n'))
+		.filter(|s| !s.is_empty())
+		.map(str::to_string)
+		.collect())
+}
+
 /// The files one commit changed against its first parent.
 pub fn read_commit_files(repo: &Path, hash: &str) -> Result<Vec<CommitFile>, GitError> {
 	let bytes = run(

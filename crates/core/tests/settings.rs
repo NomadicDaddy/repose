@@ -214,6 +214,29 @@ fn the_suggestion_provider_is_off_by_default_and_saves_in_place() {
 	));
 }
 
+/// ai-commit-message-style-hints clause 2: style hints are off by default and when the file never
+/// names them, and they are their own key: turning them on rewrites `suggest_style_hints` alone,
+/// leaves the provider as it was, and reloads.
+#[test]
+fn style_hints_are_off_by_default_and_their_own_setting() {
+	assert!(!Config::default().suggest_style_hints);
+	let path = scratch("style-hints", WRITTEN);
+	let before = config::load_or_create(&path).expect("load");
+	assert!(!before.suggest_style_hints, "unset means off");
+	let mut next = before.clone();
+	next.suggest_style_hints = true;
+	settings::save(&path, &before, &next).expect("save");
+	let text = fs::read_to_string(&path).expect("read back");
+	assert!(text.contains("suggest_style_hints = true"), "{text}");
+	assert_eq!(
+		lines_without(&text, &["suggest_style_hints"]),
+		lines_without(WRITTEN, &["suggest_style_hints"])
+	);
+	let back = config::load_or_create(&path).expect("reload");
+	assert!(back.suggest_style_hints);
+	assert_eq!(back.suggest_messages, before.suggest_messages);
+}
+
 /// close-to-tray clause 9: recording the one-time notice rewrites `tray_notice_shown` alone and
 /// reloads as shown, so the notice never repeats across restarts.
 #[test]

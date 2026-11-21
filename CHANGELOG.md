@@ -16,6 +16,17 @@ All notable changes to repose are recorded here. The format follows
   four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
   The app is unchanged.
 
+## [2.1.0] - 2026-11-21
+
+### Added
+
+- Match recent subjects, beside Message suggestions in Settings, lets Suggest message follow the
+  repository's own commit style. With it on, the request also carries the subject lines of the
+  last 10 commits on the current branch, newest first. It sends no bodies, authors, dates,
+  hashes or branch name, and a repository with no commits adds none. It's off by default, it's
+  its own setting (`suggest_style_hints`), and it can be ticked only once Claude Code is picked.
+  The subjects go before the diff and count inside the 64 KiB, so the cap still holds.
+
 ## [2.0.3] - 2026-11-19
 
 ### Added

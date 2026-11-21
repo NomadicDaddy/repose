@@ -25,6 +25,10 @@ pub struct Config {
 	/// Who writes a suggested commit message (ai-commit-message-suggestions): `off`, the default,
 	/// shows no Suggest message control and runs nothing; `claude` asks the installed Claude Code.
 	pub suggest_messages: SuggestMessages,
+	/// Style hints (ai-commit-message-style-hints, A1): with this on, a suggestion request also
+	/// carries the subjects of the last 10 commits on HEAD. Off by default, and its own switch,
+	/// separate from picking a provider.
+	pub suggest_style_hints: bool,
 	pub commands: Commands,
 	/// Repositories drawn first in the list, kept across launches (repository-pinning). Saved by
 	/// `pins::save`, which rewrites only this key.
@@ -92,6 +96,7 @@ impl Default for Config {
 			tray_notice_shown: false,
 			commands: Commands::default(),
 			suggest_messages: SuggestMessages::Off,
+			suggest_style_hints: false,
 			pinned_repositories: Vec::new(),
 		}
 	}

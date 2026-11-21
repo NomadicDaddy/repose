@@ -155,6 +155,11 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 			"Claude Code",
 		)
 		.on_hover_text(SUGGEST_HELP);
+		// ai-commit-message-style-hints: its own switch, off by default, offered while on (A1).
+		let hints = egui::Checkbox::new(&mut draft.suggest_style_hints, "Match recent subjects");
+		ui.add_enabled(draft.suggest_messages != SuggestMessages::Off, hints)
+			.on_hover_text(HINTS_HELP)
+			.on_disabled_hover_text("Pick Claude Code first.");
 	});
 	heading(
 		ui,
@@ -167,6 +172,7 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 
 /// What choosing Claude Code means, on its hover.
 const SUGGEST_HELP: &str = "Suggest message in the commit box sends the staged diff to the installed Claude Code (claude on the PATH), which sends it to Anthropic under its own sign-in. Nothing is sent until you press it.";
+const HINTS_HELP: &str = "Also sends the subject lines of the last 10 commits on the current branch, so the suggestion follows their style. No bodies, authors or branch name.";
 
 /// A section title and the one line that says what it is for.
 fn heading(ui: &mut Ui, title: &str, help: &str) {

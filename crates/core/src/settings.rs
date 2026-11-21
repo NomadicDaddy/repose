@@ -1,5 +1,5 @@
 //! The settings screen's save (settings-screen clause 3): the roots, excludes, depth, theme, tray
-//! options, suggestion provider and commands written back into config.toml in place. Only a key whose value changed is rewritten:
+//! options, suggestion provider, style hints and commands written back into config.toml in place. Only a key whose value changed is rewritten:
 //! it keeps the comment lines above it, but its value is written fresh, so a comment after the
 //! old value on the same line is dropped (it described that value) and a changed list is written
 //! on one line. Every other key, comment and line stays as it was. `pinned_repositories` and any
@@ -46,6 +46,13 @@ pub fn save(path: &Path, before: &Config, next: &Config) -> Result<(), ConfigErr
 	if next.suggest_messages != before.suggest_messages {
 		let name = suggest_name(next.suggest_messages);
 		set(&mut doc, "suggest_messages", name.into());
+	}
+	if next.suggest_style_hints != before.suggest_style_hints {
+		set(
+			&mut doc,
+			"suggest_style_hints",
+			next.suggest_style_hints.into(),
+		);
 	}
 	if next.commands != before.commands {
 		let commands = commands_table(&mut doc, path)?;

@@ -111,6 +111,10 @@ changed; the GitHub releases are the published ones. The specification is in
   Claude Code, which runs with no tools in an empty folder. Over 64 KiB, the larger files' diffs
   are left out and named under the box. The suggestion fills an empty message, or asks before
   replacing yours, and nothing is committed until you press Commit.
+- Match recent subjects, beside Message suggestions, is off until you tick it
+  (`suggest_style_hints = true`). With it on, Suggest message also sends the subject lines of
+  the last 10 commits on the current branch, so the suggestion follows your style. It sends no
+  commit bodies, authors, dates or branch name, and the subjects count inside the 64 KiB.
 
 ## Command-line flags
 

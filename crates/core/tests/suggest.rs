@@ -24,6 +24,7 @@ fn one(path: &str, size: usize) -> Staged {
 	Staged {
 		files: vec![(path.to_string(), 1)],
 		diff: text.into_bytes(),
+		..Default::default()
 	}
 }
 
@@ -171,10 +172,7 @@ fn nothing_staged_or_cancelled_first_runs_nothing_and_a_missing_cli_says_so() {
 		"claude-never.cmd",
 		"@echo off\n>\"%~dp0ran.txt\" echo ran\n",
 	);
-	let empty = Staged {
-		files: Vec::new(),
-		diff: Vec::new(),
-	};
+	let empty = Staged::default();
 	assert_eq!(
 		suggest_with(never.as_os_str(), &empty, &Cancel::new()),
 		Err(NOTHING_STAGED.to_string())

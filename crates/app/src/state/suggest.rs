@@ -1,5 +1,6 @@
 //! ai-commit-message-suggestions: Suggest message asks the installed Claude Code for a message for
-//! the staged changes, on the user's press only (A1). The staged diff is read and sent on a thread;
+//! the staged changes, on the user's press only (A1). The staged diff, and the last 10 commit
+//! subjects when style hints are on (ai-commit-message-style-hints), are read and sent on a thread;
 //! nothing runs on focus, typing, staging, a refresh or the watcher. The answer fills an empty
 //! message at once, or waits for the user to agree before it replaces what they typed, and it is
 //! never committed by anything but their own Commit.
@@ -11,6 +12,7 @@ use eframe::egui;
 use repose_core::config::SuggestMessages;
 use repose_core::git::Cancel;
 use repose_core::git::diff::staged_for_suggestion;
+use repose_core::git::log::recent_subjects;
 use repose_core::suggest::{CANCELLED, Staged, Suggestion, suggest};
 
 use super::{AppState, Msg};
@@ -61,9 +63,21 @@ impl AppState {
 		let tx = self.sender();
 		let wake = ctx.clone();
 		let repo = repo.to_path_buf();
+		let hints = self.config.suggest_style_hints;
 		std::thread::spawn(move || {
-			let staged = staged_for_suggestion(&repo).map(|(files, diff)| Staged { files, diff });
+			let staged = staged_for_suggestion(&repo).map(|(files, diff)| Staged {
+				files,
+				diff,
+				subjects: Vec::new(),
+			});
 			let result = match staged {
+				Ok(mut staged) if hints => match recent_subjects(&repo) {
+					Ok(subjects) => {
+						staged.subjects = subjects;
+						suggest(&staged, &cancel)
+					}
+					Err(e) => Err(format!("The recent commit subjects could not be read: {e}")),
+				},
 				Ok(staged) => suggest(&staged, &cancel),
 				Err(e) => Err(format!("The staged changes could not be read: {e}")),
 			};

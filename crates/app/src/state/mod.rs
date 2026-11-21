@@ -92,6 +92,8 @@ mod ui_row_clip_tests;
 #[cfg(test)]
 mod ui_row_focus_tests;
 #[cfg(test)]
+mod ui_settings_hints_tests;
+#[cfg(test)]
 mod ui_settings_tests;
 #[cfg(test)]
 mod ui_suggest_tests;

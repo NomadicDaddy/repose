@@ -83,6 +83,10 @@ by Suggest message in the commit box while Settings has Message suggestions on. 
 message, or waits for the user to agree before replacing theirs, and is never committed by
 anything but the user's Commit.
 
+**Style hints**
+: The subject lines of the last 10 commits on HEAD, sent with a suggestion request only while
+Settings has Match recent subjects on, so the suggestion follows the repository's own style.
+
 **Toolkit decision**
 : The first piece of work, now resolved: two small prototypes, one in a native Rust GUI and one in
 Tauri, were measured and screenshotted, and Phillip chose eframe/egui. ADR-001 in
