@@ -9,6 +9,7 @@ use eframe::egui;
 use repose_core::config::{Config, SuggestMessages};
 
 use super::AppState;
+use super::ui_frame::{settle, wheel};
 use super::ui_harness::{click, frame, text_at, texts};
 
 const HINTS: &str = "Match recent subjects";
@@ -31,10 +32,22 @@ fn open(ctx: &egui::Context, state: &mut AppState) {
 	frame(ctx, state, Vec::new());
 }
 
+/// Clicks the painted `label`. The screen scrolls, so when the label is below the fold the wheel
+/// is turned over the screen first, as a user would, until it is painted.
 fn press(ctx: &egui::Context, state: &mut AppState, label: &str) {
-	let shown = frame(ctx, state, Vec::new());
-	let at = text_at(&shown, label).unwrap_or_else(|| panic!("no {label}: {:?}", texts(&shown)));
-	frame(ctx, state, click(at));
+	for _ in 0..5 {
+		let shown = frame(ctx, state, Vec::new());
+		if let Some(at) = text_at(&shown, label) {
+			frame(ctx, state, click(at));
+			return;
+		}
+		// Just above Save, which sits under the scrolling fields, is always inside them.
+		let save =
+			text_at(&shown, "Save").unwrap_or_else(|| panic!("no Save: {:?}", texts(&shown)));
+		frame(ctx, state, wheel(save - egui::vec2(0.0, 60.0)));
+		settle(ctx, state);
+	}
+	panic!("no {label} after scrolling");
 }
 
 fn draft_hints(state: &AppState) -> bool {

@@ -155,12 +155,12 @@ fn fields(ui: &mut Ui, draft: &mut SettingsDraft) {
 			"Claude Code",
 		)
 		.on_hover_text(SUGGEST_HELP);
-		// ai-commit-message-style-hints: its own switch, off by default, offered while on (A1).
-		let hints = egui::Checkbox::new(&mut draft.suggest_style_hints, "Match recent subjects");
-		ui.add_enabled(draft.suggest_messages != SuggestMessages::Off, hints)
-			.on_hover_text(HINTS_HELP)
-			.on_disabled_hover_text("Pick Claude Code first.");
 	});
+	// ai-commit-message-style-hints: its own switch on its own line, off by default (A1).
+	let hints = egui::Checkbox::new(&mut draft.suggest_style_hints, "Match recent subjects");
+	ui.add_enabled(draft.suggest_messages != SuggestMessages::Off, hints)
+		.on_hover_text(HINTS_HELP)
+		.on_disabled_hover_text("Pick Claude Code first.");
 	heading(
 		ui,
 		"Commands",
