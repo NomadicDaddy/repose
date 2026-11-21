@@ -49,6 +49,20 @@ fn the_hints_are_the_ten_newest_subjects_and_nothing_else() {
 	assert!(!joined.contains("main"), "no branch name");
 }
 
+/// A first paragraph of more than one line still gives only its first line (Roger #61751,
+/// Morticia M-1 #61752): git's `%s` would join the lines into one subject and send the rest.
+#[test]
+fn a_first_paragraph_of_two_lines_gives_only_its_first_line() {
+	let repo = TempRepo::new("hints-paragraph");
+	let message = "First line\nCONTINUATION-MARKER\n\nreal body\n";
+	repo.git_with_input(&["commit", "--allow-empty", "-q", "-F", "-"], message);
+	repo.git(&["commit", "--allow-empty", "-q", "-m", "plain subject"]);
+	assert_eq!(
+		recent_subjects(&repo.path).expect("subjects"),
+		vec!["plain subject", "First line"]
+	);
+}
+
 /// A repository with no commits yet reads as no subjects, not an error, and adds no hints block.
 #[test]
 fn a_repository_with_no_commits_adds_no_hints() {

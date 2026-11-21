@@ -100,17 +100,20 @@ pub fn read_outgoing(repo: &Path, upstream: &str) -> Result<HashSet<String>, Git
 pub const STYLE_HINTS: usize = 10;
 
 /// The subject lines of the last `STYLE_HINTS` commits reachable from HEAD, newest first, for a
-/// suggestion's style hints (ai-commit-message-style-hints). `%s` is the subject line only: no
-/// body, author, date, hash or trailer. `--ignore-missing` makes a repository with no commits
-/// read as no subjects rather than an error. Read-only; no network.
+/// suggestion's style hints (ai-commit-message-style-hints). Each is the literal first line of
+/// the raw message (`%B`), and nothing else: not `%s`, which joins a first paragraph's lines into
+/// one (Roger #61751, Morticia M-1 #61752), so no body, author, date, hash or trailer is kept.
+/// `--ignore-missing` makes a repository with no commits read as no subjects rather than an
+/// error. Read-only; no network.
 pub fn recent_subjects(repo: &Path) -> Result<Vec<String>, GitError> {
 	let max = format!("--max-count={STYLE_HINTS}");
-	let args = ["-z", "--format=%s", &max, "--ignore-missing", "HEAD", "--"];
+	let args = ["-z", "--format=%B", &max, "--ignore-missing", "HEAD", "--"];
 	let bytes = run(repo, Verb::Log, &args)?;
 	Ok(String::from_utf8_lossy(&bytes)
 		.split('\0')
-		.map(|s| s.trim_end_matches('\n'))
-		.filter(|s| !s.is_empty())
+		.filter_map(|message| message.lines().next())
+		.map(|line| line.trim_end_matches('\r'))
+		.filter(|line| !line.is_empty())
 		.map(str::to_string)
 		.collect())
 }
