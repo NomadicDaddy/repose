@@ -13,7 +13,7 @@ files, read-only diffs and files with highlighting, and a commit box. Scope sett
 
 | Question           | Answer                                                                 |
 | ------------------ | ---------------------------------------------------------------------- |
-| Changes            | View, stage, unstage, discard and commit. No push or pull (ADR-003).   |
+| Changes            | View, stage, unstage, discard, commit; Fetch, Pull, Push (ADR-003).    |
 | Files              | Read-only diffs and a read-only file viewer. Editing is VS Code's.     |
 | Discovery          | Scan configured roots; worktrees grouped under their main repository.  |
 | History            | Linear log, expandable commits, Outgoing group, optional lanes.        |

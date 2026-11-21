@@ -90,3 +90,13 @@ suggestions on, sends the staged diff (up to 64 KiB of whole-file diffs, with ev
 listed) to the installed Claude Code on stdin. It runs in an empty temporary folder with no tools,
 no MCP servers, no hooks and no saved session, under its own sign-in. Nothing else sends it
 (`ai-commit-message-suggestions`, A1).
+
+Shipped in 2.0.1: Pull and Push on request, each only from its own user action. Pull fast-forwards
+only. Push sends only the checked-out branch to the upstream it tracks, under a lease on the commit
+last seen there, so it is never forced and never recreates a branch deleted on the server
+(`remote-pull-push`, A1).
+
+Revised for v2.1 (Phillip #61712 on #61648, wording #61716 on #61714): style hints. With their own
+Settings switch on (off by default), a suggestion request also carries the first line of each of
+the last 10 commit messages on HEAD, newest first, and nothing else of them. They count inside the
+64 KiB (`ai-commit-message-style-hints`, A1).
