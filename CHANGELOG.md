@@ -30,8 +30,8 @@ All notable changes to repose are recorded here. The format follows
 
 ### Known limitations
 
-These come from the full audit run before release. The first four are in the app, were already
-in 1.5.0, and are fixed in 2.1.1 before repose pauses.
+These come from the full audit run before release. The first four are in the app and were already
+in 1.5.0. The fixes are planned for 2.1.1, before work on repose pauses.
 
 - Activity's filter cards show no keyboard focus.
 - An empty Activity grid takes keyboard focus without a label.
