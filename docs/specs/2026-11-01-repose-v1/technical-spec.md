@@ -40,12 +40,24 @@ keeps selection and scroll stable across refreshes.
 Decision: every git read and write goes through the installed `git` executable, through one module
 (`core::git::commands`) with an allowed-verb list: status, rev-parse, log, show, diff, ls-tree,
 cat-file, add, restore, clean, commit, rm --cached, symbolic-ref, remote (only as
-`remote --verbose`; extra arguments are refused), for-each-ref, and fetch (only as
-`fetch --quiet --no-recurse-submodules --no-auto-maintenance`, on the user's Fetch, with
-`GCM_INTERACTIVE=never`, `-c credential.interactive=false`, `-c protocol.ext.allow=never`,
-`-c core.askPass=` and no askpass variables, beside `GIT_TERMINAL_PROMPT=0`; extra arguments are
-refused).
-Fetch runs in the per-repository write queue, so it never overlaps a stage or commit there. Every call runs with
+`remote --verbose`; extra arguments are refused), for-each-ref, and the three verbs that reach a
+remote (`core::git::network`), each only on its own user action:
+- fetch, only as `fetch --quiet --no-recurse-submodules --no-auto-maintenance`, on the user's
+  Fetch;
+- pull, only as `pull --ff-only --no-rebase --no-autostash --quiet --no-recurse-submodules`, on
+  the user's Pull, with `-c maintenance.auto=false`, `-c gc.auto=0` and
+  `-c submodule.recurse=false`;
+- push, only as `push --quiet --no-follow-tags --no-recurse-submodules` plus the three arguments
+  `core::git::push` builds: `--force-with-lease=<merge ref>:<commit last seen there>`, the
+  branch's upstream remote, and `<commit>:<the same merge ref>`, on the user's Push. It sends the
+  checked-out branch to its upstream as a fast-forward, never forced, with no tags and no other
+  branch.
+
+All three run with `GCM_INTERACTIVE=never`, `SSH_ASKPASS_REQUIRE=never`,
+`-c credential.interactive=false`, `-c protocol.ext.allow=never`, `-c core.askPass=` and no
+askpass variables, beside `GIT_TERMINAL_PROMPT=0`. Any other argument is refused.
+Fetch, Pull and Push run in the per-repository write queue, so none overlaps a stage or commit
+there. Every call runs with
 `-c core.fsmonitor=false`, writes included, so a repository's own config cannot name a program for
 repose to run, and with `GIT_NO_LAZY_FETCH=1`, so a partial clone's missing object is an error and
 never a fetch from its remote. Machine-readable forms only:
@@ -274,7 +286,8 @@ The gate caches passes only, never failures (`scripts/gate-cache.ps1`, records i
 `target/gate-cache`). The format, clippy, test, release-build, file-length and notices steps
 are skipped as `CACHED` when the key of their complete inputs matches an earlier pass. That key
 covers each input file's path and SHA-256, plus the tool versions and cargo environment, the Git
-version for the tests, and the licence inputs and standard-library notice hash for the notices.
+version and the SHA-256 of the global and system git config for the tests (a hash only, never the
+config text), and the licence inputs and standard-library notice hash for the notices.
 The release build's key also carries `git rev-parse HEAD` and the dirty bit `build.rs` stamps
 (tracked files differing from the commit), so a commit of the same bytes rebuilds and the
 executable names its own commit. A cached release build also requires the executable it
@@ -284,7 +297,8 @@ only when both were measured, and with their original time stated. `cargo audit`
 staging always run, `-NoCache` forces every step, and `scripts/gate-cache-test.ps1` runs first
 in every gate. The release table cites its log. These are build-time tools: PowerShell 7 and cargo-audit are prerequisites of the gate, not
 of running repose. The hooks are smokestack deliveries under `scripts/smokestack/hooks`: a
-leak-guard pre-commit, with post-merge, post-checkout and reference-transaction hooks beside it.
+leak-guard pre-commit, and a pre-push that runs force-push-guard.sh, aidd-history-guard.sh and
+screenshot-guard.sh, with post-merge, post-checkout and reference-transaction hooks beside them.
 A clone turns them on with `git config core.hooksPath scripts/smokestack/hooks` (README, "Build,
 run and install").
 

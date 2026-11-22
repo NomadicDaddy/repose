@@ -11,10 +11,10 @@ All notable changes to repose are recorded here. The format follows
 - The shared gate scripts under `scripts/smokestack/` are at smokestack 0.8.0. The delivery adds a
   pre-push hook and the aidd-history, force-push and screenshot guards beside the leak guard, and
   updates the leak guard's self-test.
-- The technical spec and task order describe 1.5.0 as shipped: the light theme beside the dark
-  `look.jpg` palette, the configurable scan depth (default 3, 1 to 8) and skip names, and the
-  four records once held for a later go (Fetch, the light theme, lanes and Settings), all shipped.
-  The app is unchanged.
+- The technical spec and task order describe 2.1.0. The technical spec's allowed verbs now
+  include pull and push with their exact arguments and no-prompt settings, its hooks include the
+  pre-push and its three guards, and its test cache key includes a hash of the global and system
+  git config. The task order says v1.6 to v2.1 have shipped. The app is unchanged.
 
 ## [2.1.0] - 2026-11-21
 
