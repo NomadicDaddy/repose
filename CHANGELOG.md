@@ -28,6 +28,22 @@ All notable changes to repose are recorded here. The format follows
   its own setting (`suggest_style_hints`), and it can be ticked only once Claude Code is picked.
   The subjects go before the diff and count inside the 64 KiB, so the cap still holds.
 
+### Known limitations
+
+These come from the full audit run before release. The first four are in the app, were already
+in 1.5.0, and are fixed in 2.1.1 before repose pauses.
+
+- Activity's filter cards show no keyboard focus.
+- An empty Activity grid takes keyboard focus without a label.
+- The Activity heat map's shades are too close to tell apart at 3:1 contrast. While the loading
+  glyphs play, the cells are briefly fainter still.
+- In the dark theme, the D (deleted) and C (conflicted) letters fail AA contrast on a selected row.
+- For developers, not in the app: the gate builds and tests without `--locked`; the release,
+  clippy and test cache keys leave out `assets/icon`; the leak-guard self-test isn't cached; and
+  nine source files sit within five lines of the 300-line limit.
+- Six of the 33 applicable audits aren't current for this release: data architecture, hygiene,
+  logic and tech debt didn't finish, and feasibility and Lighthouse couldn't run.
+
 ## [2.0.3] - 2026-11-19
 
 ### Added
