@@ -14,7 +14,8 @@ All notable changes to repose are recorded here. The format follows
 - The technical spec and task order describe 2.1.0. The technical spec's allowed verbs now
   include pull and push with their exact arguments and no-prompt settings, its hooks include the
   pre-push and its three guards, and its test cache key includes a hash of the global and system
-  git config. The task order says v1.6 to v2.1 have shipped. The app is unchanged.
+  git config. The task order says v1.6 to v2.1 are implemented on main, with 2.1.0 the release
+  candidate. The app is unchanged.
 
 ## [2.1.0] - 2026-11-21
 

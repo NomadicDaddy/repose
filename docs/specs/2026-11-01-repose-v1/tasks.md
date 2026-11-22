@@ -41,6 +41,7 @@ slot under the team's rules; the spec and record edits do not.
 After the first release (2026-11-16 update): the four records once held for Phillip's go have all
 shipped: `remote-sync` (Fetch on request) in 1.1.0, `light-theme` and `branch-graph-lanes` in
 1.2.0, and `settings-screen` in 1.3.0. Later releases added Activity (1.4.0, 1.5.0), the program
-icon (1.4.0) and the per-user installer (1.5.0). v1.6 to v2.1 have shipped since (among them close
-to tray, Pull and Push, Check visibility, Suggest message and its style hints), and
+icon (1.4.0) and the per-user installer (1.5.0). v1.6 to v2.1 are implemented on main since
+(among them close to tray, Pull and Push, Check visibility, Suggest message and its style hints),
+with 2.1.0 the release candidate after v1.5.0, and
 `.aidd/spec.md` lists what is open; this task order covers v1.0 only.
